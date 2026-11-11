@@ -15,7 +15,18 @@ const TABLES = {
   annual: '| Line | 2027 | 2028 | 2029 |',
   balanceSheets: '| Line | Opening (Dec 31, 2026) |',
   kpis: '| Metric | m=1 | m=6 | m=12 | m=24 | m=36 |',
-  week13: '| Week | Days | Receipts |'
+  week13: '| Week | Days | Receipts |',
+  // Section 9: product development acceleration
+  hubCapacity: '| Month | Existing team | Contractors: 8',
+  hubCost: '| Month | Contractors | Engineer pay |',
+  hubMonthly: '| m | Month | Cost | Δ New ARR |',
+  hubOutcomes: '| Slip k | Ship month | Probability (fraction) | Probability | Months gained | Cost | Benefit NPV | NPV | Δ ARR at month 12',
+  hubSide: '| Integrations hub, on target |',
+  hubExpected: '| Measure | On target (k = 0) | Expected case | Planning case (k = 1) |',
+  hostMonthly: '| m | Month | Cost | Δ Hosting |',
+  hostOutcomes: '| Slip k | Ship month | Probability (fraction) | Probability | Months gained | Cost | Benefit NPV | NPV | Hosting saved',
+  hostSide: '| Hosting optimization, on target |',
+  hostExpected: '| Measure | On target (k = 0, also the planning case) | Expected case |'
 };
 
 function splitRow(line) {

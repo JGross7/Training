@@ -40,13 +40,13 @@ const PAGE = 'file://' + path.join(ROOT, 'index.html');
     console.log((t00 ? 'PASS' : 'FAIL') + ' T00 Reference tables in index.html match SPEC.md');
     if (!t00) failed++;
 
-    // 3. Normal page: renders, badge reads Integrity 16/16, no errors
+    // 3. Normal page: renders, badge reads Integrity 20/20, no errors
     const app = await browser.newPage();
     app.on('pageerror', e => errors.push(String(e)));
     await app.goto(PAGE);
     const badge = (await app.textContent('#badge')).trim();
     const rows = await app.$$eval('#app table tr', trs => trs.length);
-    const badgeOk = badge === 'Integrity 16/16' && rows > 36;
+    const badgeOk = badge === 'Integrity 20/20' && rows > 36;
     console.log((badgeOk ? 'PASS' : 'FAIL') + ' PAGE Header badge "' + badge + '", ' + rows + ' table rows rendered');
     if (!badgeOk) failed++;
 
@@ -125,7 +125,7 @@ const PAGE = 'file://' + path.join(ROOT, 'index.html');
       stored: await app.evaluate(() => window.__APP__.state.A.churnRateMonthly) };
     check('Churn of 1.2% is stored as 0.012', after.stored === 0.012, String(after.stored));
     check('Editing churn recalculates ARR and shows change vs plan', after.arr === '$28.1M' && /▼ -\$1\.9M vs plan/.test(after.delta), JSON.stringify(after));
-    check('The change is counted and integrity still passes', after.count === '1' && after.badge === 'Integrity 16/16', JSON.stringify(after));
+    check('The change is counted and integrity still passes', after.count === '1' && after.badge === 'Integrity 20/20', JSON.stringify(after));
     await app.fill('[data-path="openingArr"]', '');
     await app.waitForTimeout(400);
     const err = { badge: (await app.textContent('#badge')).trim(), msg: await app.textContent('#input-error'), arr: await app.textContent('[data-kpi="arr"] .kpi-value') };
@@ -135,12 +135,12 @@ const PAGE = 'file://' + path.join(ROOT, 'index.html');
     const reset = { badge: (await app.textContent('#badge')).trim(), arr: await app.textContent('[data-kpi="arr"] .kpi-value'),
       delta: await app.textContent('[data-kpi="arr"] [data-delta]'), hidden: await app.$eval('#change-count', e => e.hidden),
       churn: await app.inputValue('[data-path="churnRateMonthly"]'), err: (await app.textContent('#input-error')).trim() };
-    check('Reset restores the plan', reset.badge === 'Integrity 16/16' && reset.arr === '$30.0M' && reset.delta === 'Same as plan' && reset.hidden &&
+    check('Reset restores the plan', reset.badge === 'Integrity 20/20' && reset.arr === '$30.0M' && reset.delta === 'Same as plan' && reset.hidden &&
       reset.churn === '0.6' && reset.err === '', JSON.stringify(reset));
     await app.click('details[data-group="Debt, covenant and cash"] > summary');
     await app.fill('[data-path="cashFloor"]', '30,000,000'); await app.waitForTimeout(400);
     const floor = await app.evaluate(() => [window.__APP__.state.A.cashFloor, window.__APP__.state.A.guardrails.cashFloor]);
-    check('The cash floor input sets both floors', floor[0] === 30000000 && floor[1] === 30000000 && (await app.textContent('#badge')).trim() === 'Integrity 16/16', JSON.stringify(floor));
+    check('The cash floor input sets both floors', floor[0] === 30000000 && floor[1] === 30000000 && (await app.textContent('#badge')).trim() === 'Integrity 20/20', JSON.stringify(floor));
     await app.click('#reset-assumptions');
 
     // Phone width: no sideways scrolling of the page, and the cards are on screen.
@@ -158,7 +158,8 @@ const PAGE = 'file://' + path.join(ROOT, 'index.html');
     await ev.goto(PAGE);
     await ev.click('[data-view-tab="initiatives"]');
     const tpls = await ev.$$eval('[data-template]', els => els.map(e => e.getAttribute('data-template') + ':' + e.querySelector('b').textContent));
-    check('Five templates', tpls.join('|') === 'tradeShow:Trade show or event|hireSdrs:Hire SDRs|hireAes:Hire AEs|paidCampaign:Paid campaign|partnerProgram:Partner program', tpls.join('|'));
+    check('Seven templates', tpls.join('|') === 'tradeShow:Trade show or event|hireSdrs:Hire SDRs|hireAes:Hire AEs|paidCampaign:Paid campaign|partnerProgram:Partner program|' +
+      'accelerateRevenue:Pull in a revenue milestone|accelerateCost:Pull in a cost-saving milestone', tpls.join('|'));
     const fieldsOf = () => ev.$$eval('#init-fields [data-param]', els => els.map(e => e.getAttribute('data-param')));
     check('Trade show asks for booth, travel, staff days and cost, leads, funnel and month',
       (await fieldsOf()).join(',') === 'name,month,channel,booth,travel,staffDays,dayCost,expectedLeads', (await fieldsOf()).join(','));
@@ -167,7 +168,7 @@ const PAGE = 'file://' + path.join(ROOT, 'index.html');
       tsDefaults.travel === '12,000' && tsDefaults.staffDays === '20' && tsDefaults.dayCost === '800' && tsDefaults.expectedLeads === '200' &&
       tsDefaults.name === 'Trade show, Apr 2027', JSON.stringify(tsDefaults));
     const everyField = [];
-    for (const t of ['hireSdrs', 'hireAes', 'paidCampaign', 'partnerProgram', 'tradeShow']) {
+    for (const t of ['hireSdrs', 'hireAes', 'paidCampaign', 'partnerProgram', 'accelerateRevenue', 'accelerateCost', 'tradeShow']) {
       await ev.click('[data-template="' + t + '"]');
       const want = await ev.evaluate(k => ['name'].concat(Object.keys(Engine.TEMPLATE_PARAMS[k])).sort().join(','), t);
       const got = (await fieldsOf()).sort().join(',');
@@ -209,7 +210,7 @@ const PAGE = 'file://' + path.join(ROOT, 'index.html');
     check('Sources explain NPV with its number', srcText.includes('$202,197') && srcText.includes('0.95% a month'));
     await ev.click('[data-view-tab="stand"]');
     const standDelta = await ev.textContent('[data-kpi="arr"] [data-delta]');
-    check('Where we stand includes the initiative: ARR +$133.1K vs plan', standDelta === '▲ +$133.1K vs plan' && (await ev.textContent('#badge')).trim() === 'Integrity 16/16', standDelta);
+    check('Where we stand includes the initiative: ARR +$133.1K vs plan', standDelta === '▲ +$133.1K vs plan' && (await ev.textContent('#badge')).trim() === 'Integrity 20/20', standDelta);
     await ev.click('[data-view-tab="initiatives"]');
     await ev.click('[data-template="hireAes"]');
     check('Hire AEs asks for the ramp, default 4 months', (await ev.inputValue('#init-fields [data-param="rampMonths"]')) === '4');
@@ -219,7 +220,7 @@ const PAGE = 'file://' + path.join(ROOT, 'index.html');
       ae.payback === 'Month 30' && ae.roi === '35%' && ae.arrPerDollar === '$1.09' && ae.arr === '+$148.0K', JSON.stringify(ae));
     const both = await ev.$$eval('#together [data-tile]', els => Object.fromEntries(els.map(e => [e.getAttribute('data-tile'), e.querySelector('.t-value').textContent])));
     check('Together: NPV $393.6K and ARR +$281.2K (SPEC T43)', both.npv === '$393.6K' && both.arr === '+$281.2K', JSON.stringify(both));
-    check('Badge still 16/16 with both', (await ev.textContent('#badge')).trim() === 'Integrity 16/16');
+    check('Badge still 20/20 with both', (await ev.textContent('#badge')).trim() === 'Integrity 20/20');
     // Edit the trade show: 400 badge scans.
     await ev.click('.decision[data-init="init1"] [data-edit]');
     check('Edit loads the trade show into the form', (await ev.inputValue('#init-fields [data-param="expectedLeads"]')) === '200' && (await ev.textContent('#init-submit')) === 'Save changes');
@@ -247,6 +248,92 @@ const PAGE = 'file://' + path.join(ROOT, 'index.html');
     check('Where we stand counts only included initiatives', delta400 === '▲ +$' + (expectedDelta / 1000).toFixed(1) + 'K vs plan', delta400);
     await ev.click('[data-remove="init1"]'); await ev.click('[data-remove="init2"]'); await ev.waitForTimeout(100);
     check('Removing every initiative leaves the empty state', (await ev.$$('.decision')).length === 0 && (await ev.$eval('#init-count', e => e.hidden)));
+    // 6. Product acceleration cards (Step 4b, SPEC.md 9.8 and 9.13), on a fresh page.
+    const ac = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    ac.on('pageerror', e => errors.push(String(e)));
+    await ac.goto(PAGE);
+    await ac.click('[data-view-tab="initiatives"]');
+    await ac.click('[data-template="accelerateRevenue"]');
+    const accFields = await ac.$$eval('#init-fields [data-param]', els => Object.fromEntries(els.map(e => [e.getAttribute('data-param'), e.value])));
+    check('Revenue pull-in form defaults come from SPEC 9.2', accFields.milestone === 'integrations_hub' && accFields.contractors === '8' && accFields.contractorMonthlyRate === '20,000' &&
+      accFields.engineers === '2' && accFields.engineerStartMonth === '2' && accFields.engineerLoadedCostAnnual === '215,000' && accFields.recruitingEach === '20,000' &&
+      accFields.afterLaunch === 'replace_planned_hire' && accFields.toolingOneTime === '30,000' && accFields.toolingMonthly === '10,000' && accFields.toolingSpeedup === '15' &&
+      accFields.cloudMonthly === '6,000' && accFields.cloudLine === 'rd' && accFields.name === 'Pull in Enterprise integrations hub', JSON.stringify(accFields));
+    await ac.waitForTimeout(250);
+    const accPreview = await ac.textContent('#init-preview');
+    check('Preview names the target month, the odds, the expected cost and NPV', /ships Jun 2027.*6 months sooner \(50% chance\).*expected cost \$1\.5M, expected NPV -\$1\.1M/.test(accPreview), accPreview);
+    await ac.click('#init-submit'); await ac.waitForTimeout(300);
+    const accTiles = async i => ac.$$eval('.decision', (cards, k) => Object.fromEntries(Array.from(cards[k].querySelectorAll(':scope > .tiles [data-tile]'))
+      .map(e => [e.getAttribute('data-tile'), e.querySelector('.t-value').textContent + ' | ' + (e.querySelector('.t-note') ? e.querySelector('.t-note').textContent : '')])), i);
+    const hubT = await accTiles(0);
+    check('Hub card: months gained 5.0 expected, 6 on target', /^5\.0 months \| 6 months if it ships on target, Jun 2027/.test(hubT.monthsGained), hubT.monthsGained);
+    check('Hub card: 50% chance of hitting Jun 2027', /^50% \| Expected ship month 6\.98/.test(hubT.onTime), hubT.onTime);
+    check('Hub card: expected cost $1.5M, $176.0K per month of slip', /^\$1\.5M \| On target \$1\.3M; each month of slip adds \$176\.0K/.test(hubT.cost), hubT.cost);
+    check('Hub card: expected NPV -$1.1M, on target -$841.3K', /^-\$1\.1M \| On target -\$841\.3K/.test(hubT.npv), hubT.npv);
+    check('Hub card: payback not within 36 months', /^Not within 36 months \| 0% chance/.test(hubT.payback), hubT.payback);
+    check('Hub card: gross margin effect +0.01 pts at Dec 2027', /^\+0\.01 pts \| Trailing 12 months, vs 77\.45%/.test(hubT.grossMargin), hubT.grossMargin);
+    const hubCost = await ac.$$eval('.decision [data-chart="accel-cost"] [data-bar-month]', els => els.map(e => e.getAttribute('data-bar-month')));
+    check('Added cost by month: bars from Jan to Dec 2027 in the expected case', hubCost.join(',') === '1,2,3,4,5,6,7,8,9,10,11,12', hubCost.join(','));
+    check('Added cost note shows the expected total', /Total \$1,478,417\./.test(await ac.textContent('.decision [data-cost-note]')));
+    const odds = await ac.$$eval('.decision [data-chart="odds"] [data-odds]', els => els.map(e => e.getAttribute('data-odds') + ':' + e.querySelector('text').textContent));
+    check('Ship date odds: 50%, 25%, 13% ... for months 6 to 12', odds.join(',') === '6:50%,7:25%,8:13%,9:6.3%,10:3.1%,11:1.6%,12:1.6%', odds.join(','));
+    const benefitBars = await ac.$$eval('.decision [data-chart="benefit"] [data-bar-month]', els => els.length);
+    check('Benefit by month: revenue bars from Jul 2027 on', benefitBars === 30, String(benefitBars));
+    check('Benefit note: extra new ARR and revenue', /Extra new ARR \$201,145, extra revenue \$446,156 and gross profit \$408,168/.test(await ac.textContent('.decision [data-benefit-note]')));
+    const sideRow = async (key) => ac.$eval('.decision [data-side] tr[data-side-row="' + key + '"]', tr => Array.from(tr.children).map(c => c.textContent).join('|'));
+    check('Side-by-side: ship month row', (await sideRow('shipMonth')) === 'Ship month|Never|Dec 2027|month 6.98|5.0 months sooner', await sideRow('shipMonth'));
+    check('Side-by-side: NPV value equals the card NPV', (await sideRow('npv')) === 'NPV of net flow at 12%|n/a|708,401|(365,569)|(1,073,970)' && /-\$1\.1M/.test(hubT.npv), await sideRow('npv'));
+    check('Side-by-side: net flow value equals cumulative net cash flow', (await sideRow('netFlow')).endsWith('|(1,057,281)'), await sideRow('netFlow'));
+    await ac.click('.decision [data-case="onTarget"]'); await ac.waitForTimeout(250);
+    check('On target: side-by-side matches SPEC 9.11 (ARR at month 36 and NPV)', (await sideRow('arr36')) === 'ARR at month 36|45,700,687|1,055,509|1,349,816|294,307' &&
+      (await sideRow('npv')) === 'NPV of net flow at 12%|n/a|708,401|(132,857)|(841,257)', (await sideRow('arr36')) + ' / ' + (await sideRow('npv')));
+    check('On target: added cost total is 1,305,167', /Total \$1,305,167\./.test(await ac.textContent('.decision [data-cost-note]')));
+    await ac.click('.decision [data-case="expected"]'); await ac.waitForTimeout(250);
+    const ret = await ac.$$eval('.decision [data-returns] tr[data-return-row]', trs => Object.fromEntries(trs.map(tr => [tr.getAttribute('data-return-row'), Array.from(tr.children).slice(1).map(c => c.textContent).join('|')])));
+    check('Returns: NPV, payback, benefit and cost NPV, value and cost of a month', ret.npv === '-$1.1M|-$841.3K|-$2.2M' && ret.payback === 'Not within 36 months|Not within 36 months|Not within 36 months' &&
+      ret.benefitNpv === '$336.9K|$410.4K|$0' && ret.valuePerMonthGained === '$67.2K|$68.4K|n/a' && ret.costPerMonthGained === '$281.3K|$208.6K|n/a', JSON.stringify(ret));
+    const gmTiles = await ac.$$eval('.decision [data-gm] [data-tile]', els => els.map(e => e.querySelector('.t-value').textContent));
+    check('Gross margin effect at months 12, 24, 36', gmTiles.join(',') === '+0.01 pts,+0.06 pts,+0.06 pts', gmTiles.join(','));
+    const share = await ac.textContent('.decision [data-pass-share="burnMultiple"]');
+    check('Guardrails: burn multiple passes in 75% of outcomes', /Passes in 75% of outcomes/.test(share), share);
+    const nc = await ac.textContent('.decision [data-not-counted]');
+    check('Not counted: team time freed and ARR after Dec 2029', /40\.1 person-months, \$718,906/.test(nc) && /NPV would be -\$418\.6K/.test(nc) && /\$246,184 of extra ARR/.test(nc), nc);
+    const hv = await ac.textContent('.decision [data-verdict]');
+    check('Hub verdict in plain English', hv.startsWith('Pulls Enterprise integrations hub in from Dec 2027 to Jun 2027, 6 months sooner, if the new date holds (50% chance).') &&
+      /A month sooner is worth \$67\.2K and costs \$281\.3K to buy\./.test(hv), hv);
+    await ac.click('.decision details.more summary');
+    const hubRows = await ac.$$eval('.decision [data-accel-months="expected"] tbody tr', trs => trs.length);
+    check('Month-by-month table has 36 months', hubRows === 36);
+
+    await ac.click('[data-template="accelerateCost"]'); await ac.waitForTimeout(150);
+    await ac.click('#init-submit'); await ac.waitForTimeout(300);
+    const costT = await accTiles(1);
+    check('Hosting card: 2.5 months gained, 67% chance, $570.7K, -$441.4K, +0.23 pts', /^2\.5 months/.test(costT.monthsGained) && /^67% \|/.test(costT.onTime) &&
+      /^\$570\.7K \| On target \$525\.0K; each month of slip adds \$95\.0K/.test(costT.cost) && /^-\$441\.4K/.test(costT.npv) && /^\+0\.23 pts/.test(costT.grossMargin), JSON.stringify(costT));
+    const costBenefit = await ac.$$eval('.decision[data-init="init2"] [data-chart="benefit"] [data-bar-month] [data-series="hostingSaved"]', els => els.length);
+    check('Hosting card: COGS benefit by month (hosting saved)', costBenefit === 5, String(costBenefit));
+    const hostSide = await ac.$eval('.decision[data-init="init2"] [data-side] tr[data-side-row="hosting"]', tr => Array.from(tr.children).map(c => c.textContent).join('|'));
+    check('Hosting card: side-by-side hosting row', hostSide === 'Hosting cost, 36 months|9,119,131|(1,379,930)|(1,493,829)|(113,899)', hostSide);
+    const both2 = await ac.$$eval('#together [data-tile]', els => Object.fromEntries(els.map(e => [e.getAttribute('data-tile'), e.querySelector('.t-value').textContent])));
+    check('Together: hub and hosting in the planning case break a guardrail (SPEC T113)', both2.cost === '$2.0M' && both2.npv === '-$1.5M' && both2.guardrails === '4 of 5 pass', JSON.stringify(both2));
+    check('Badge 20/20 with both pull-ins', (await ac.textContent('#badge')).trim() === 'Integrity 20/20');
+    await ac.click('[data-view-tab="stand"]');
+    check('Where we stand includes the planning case', (await ac.textContent('[data-kpi="arr"] [data-delta]')) === '▲ +$97.8K vs plan', await ac.textContent('[data-kpi="arr"] [data-delta]'));
+    await ac.click('[data-view-tab="initiatives"]');
+    await ac.click('[data-template="accelerateRevenue"]');
+    await ac.selectOption('#init-fields [data-param="engineerStartMonth"]', '14'); await ac.waitForTimeout(200);
+    check('A start month after the planned date blocks Add', (await ac.isDisabled('#init-submit')) && /on or before the planned ship month, Dec 2027/.test(await ac.textContent('#init-fields [data-field="engineerStartMonth"] .err')));
+    const accText = await ac.evaluate(() => document.body.innerText);
+    check('No em dashes on the acceleration cards', !accText.includes('\u2014'));
+
+    const acp = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    acp.on('pageerror', e => errors.push(String(e)));
+    await acp.goto(PAGE);
+    await acp.click('[data-view-tab="initiatives"]'); await acp.click('[data-template="accelerateRevenue"]'); await acp.click('#init-submit'); await acp.waitForTimeout(300);
+    await acp.click('.decision details.more summary');
+    const acw = await acp.evaluate(() => ({ sw: document.documentElement.scrollWidth, right: Math.max(...Array.from(document.querySelectorAll('.card, .tile, .chart svg')).map(e => e.getBoundingClientRect().right)) }));
+    check('Phone: acceleration card has no horizontal page scroll', acw.sw <= 390 && acw.right <= 390, JSON.stringify(acw));
+
     // Phone width on the evaluator with a card and its sources open.
     const evp = await browser.newPage({ viewport: { width: 390, height: 844 } });
     evp.on('pageerror', e => errors.push(String(e)));
