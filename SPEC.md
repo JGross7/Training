@@ -1159,6 +1159,18 @@ Added in `AUDIT-1.md`. "Reference" expected values come from a second, independe
 | T85 | Every sub-test inside every integrity check can fail |
 | T86 | An initiative hire uses its own loaded cost and stops at its end month |
 
+### 4.8 Tests added in Step 2 (the "Where we stand" view)
+
+The screen reads four engine views that only group the series above: `periods` (months, calendar quarters and calendar years, with partial periods marked), `statements` (P&L and cash flow summed over each period, balance sheet at each period end with an opening column, margins as period profit over period revenue), `arrBridge` (opening ARR, new, expansion, contraction, churn, closing ARR for any run of months) and `kpiCards` (the eight cards with value, plan value, change vs plan, trend and guardrail). "Plan" on the cards is the model run with the default assumptions.
+
+| Test | What it proves |
+|---|---|
+| T90 | Yearly statements reproduce every comparable cell of section 8.2 and the year-end balance sheets of section 8.3 |
+| T91 | Months and quarters add up to years; in every period opening cash plus net change equals ending cash, which equals balance sheet cash; partial years for a July start |
+| T92 | The ARR bridge reproduces the ARR rows of section 8.2 for each year and for all 36 months, and always ties |
+| T93 | The cards show the section 8.4 KPIs at month 12; change vs plan is scenario minus plan; guardrail flags, "not burning" and breaches |
+| UI (in `tests/run.js`) | Eight cards with trend lines; ARR bridge labels; floor and covenant lines on the 13-week chart; month, quarter and year columns; every assumption has an input labeled Actual or Assumption; an edit recalculates and shows change vs plan; a blank input is an error, not zero; Reset; no sideways scrolling on a 390px phone; no em dashes |
+
 ---
 
 ## 5. Units, sign conventions, rounding and glossary

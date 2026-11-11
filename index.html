@@ -4,15 +4,312 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Capital Allocation Copilot</title>
+<meta name="description" content="Fictional company, for demonstration. Capital allocation decisions for Tallwater Software, Inc.">
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface: #fcfcfb; --surface-2: #f2f1ed; --ink: #0b0b0b; --ink-2: #52514e; --muted: #6f6d68;
+  --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11, 11, 11, 0.10); --shadow: 0 1px 2px rgba(11, 11, 11, 0.05);
+  --accent: #2a78d6; --accent-ink: #1c5cab; --accent-wash: rgba(42, 120, 214, 0.10);
+  --up: #2a78d6; --down: #e34948; --total: #898781; --plan-line: #b9b7ae;
+  --good: #0ca30c; --good-ink: #006300; --good-wash: rgba(12, 163, 12, 0.10);
+  --serious: #ec835a; --serious-ink: #a8481f; --serious-wash: rgba(236, 131, 90, 0.14);
+  --critical: #d03b3b; --critical-ink: #b42f2f; --critical-wash: rgba(208, 59, 59, 0.10);
+  --focus: #2a78d6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --surface-2: #232321; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #9a988f;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255, 255, 255, 0.10); --shadow: none;
+    --accent: #3987e5; --accent-ink: #86b6ef; --accent-wash: rgba(57, 135, 229, 0.16);
+    --up: #3987e5; --down: #e66767; --total: #898781; --plan-line: #55544f;
+    --good: #0ca30c; --good-ink: #3fc33f; --good-wash: rgba(12, 163, 12, 0.16);
+    --serious: #ec835a; --serious-ink: #f09b78; --serious-wash: rgba(236, 131, 90, 0.16);
+    --critical: #d03b3b; --critical-ink: #ee7b7b; --critical-wash: rgba(208, 59, 59, 0.18);
+    --focus: #86b6ef;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --surface-2: #232321; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #9a988f;
+  --grid: #2c2c2a; --axis: #383835; --border: rgba(255, 255, 255, 0.10); --shadow: none;
+  --accent: #3987e5; --accent-ink: #86b6ef; --accent-wash: rgba(57, 135, 229, 0.16);
+  --up: #3987e5; --down: #e66767; --total: #898781; --plan-line: #55544f;
+  --good: #0ca30c; --good-ink: #3fc33f; --good-wash: rgba(12, 163, 12, 0.16);
+  --serious: #ec835a; --serious-ink: #f09b78; --serious-wash: rgba(236, 131, 90, 0.16);
+  --critical: #d03b3b; --critical-ink: #ee7b7b; --critical-wash: rgba(208, 59, 59, 0.18);
+  --focus: #86b6ef;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--page); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+h1, h2, h3 { margin: 0; line-height: 1.25; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Header */
+.topbar { position: sticky; top: 0; z-index: 20; background: var(--surface); border-bottom: 1px solid var(--border); }
+.topbar-inner { max-width: 1240px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.brand { flex: 1 1 260px; min-width: 0; }
+.brand h1 { font-size: 17px; font-weight: 650; }
+.brand p { margin: 2px 0 0; font-size: 13px; color: var(--ink-2); }
+.brand .fictional { font-weight: 600; color: var(--ink); }
+.top-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+#badge { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; border: 1px solid var(--border); background: var(--surface-2); color: var(--ink-2); white-space: nowrap; }
+#badge.ok { color: var(--good-ink); background: var(--good-wash); border-color: transparent; }
+#badge.bad { color: var(--critical-ink); background: var(--critical-wash); border-color: transparent; }
+#badge.ok::before { content: "\2713"; }
+#badge.bad::before { content: "!"; font-weight: 800; }
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); cursor: pointer; font-size: 14px; font-weight: 550; }
+.btn:hover { background: var(--surface-2); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary:hover { filter: brightness(1.06); background: var(--accent); }
+.count { min-width: 20px; padding: 0 6px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 12px; line-height: 20px; text-align: center; }
+.count[hidden] { display: none; }
+.banner { max-width: 1240px; margin: 12px auto 0; padding: 0 16px; }
+.banner > div { padding: 10px 14px; border-radius: 10px; font-size: 14px; }
+.banner .error { background: var(--critical-wash); color: var(--critical-ink); }
+.banner .warn { background: var(--serious-wash); color: var(--serious-ink); }
+.banner p { margin: 2px 0; }
+
+/* Layout */
+main { max-width: 1240px; margin: 0 auto; padding: 16px 16px 48px; display: grid; gap: 16px; }
+main.stale { opacity: 0.55; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); padding: 16px; min-width: 0; }
+.section-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap; margin-bottom: 12px; }
+.section-head h2 { font-size: 18px; font-weight: 650; }
+.section-head p { margin: 2px 0 0; font-size: 13px; color: var(--ink-2); }
+.controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--ink-2); }
+select { padding: 6px 28px 6px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.two-col { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); }
+
+/* KPI cards */
+.kpis { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); }
+.kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); padding: 14px 14px 12px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.kpi-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 22px; }
+.kpi-head h3 { font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.kpi-value { font-size: 28px; font-weight: 650; letter-spacing: -0.01em; line-height: 1.15; }
+.kpi-value .unit { font-size: 15px; font-weight: 500; color: var(--ink-2); margin-left: 3px; }
+.delta { font-size: 13px; font-weight: 550; color: var(--ink-2); }
+.delta.good { color: var(--good-ink); }
+.delta.bad { color: var(--critical-ink); }
+.spark { display: block; width: 100%; height: 40px; margin: 4px 0 2px; overflow: visible; }
+.kpi-note { margin: 0; font-size: 12px; color: var(--ink-2); }
+.pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.pill.pass { color: var(--good-ink); background: var(--good-wash); }
+.pill.pass::before { content: "\2713"; }
+.pill.warn { color: var(--serious-ink); background: var(--serious-wash); }
+.pill.warn::before, .pill.fail::before { content: "!"; font-weight: 800; }
+.pill.fail { color: var(--critical-ink); background: var(--critical-wash); }
+.pill.neutral { color: var(--ink-2); background: var(--surface-2); }
+
+/* Guardrails strip */
+.guards { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr)); }
+.guards li { padding: 10px 12px; border-radius: 10px; background: var(--surface-2); display: grid; gap: 2px; }
+.guards .g-top { display: flex; justify-content: space-between; gap: 8px; align-items: center; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.guards .g-value { font-size: 16px; font-weight: 650; }
+.guards .g-note { font-size: 12px; color: var(--ink-2); }
+
+/* Charts */
+.chart { position: relative; }
+.chart svg { display: block; width: 100%; overflow: visible; }
+.chart text { font-size: 11px; fill: var(--muted); }
+.chart .lbl { fill: var(--ink-2); font-size: 12px; font-weight: 600; }
+.chart .lbl-strong { fill: var(--ink); font-size: 12px; font-weight: 650; }
+.chart .gridline { stroke: var(--grid); stroke-width: 1; }
+.chart .baseline { stroke: var(--axis); stroke-width: 1; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0 0 8px; padding: 0; list-style: none; font-size: 12px; color: var(--ink-2); }
+.legend li { display: inline-flex; align-items: center; gap: 6px; }
+.key-box { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.key-line { width: 16px; height: 0; border-top: 2px solid; display: inline-block; }
+.key-line.dashed { border-top-style: dashed; }
+.chart-summary { margin: 8px 0 0; font-size: 13px; color: var(--ink-2); }
+.tooltip { position: absolute; pointer-events: none; z-index: 5; min-width: 170px; padding: 8px 10px; border-radius: 8px; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12); font-size: 12px; color: var(--ink-2); }
+.tooltip strong { display: block; font-size: 15px; color: var(--ink); }
+.tooltip .row { display: flex; justify-content: space-between; gap: 12px; }
+.tooltip .row b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+details.more { margin-top: 10px; }
+details.more summary { cursor: pointer; font-size: 13px; color: var(--accent-ink); font-weight: 550; }
+
+/* Segmented controls and tabs */
+.seg { display: inline-flex; padding: 3px; border-radius: 9px; background: var(--surface-2); gap: 2px; }
+.seg button { border: 0; background: transparent; padding: 5px 12px; border-radius: 7px; cursor: pointer; font-size: 13px; font-weight: 550; color: var(--ink-2); }
+.seg button[aria-selected="true"], .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
+
+/* Financial tables */
+.table-wrap { overflow: auto; max-height: 70vh; border: 1px solid var(--border); border-radius: 10px; }
+table.fin { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+table.fin th, table.fin td { padding: 6px 10px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--grid); }
+table.fin thead th { position: sticky; top: 0; z-index: 2; background: var(--surface-2); font-weight: 600; color: var(--ink-2); }
+table.fin th:first-child, table.fin td:first-child { position: sticky; left: 0; z-index: 1; text-align: left; background: var(--surface); }
+table.fin thead th:first-child { z-index: 3; background: var(--surface-2); }
+table.fin tbody th { font-weight: 400; max-width: 260px; white-space: normal; min-width: 170px; }
+table.fin tr.line > :first-child { padding-left: 22px; color: var(--ink-2); }
+table.fin tr.total > * { font-weight: 600; border-top: 1px solid var(--axis); }
+table.fin tr.grand > * { font-weight: 700; border-top: 2px solid var(--axis); }
+table.fin tr.ratio > *, table.fin tr.memo > * { color: var(--ink-2); font-style: italic; }
+table.fin tr.memo > :first-child, table.fin tr.ratio > :first-child { padding-left: 22px; }
+table.fin td.neg { color: var(--ink); }
+table.compact { font-size: 12px; }
+table.compact td:first-child { min-width: 0; }
+
+/* Assumptions drawer */
+.drawer { position: fixed; top: 0; right: 0; bottom: 0; z-index: 40; width: min(480px, 100vw); background: var(--surface); border-left: 1px solid var(--border); box-shadow: -8px 0 32px rgba(0, 0, 0, 0.16); display: flex; flex-direction: column; transform: translateX(105%); transition: transform 0.2s ease; visibility: hidden; }
+.drawer.open { transform: none; visibility: visible; }
+.drawer-head { padding: 14px 16px 10px; border-bottom: 1px solid var(--border); display: grid; gap: 10px; }
+.drawer-title { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.drawer-title h2 { font-size: 17px; }
+.drawer-head p { margin: 0; font-size: 12px; color: var(--ink-2); }
+.drawer-tools { display: flex; gap: 8px; }
+.drawer-tools input { flex: 1; min-width: 0; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.drawer-body { overflow: auto; padding: 8px 16px 32px; flex: 1; }
+.drawer details.group { border-bottom: 1px solid var(--grid); }
+.drawer details.group > summary { cursor: pointer; padding: 12px 0; font-weight: 600; display: flex; justify-content: space-between; gap: 8px; list-style: none; }
+.drawer details.group > summary::-webkit-details-marker { display: none; }
+.drawer details.group > summary::after { content: "+"; color: var(--ink-2); font-weight: 500; }
+.drawer details.group[open] > summary::after { content: "\2212"; }
+.drawer .group-note { margin: 0 0 8px; font-size: 12px; color: var(--ink-2); }
+.subgroup { margin: 4px 0 12px; }
+.subgroup h3 { font-size: 13px; font-weight: 650; margin: 10px 0 6px; color: var(--ink-2); }
+.field { display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: 2px 10px; align-items: center; padding: 6px 0; }
+.field label { font-size: 13px; }
+.tag { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 4px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em; vertical-align: 1px; }
+.tag.assumption { background: var(--accent-wash); color: var(--accent-ink); }
+.tag.actual { background: var(--surface-2); color: var(--ink-2); }
+.control { display: flex; align-items: center; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); overflow: hidden; }
+.control:focus-within { outline: 2px solid var(--focus); outline-offset: 1px; }
+.control input, .control select { border: 0; outline: 0; background: transparent; width: 100%; min-width: 0; padding: 6px 8px; text-align: right; font-variant-numeric: tabular-nums; }
+.control select { text-align: left; padding-right: 4px; }
+.control input[type="text"].text { text-align: left; }
+.control .affix { padding: 0 8px; font-size: 12px; color: var(--ink-2); white-space: nowrap; }
+.control.check { border: 0; justify-content: flex-end; background: transparent; }
+.control.check input { width: 18px; height: 18px; }
+.hint { grid-column: 1 / -1; font-size: 11.5px; color: var(--ink-2); }
+.field.changed label::after { content: " \2022 changed"; color: var(--accent-ink); font-size: 11px; font-weight: 600; }
+.field.invalid .control { border-color: var(--critical); }
+.field.invalid .hint { color: var(--critical-ink); }
+.hire-row { display: grid; grid-template-columns: 1fr 1.4fr auto; gap: 8px; align-items: center; padding: 4px 0; }
+.icon-btn { border: 1px solid var(--border); background: var(--surface); border-radius: 7px; padding: 5px 9px; cursor: pointer; color: var(--ink-2); }
+.scrim { position: fixed; inset: 0; z-index: 30; background: rgba(0, 0, 0, 0.28); display: none; }
+.scrim.open { display: block; }
+@media (min-width: 1100px) { .scrim.open { display: none; } }
+
+@media (max-width: 560px) {
+  body { font-size: 14px; }
+  .brand h1 { font-size: 15px; }
+  .card { padding: 14px 12px; }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .kpi { padding: 10px; }
+  .kpi-head { flex-wrap: wrap; gap: 4px; }
+  .kpi-value { font-size: 21px; }
+  .kpi-value .unit { font-size: 13px; }
+  .delta { font-size: 12px; }
+  .kpi-note { font-size: 11.5px; }
+  .guards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .guards li { padding: 8px 10px; }
+  table.fin tbody th { min-width: 128px; }
+  .guards .g-top { flex-wrap: wrap; gap: 4px; }
+  .field { grid-template-columns: minmax(0, 1fr) 130px; }
+}
+@media print {
+  .topbar { position: static; }
+  .drawer, .scrim, .btn { display: none !important; }
+  .table-wrap { max-height: none; overflow: visible; }
+}
+</style>
 </head>
 <body>
-<header>
-  <h1>Capital Allocation Copilot: Tallwater Software, Inc.</h1>
-  <p><strong>Fictional company, for demonstration.</strong> All numbers are made up.</p>
-  <div id="badge">Integrity: not run</div>
-  <div id="check-failures"></div>
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <h1>Capital Allocation Copilot: Tallwater Software, Inc.</h1>
+      <p><span class="fictional">Fictional company, for demonstration.</span> All numbers are made up.</p>
+    </div>
+    <div class="top-actions">
+      <div id="badge" role="status" aria-live="polite">Integrity: not run</div>
+      <button type="button" class="btn" id="open-assumptions" aria-controls="assumptions" aria-expanded="false">Assumptions <span class="count" id="change-count" hidden>0</span></button>
+    </div>
+  </div>
 </header>
-<main id="app"></main>
+<div class="banner" id="check-failures"></div>
+<div class="banner" id="input-error" role="alert"></div>
+<main id="app">
+  <section class="card" id="where" aria-labelledby="where-title" hidden>
+    <div class="section-head">
+      <div>
+        <h2 id="where-title">Where we stand</h2>
+        <p id="where-sub">Change vs plan compares with the default assumptions.</p>
+      </div>
+      <label class="controls">As of <select id="asof" aria-label="As of month"></select></label>
+    </div>
+    <div class="kpis" id="kpis"></div>
+    <ul class="guards" id="guardrails" aria-label="Objective and guardrails"></ul>
+  </section>
+  <div class="two-col" id="charts" hidden>
+    <section class="card" aria-labelledby="bridge-title">
+      <div class="section-head">
+        <div><h2 id="bridge-title">ARR bridge</h2><p id="bridge-sub"></p></div>
+        <label class="controls">Period <select id="bridge-period" aria-label="ARR bridge period"></select></label>
+      </div>
+      <ul class="legend">
+        <li><span class="key-box" style="background:var(--total)"></span>Opening and closing ARR</li>
+        <li><span class="key-box" style="background:var(--up)"></span>Adds ARR</li>
+        <li><span class="key-box" style="background:var(--down)"></span>Loses ARR</li>
+      </ul>
+      <div class="chart" id="bridge"></div>
+      <p class="chart-summary" id="bridge-summary"></p>
+    </section>
+    <section class="card" aria-labelledby="cash13-title">
+      <div class="section-head">
+        <div><h2 id="cash13-title">13-week cash</h2><p id="cash13-sub">Daily cash, with week-end points.</p></div>
+        <label class="controls">Starting <select id="cash13-start" aria-label="13-week forecast start month"></select></label>
+      </div>
+      <ul class="legend">
+        <li><span class="key-line" style="border-color:var(--accent)"></span>Cash</li>
+        <li><span class="key-line dashed" style="border-color:var(--serious)"></span>Cash floor</li>
+        <li><span class="key-line dashed" style="border-color:var(--critical)"></span>Covenant</li>
+      </ul>
+      <div class="chart" id="cash13"></div>
+      <p class="chart-summary" id="cash13-summary"></p>
+      <details class="more"><summary>Weekly detail</summary><div class="table-wrap" id="cash13-table"></div></details>
+    </section>
+  </div>
+  <section class="card" id="statements" aria-labelledby="fs-title" hidden>
+    <div class="section-head">
+      <div><h2 id="fs-title">Financial statements</h2><p id="fs-sub">Whole dollars. Losses in parentheses.</p></div>
+      <div class="controls">
+        <div class="seg" role="tablist" aria-label="Statement">
+          <button type="button" role="tab" id="tab-pl" data-tab="pl" aria-selected="true" aria-controls="fs-table">P&amp;L</button>
+          <button type="button" role="tab" id="tab-bs" data-tab="bs" aria-selected="false" aria-controls="fs-table">Balance sheet</button>
+          <button type="button" role="tab" id="tab-cf" data-tab="cf" aria-selected="false" aria-controls="fs-table">Cash flow</button>
+        </div>
+        <div class="seg" role="group" aria-label="Period">
+          <button type="button" data-grain="month" aria-pressed="true">Month</button>
+          <button type="button" data-grain="quarter" aria-pressed="false">Quarter</button>
+          <button type="button" data-grain="year" aria-pressed="false">Year</button>
+        </div>
+      </div>
+    </div>
+    <div class="table-wrap" id="fs-table" role="tabpanel" tabindex="0"></div>
+  </section>
+</main>
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="assumptions" aria-labelledby="assumptions-title" aria-hidden="true">
+  <div class="drawer-head">
+    <div class="drawer-title">
+      <h2 id="assumptions-title">Assumptions</h2>
+      <button type="button" class="btn" id="close-assumptions">Close</button>
+    </div>
+    <p>Every input to the model. <span class="tag actual">Actual</span> marks a fictional opening fact; <span class="tag assumption">Assumption</span> marks a guess about the future. Changes recalculate everything at once.</p>
+    <div class="drawer-tools">
+      <input type="search" id="assumption-search" placeholder="Find an input" aria-label="Find an input">
+      <button type="button" class="btn" id="reset-assumptions">Reset</button>
+    </div>
+  </div>
+  <div class="drawer-body" id="assumption-groups"></div>
+</aside>
 <pre id="test-output" hidden></pre>
 
 <!-- ===================================================================== -->
@@ -1462,6 +1759,177 @@
     return res;
   }
 
+  // ---------------------------------------------------------------------
+  // Views for the screens. Grouping, period sums and lookups of the series
+  // above, so the UI never does arithmetic. No new formulas: every number is
+  // an engine series, a sum of one over a period, or a ratio SPEC.md defines.
+  // ---------------------------------------------------------------------
+  function isWhole(x) { return typeof x === 'number' && Math.floor(x) === x; }
+
+  // Calendar periods of the model: one per month, quarter or year.
+  function periods(R, grain) {
+    var A = R.inputs.assumptions, H = R.H, out = [], m;
+    if (grain === 'month') {
+      for (m = 1; m <= H; m++) out.push({ key: String(m), label: R.months[m], from: m, to: m, months: 1, partial: false });
+      return out;
+    }
+    if (grain !== 'quarter' && grain !== 'year') throw new Error('Unknown period: ' + grain);
+    var size = grain === 'quarter' ? 3 : 12;
+    for (m = 1; m <= H; m++) {
+      var idx = (A.startMonth - 1) + (m - 1), year = A.startYear + Math.floor(idx / 12), mi = idx % 12;
+      var key = grain === 'quarter' ? year + '-Q' + (Math.floor(mi / 3) + 1) : String(year);
+      var last = out[out.length - 1];
+      if (last && last.key === key) { last.to = m; last.months++; }
+      else out.push({ key: key, label: grain === 'quarter' ? 'Q' + (Math.floor(mi / 3) + 1) + ' ' + year : String(year), from: m, to: m, months: 1 });
+    }
+    out.forEach(function (p) {
+      p.partial = p.months < size;
+      if (p.partial) p.label += ' (' + p.months + (p.months === 1 ? ' month)' : ' months)');
+    });
+    return out;
+  }
+
+  // P&L, balance sheet and cash flow by period. Flows are summed over the
+  // period, balances are taken at its end, margins are period profit over
+  // period revenue. Costs are positive numbers; profit lines carry their sign.
+  function statements(R, grain) {
+    var A = R.inputs.assumptions, P = periods(R, grain), pl = R.pl, PB = R.payroll.byLine, bs = R.bs, cf = R.cf;
+    function sum(series) { return P.map(function (p) { var t = 0; for (var m = p.from; m <= p.to; m++) t += series[m]; return t; }); }
+    function end(series) { return P.map(function (p) { return series[p.to]; }); }
+    function start(series) { return P.map(function (p) { return series[p.from - 1]; }); }
+    function neg(values) { return values.map(function (v) { return -v; }); }
+    function ratio(a, b) { return a.map(function (v, i) { return b[i] !== 0 ? v / b[i] : null; }); }
+    function bal(series) { return [series[0]].concat(end(series)); }
+    function row(key, label, values, style, kind, optional) {
+      return { key: key, label: label, values: values, style: style || 'line', kind: kind || 'money', optional: !!optional };
+    }
+    var rev = sum(pl.revenue), gp = sum(pl.grossProfit), ebitda = sum(pl.ebitda);
+    var columns = P.map(function (p) { return p.label; });
+    return {
+      grain: grain,
+      periods: P,
+      pl: { columns: columns, rows: [
+        row('revenue', 'Revenue', rev, 'total'),
+        row('hosting', 'Hosting', sum(pl.hosting)),
+        row('thirdParty', 'Third-party software', sum(pl.thirdParty)),
+        row('cogsPayroll', 'Support and onboarding staff', sum(PB.cogs)),
+        row('cogsVendor', 'Initiative costs', sum(pl.cogsVendor), 'line', 'money', true),
+        row('cogs', 'Cost of revenue (COGS)', sum(pl.cogs), 'total'),
+        row('grossProfit', 'Gross profit', gp, 'total'),
+        row('grossMargin', 'Gross margin', ratio(gp, rev), 'ratio', 'pct'),
+        row('rdPayroll', 'R&D payroll', sum(PB.rd)),
+        row('rdNonHc', 'R&D non-headcount', sum(pl.rdNonHc)),
+        row('rdVendor', 'R&D initiative costs', sum(pl.rdVendor), 'line', 'money', true),
+        row('rd', 'Research and development', sum(pl.rd), 'total'),
+        row('smPayroll', 'S&M payroll', sum(PB.sm)),
+        row('programSpend', 'Channel program spend', sum(pl.programSpend)),
+        row('commissions', 'Commissions', sum(pl.commissions)),
+        row('smNonHc', 'S&M non-headcount', sum(pl.smNonHc)),
+        row('smVendor', 'S&M initiative costs', sum(pl.smVendor), 'line', 'money', true),
+        row('sm', 'Sales and marketing', sum(pl.sm), 'total'),
+        row('gaPayroll', 'G&A payroll', sum(PB.ga)),
+        row('gaNonHc', 'G&A non-headcount', sum(pl.gaNonHc)),
+        row('gaVendor', 'G&A initiative costs', sum(pl.gaVendor), 'line', 'money', true),
+        row('ga', 'General and administrative', sum(pl.ga), 'total'),
+        row('opex', 'Operating expenses', sum(pl.opex), 'total'),
+        row('ebitda', 'EBITDA', ebitda, 'grand'),
+        row('ebitdaMargin', 'EBITDA margin', ratio(ebitda, rev), 'ratio', 'pct'),
+        row('depreciation', 'Depreciation', sum(pl.depreciation)),
+        row('ebit', 'EBIT', sum(pl.ebit), 'total'),
+        row('interestIncome', 'Interest income', sum(pl.interestIncome)),
+        row('interestExpense', 'Interest expense', sum(pl.interestExpense)),
+        row('preTaxIncome', 'Pre-tax income', sum(pl.preTaxIncome), 'total'),
+        row('tax', 'Tax', sum(pl.tax)),
+        row('netIncome', 'Net income', sum(pl.netIncome), 'grand')
+      ] },
+      bs: { columns: ['Opening (' + monthLabel(A, 0) + ')'].concat(columns), rows: [
+        row('cash', 'Cash', bal(bs.cash)),
+        row('accountsReceivable', 'Accounts receivable', bal(bs.accountsReceivable)),
+        row('prepaidAndOther', 'Prepaid and other', bal(bs.prepaidAndOther)),
+        row('ppe', 'PP&E, net', bal(bs.ppe)),
+        row('totalAssets', 'Total assets', bal(bs.totalAssets), 'grand'),
+        row('accountsPayable', 'Accounts payable', bal(bs.accountsPayable)),
+        row('accruedLiabilities', 'Accrued liabilities', bal(bs.accruedLiabilities)),
+        row('deferredRevenue', 'Deferred revenue', bal(bs.deferredRevenue)),
+        row('debt', 'Venture debt', bal(bs.debt)),
+        row('totalLiabilities', 'Total liabilities', bal(bs.totalLiabilities), 'total'),
+        row('paidInCapital', 'Paid-in capital', bal(bs.paidInCapital)),
+        row('retainedEarnings', 'Retained earnings (accumulated deficit)', bal(bs.retainedEarnings)),
+        row('totalEquity', 'Total equity', bal(bs.totalEquity), 'total'),
+        row('totalLiabilitiesAndEquity', 'Liabilities plus equity', bal(bs.totalLiabilitiesAndEquity), 'grand')
+      ] },
+      cf: { columns: columns, rows: [
+        row('netIncome', 'Net income', sum(pl.netIncome)),
+        row('depreciation', 'Depreciation', sum(pl.depreciation)),
+        row('changeAr', 'Increase in receivables', neg(sum(cf.changeAr))),
+        row('changeAp', 'Change in payables', sum(cf.changeAp)),
+        row('changeDr', 'Change in deferred revenue', sum(cf.changeDr)),
+        row('cfo', 'Cash from operations', sum(cf.cfo), 'total'),
+        row('cfi', 'Capex (cash from investing)', sum(cf.cfi), 'total'),
+        row('cff', 'Debt repaid (cash from financing)', sum(cf.cff), 'total'),
+        row('netChange', 'Net change in cash', sum(cf.netChange), 'grand'),
+        row('openingCash', 'Opening cash', start(bs.cash)),
+        row('endingCash', 'Ending cash', end(bs.cash), 'grand'),
+        row('netBurn', 'Net burn (cash used by operations and capex)', sum(cf.netBurn), 'memo'),
+        row('fcf', 'Free cash flow before interest', sum(cf.fcf), 'memo')
+      ] }
+    };
+  }
+
+  // ARR bridge from the end of month (from - 1) to the end of month `to`.
+  function arrBridge(R, from, to) {
+    var a = R.arr, A = R.inputs.assumptions;
+    if (!(isWhole(from) && isWhole(to) && from >= 1 && from <= to && to <= R.H)) throw new Error('ARR bridge: months must run from 1 to ' + R.H);
+    function sum(series) { var t = 0; for (var m = from; m <= to; m++) t += series[m]; return t; }
+    var opening = a.arr[from - 1], closing = a.arr[to];
+    return {
+      from: from, to: to, openingLabel: monthLabel(A, from - 1), closingLabel: R.months[to],
+      opening: opening, newArr: sum(a.newArr), expansion: sum(a.expansion), contraction: sum(a.contraction), churn: sum(a.churn),
+      closing: closing, netNew: closing - opening, growth: opening > 0 ? closing / opening - 1 : null,
+      deals: sum(a.deals), customersOpening: a.customers[from - 1], customersClosing: a.customers[to]
+    };
+  }
+
+  // The eight "Where we stand" cards for month m: value, plan value (default
+  // assumptions), change vs plan (SPEC.md 2.15 notes), trend and guardrail.
+  function kpiCards(R, Plan, m) {
+    var A = R.inputs.assumptions, G = A.guardrails, K = R.kpis, H = R.H, PK = Plan.kpis;
+    if (!(isWhole(m) && m >= 1 && m <= H)) throw new Error('KPI cards: the month must be a whole month from 1 to ' + H);
+    var inPlan = m <= Plan.H, W = Math.min(12, m), burn = 0;
+    for (var k = m - W + 1; k <= m; k++) burn += R.cf.netBurn[k];
+    function gate(op, target, value) {
+      if (value == null) return { op: op, target: target, pass: null };
+      return { op: op, target: target, pass: op === '>=' ? value >= target : value <= target };
+    }
+    function card(id, label, cur, plan, unit, better, extra) {
+      var v = cur[m], pv = inPlan ? plan[m] : null;
+      var both = typeof v === 'number' && typeof pv === 'number' && isFinite(v) && isFinite(pv);
+      var c = { id: id, label: label, unit: unit, better: better, month: m, value: v, planValue: pv,
+        delta: both ? v - pv : null, sameAsPlan: v === pv, series: cur.slice(0, H + 1), planSeries: plan.slice(0, Plan.H + 1),
+        valueState: null, guardrail: null };
+      Object.keys(extra || {}).forEach(function (x) { c[x] = extra[x]; });
+      return c;
+    }
+    var om = Math.min(A.objective.month, H), arrAtObjective = R.arr.arr[om];
+    var runway = card('runway', 'Runway', K.runway, PK.runway, 'months', 'up', { guardrail: gate('>=', G.minRunwayMonths, K.runway[m]) });
+    if (runway.value === Infinity) runway.valueState = 'not_burning';
+    var bm = card('burnMultiple', 'Burn multiple', K.burnMultiple, PK.burnMultiple, 'multiple', 'down', { window: W, guardrail: gate('<=', G.maxBurnMultiple, K.burnMultiple[m]) });
+    if (bm.value == null) { bm.valueState = burn <= 0 ? 'not_burning' : 'not_meaningful'; bm.guardrail.pass = burn <= 0; }
+    else if (bm.value < 0) bm.valueState = 'not_burning'; // negative: cash was generated while ARR grew
+    return [
+      card('arr', 'ARR', R.arr.arr, Plan.arr.arr, 'money', 'up', { objective: { target: A.objective.arrTarget, month: om, monthLabel: R.months[om],
+        due: m >= om, value: arrAtObjective, gap: A.objective.arrTarget - arrAtObjective, pass: arrAtObjective >= A.objective.arrTarget } }),
+      card('revenueGrowth', 'Revenue growth', K.revenueGrowth, PK.revenueGrowth, 'pct', 'up', { basis: K.revenueGrowthBasis[m] }),
+      card('grossMargin', 'Gross margin', K.grossMarginTrailing, PK.grossMarginTrailing, 'pct', 'up', { window: W, guardrail: gate('>=', G.minGrossMargin, K.grossMarginTrailing[m]) }),
+      card('ebitdaMargin', 'EBITDA margin', K.ebitdaMargin, PK.ebitdaMargin, 'pct', 'up'),
+      card('cash', 'Cash', R.bs.cash, Plan.bs.cash, 'money', 'up', { guardrail: gate('>=', G.cashFloor, R.bs.cash[m]),
+        covenant: gate('>=', A.minCashCovenant, R.bs.cash[m]) }),
+      runway,
+      card('cacPayback', 'CAC payback', K.blendedCacPayback, PK.blendedCacPayback, 'months', 'down', { window: W, guardrail: gate('<=', G.maxBlendedCacPaybackMonths, K.blendedCacPayback[m]) }),
+      bm
+    ];
+  }
+
   global.Engine = {
     CHECK_COUNT: CHECK_COUNT, TOL_DOLLAR: TOL_DOLLAR, TOL_COUNT: TOL_COUNT,
     defaultAssumptions: defaultAssumptions, assumptionType: assumptionType,
@@ -1472,7 +1940,8 @@
     runChecks: runChecks, checkSummary: checkSummary,
     applyInitiatives: applyInitiatives, computeReturns: computeReturns, paybackMonth: paybackMonth,
     deltaSeries: deltaSeries, maxSeriesDiff: maxSeriesDiff,
-    templates: templates, nullInitiative: nullInitiative, evaluate: evaluate
+    templates: templates, nullInitiative: nullInitiative, evaluate: evaluate,
+    periods: periods, statements: statements, arrBridge: arrBridge, kpiCards: kpiCards
   };
 })(window);
 </script>
@@ -2779,6 +3248,144 @@ window.TestSuite = (function () {
     t.d('NPV (reference)', r.npv, -845584.74); t.eq('Payback', r.payback.status, 'not_within_horizon');
   });
 
+  // =====================================================================
+  // Step 2: the views the "Where we stand" screen reads (SPEC.md 4.8).
+  // They only group engine series, so they must reproduce section 8.
+  // =====================================================================
+  function rowOf(part, key) { return part.rows.filter(function (r) { return r.key === key; })[0]; }
+
+  test('T90', 'Views: yearly statements reproduce the annual table (section 8.2)', function (t) {
+    var st = E.statements(base(), 'year'), T = TAB.annual;
+    t.eq('Year columns', st.pl.columns.join(','), '2027,2028,2029');
+    var map = {
+      'Revenue': ['pl', 'revenue', 1, 'dollar'], 'COGS': ['pl', 'cogs', 1, 'dollar'], 'Gross profit': ['pl', 'grossProfit', 1, 'dollar'],
+      'Gross margin': ['pl', 'grossMargin', 1, 'ratio'], 'R&D': ['pl', 'rd', 1, 'dollar'], 'Sales and marketing': ['pl', 'sm', 1, 'dollar'],
+      'G&A': ['pl', 'ga', 1, 'dollar'], 'EBITDA': ['pl', 'ebitda', 1, 'dollar'], 'Depreciation': ['pl', 'depreciation', 1, 'dollar'],
+      'Interest income': ['pl', 'interestIncome', 1, 'dollar'], 'Interest expense': ['pl', 'interestExpense', 1, 'dollar'],
+      'Net income': ['pl', 'netIncome', 1, 'dollar'], 'Cash from operations': ['cf', 'cfo', 1, 'dollar'],
+      'Capex': ['cf', 'cfi', -1, 'dollar'], 'Net burn': ['cf', 'netBurn', 1, 'dollar'], 'Ending cash': ['cf', 'endingCash', 1, 'dollar']
+    };
+    var n = 0;
+    T.rows.forEach(function (row) {
+      var d = map[row[0]]; if (!d) return; n++;
+      var r = rowOf(st[d[0]], d[1]);
+      [0, 1, 2].forEach(function (y) { t.cell(row[0] + ' ' + (2027 + y), d[2] * r.values[y], row[1 + y], d[3]); });
+    });
+    t.eq('Annual lines compared', n, Object.keys(map).length);
+    // Balance sheet columns: opening, then Dec 2027, Dec 2028, Dec 2029 (section 8.3).
+    var B = TAB.balanceSheets, bsKeys = { 'Cash': 'cash', 'Accounts receivable': 'accountsReceivable', 'Total assets': 'totalAssets',
+      'Deferred revenue': 'deferredRevenue', 'Total liabilities': 'totalLiabilities', 'Retained earnings (accumulated deficit)': 'retainedEarnings',
+      'Total equity': 'totalEquity', 'Liabilities plus equity': 'totalLiabilitiesAndEquity' };
+    t.eq('Balance sheet columns', st.bs.columns.join(','), 'Opening (Dec 2026),2027,2028,2029');
+    B.rows.forEach(function (row) {
+      var k = bsKeys[row[0]]; if (!k) return;
+      var v = rowOf(st.bs, k).values;
+      t.cell(row[0] + ' opening', v[0], row[1], 'dollar'); t.cell(row[0] + ' 2027', v[1], row[3], 'dollar');
+      t.cell(row[0] + ' 2028', v[2], row[4], 'dollar'); t.cell(row[0] + ' 2029', v[3], row[5], 'dollar');
+    });
+  });
+
+  test('T91', 'Views: months and quarters add up to years, and every period ties', function (t) {
+    var R = base(), M = E.statements(R, 'month'), Q = E.statements(R, 'quarter'), Y = E.statements(R, 'year');
+    t.eq('Month columns', M.pl.columns.length, 36); t.eq('Quarter columns', Q.pl.columns.length, 12); t.eq('Balance sheet month columns', M.bs.columns.length, 37);
+    t.eq('First quarter', Q.pl.columns[0], 'Q1 2027'); t.eq('Last quarter', Q.pl.columns[11], 'Q4 2029'); t.eq('First month', M.pl.columns[0], 'Jan 2027');
+    M.pl.rows.forEach(function (r, i) {
+      if (r.kind !== 'money') return;
+      t.d(r.label + ' Jan 2027 = engine month 1', r.values[0], M.pl.rows[i].values[0]);
+      [0, 1, 2].forEach(function (y) {
+        var q = 0, mo = 0;
+        for (var k = 0; k < 4; k++) q += Q.pl.rows[i].values[4 * y + k];
+        for (k = 0; k < 12; k++) mo += r.values[12 * y + k];
+        t.d(r.label + ' quarters add to ' + (2027 + y), q, Y.pl.rows[i].values[y]); t.d(r.label + ' months add to ' + (2027 + y), mo, Y.pl.rows[i].values[y]);
+      });
+    });
+    t.d('Revenue Feb 2027 = engine', rowOf(M.pl, 'revenue').values[1], R.pl.revenue[2]);
+    t.r('Gross margin Q1 2027 = Q1 gross profit / Q1 revenue', rowOf(Q.pl, 'grossMargin').values[0],
+      (R.pl.grossProfit[1] + R.pl.grossProfit[2] + R.pl.grossProfit[3]) / (R.pl.revenue[1] + R.pl.revenue[2] + R.pl.revenue[3]));
+    [M, Q, Y].forEach(function (S) {
+      var g = S.grain, cf = S.cf, bs = S.bs;
+      S.periods.forEach(function (p, i) {
+        t.d(g + ' ' + p.label + ': opening cash + net change = ending cash', rowOf(cf, 'openingCash').values[i] + rowOf(cf, 'netChange').values[i], rowOf(cf, 'endingCash').values[i]);
+        t.d(g + ' ' + p.label + ': ending cash = balance sheet cash', rowOf(cf, 'endingCash').values[i], rowOf(bs, 'cash').values[i + 1]);
+        t.d(g + ' ' + p.label + ': CFO lines add up', rowOf(cf, 'netIncome').values[i] + rowOf(cf, 'depreciation').values[i] + rowOf(cf, 'changeAr').values[i] +
+          rowOf(cf, 'changeAp').values[i] + rowOf(cf, 'changeDr').values[i], rowOf(cf, 'cfo').values[i]);
+        t.d(g + ' ' + p.label + ': net change = CFO + CFI + CFF', rowOf(cf, 'cfo').values[i] + rowOf(cf, 'cfi').values[i] + rowOf(cf, 'cff').values[i], rowOf(cf, 'netChange').values[i]);
+        t.d(g + ' ' + p.label + ': assets = liabilities + equity', rowOf(bs, 'totalAssets').values[i + 1], rowOf(bs, 'totalLiabilitiesAndEquity').values[i + 1]);
+        t.d(g + ' ' + p.label + ': EBITDA = gross profit - opex', rowOf(S.pl, 'grossProfit').values[i] - rowOf(S.pl, 'opex').values[i], rowOf(S.pl, 'ebitda').values[i]);
+      });
+    });
+    t.d('Opening cash Q2 2027 = March 2027 cash', rowOf(Q.cf, 'openingCash').values[1], 34967666.36);
+    // A model that starts in July and runs 40 months has partial first and last years.
+    var odd = E.runModel(withA(function (a) { a.startMonth = 7; a.horizonMonths = 40; }), []);
+    t.eq('Partial years', E.periods(odd, 'year').map(function (p) { return p.label; }).join(','), '2027 (6 months),2028,2029,2030 (10 months)');
+    t.eq('Partial quarters', E.periods(odd, 'quarter').length, 14);
+    t.eq('First quarter of a July start', E.periods(odd, 'quarter')[0].label, 'Q3 2027');
+    var threw = false; try { E.periods(odd, 'week'); } catch (e) { threw = true; } t.ok('Unknown period is rejected', threw);
+  });
+
+  test('T92', 'Views: ARR bridge reproduces the ARR rows of section 8.2', function (t) {
+    var R = base(), T = TAB.annual;
+    function cellOf(name, y) { return T.rows.filter(function (r) { return r[0] === name; })[0][1 + y]; }
+    [0, 1, 2].forEach(function (y) {
+      var b = E.arrBridge(R, 12 * y + 1, 12 * y + 12), yr = ' ' + (2027 + y);
+      t.cell('New' + yr, b.newArr, cellOf('New ARR', y), 'dollar'); t.cell('Expansion' + yr, b.expansion, cellOf('Expansion ARR', y), 'dollar');
+      t.cell('Contraction' + yr, b.contraction, cellOf('Contraction ARR', y), 'dollar'); t.cell('Churn' + yr, b.churn, cellOf('Churned ARR', y), 'dollar');
+      t.cell('Net new' + yr, b.netNew, cellOf('Net new ARR', y), 'dollar'); t.cell('Closing' + yr, b.closing, cellOf('Closing ARR', y), 'dollar');
+      t.cell('Growth' + yr, b.growth, cellOf('ARR growth', y), 'ratio'); t.cell('Deals' + yr, b.deals, cellOf('New customers (deals)', y), 'count');
+      t.d('Bridge ties' + yr, b.opening + b.newArr + b.expansion - b.contraction - b.churn, b.closing);
+    });
+    var all = E.arrBridge(R, 1, 36);
+    t.d('Opening ARR', all.opening, 24000000); t.d('Closing ARR m36', all.closing, 46756195.73); t.eq('Opening label', all.openingLabel, 'Dec 2026');
+    t.d('All 36 months tie', all.opening + all.newArr + all.expansion - all.contraction - all.churn, all.closing);
+    t.d('New ARR over 36 months', all.newArr, 3483300.00 + 4228062.41 + 4718224.44);
+    var one = E.arrBridge(R, 1, 1);
+    t.d('January: new', one.newArr, 289600); t.d('January: expansion', one.expansion, 400800); t.d('January: churn', one.churn, 144000); t.d('January: closing', one.closing, 24481600);
+    [[0, 12], [5, 4], [1, 37], [1.5, 3]].forEach(function (x) {
+      var threw = false; try { E.arrBridge(R, x[0], x[1]); } catch (e) { threw = true; } t.ok('Bridge ' + x[0] + ' to ' + x[1] + ' is rejected', threw);
+    });
+  });
+
+  test('T93', 'Views: KPI cards show engine KPIs, change vs plan and guardrails', function (t) {
+    var R = base(), cards = E.kpiCards(R, R, 12), byId = {};
+    cards.forEach(function (c) { byId[c.id] = c; });
+    t.eq('Card order', cards.map(function (c) { return c.id; }).join(','), 'arr,revenueGrowth,grossMargin,ebitdaMargin,cash,runway,cacPayback,burnMultiple');
+    var K = TAB.kpis, col = colIndex(K, 'm=12');
+    function kcell(name) { return K.rows.filter(function (r) { return r[0] === name; })[0][col]; }
+    t.d('ARR', byId.arr.value, 30048489.36); t.d('Cash', byId.cash.value, 27381491.22);
+    t.cell('Runway', byId.runway.value, kcell('Runway (months)'), 'ratio'); t.cell('Burn multiple', byId.burnMultiple.value, kcell('Burn multiple'), 'ratio');
+    t.cell('Gross margin', byId.grossMargin.value, kcell('Gross margin, trailing'), 'ratio'); t.cell('CAC payback', byId.cacPayback.value, kcell('Blended CAC payback (months)'), 'ratio');
+    t.cell('EBITDA margin', byId.ebitdaMargin.value, kcell('EBITDA margin (month)'), 'ratio');
+    t.cell('Revenue growth before month 13 is annualized ARR growth', byId.revenueGrowth.value, '25.20%', 'ratio'); t.eq('Growth basis', byId.revenueGrowth.basis, 'arr');
+    t.eq('Growth basis m13', E.kpiCards(R, R, 13)[1].basis, 'revenue');
+    cards.forEach(function (c) {
+      t.eq(c.id + ' same as plan', c.sameAsPlan, true); t.eq(c.id + ' change vs plan', c.delta, 0);
+      t.eq(c.id + ' trend has every month', c.series.length, 37);
+    });
+    t.eq('ARR objective not met', byId.arr.objective.pass, false); t.d('ARR objective gap', byId.arr.objective.gap, 1151510.64); t.eq('Objective due at m12', byId.arr.objective.due, true);
+    t.eq('Objective not yet due at m11', E.kpiCards(R, R, 11)[0].objective.due, false);
+    ['grossMargin', 'cash', 'runway', 'cacPayback', 'burnMultiple'].forEach(function (k) { t.eq(k + ' within guardrail', byId[k].guardrail.pass, true); });
+    t.eq('Covenant on the cash card', byId.cash.covenant.pass, true);
+    t.eq('Revenue growth has no guardrail', byId.revenueGrowth.guardrail, null);
+    // Change vs plan = scenario minus plan for the same month.
+    var S = E.runModel(withA(function (a) { a.churnRateMonthly = 0.012; }), []), c2 = E.kpiCards(S, R, 12);
+    c2.forEach(function (c) {
+      if (typeof c.value === 'number' && isFinite(c.value)) t.near(c.id + ' delta = scenario - plan', c.delta, c.value - c.planValue, 1e-9);
+      t.eq(c.id + ' plan value is the plan', c.planValue, cards.filter(function (x) { return x.id === c.id; })[0].value);
+    });
+    t.ok('Higher churn lowers ARR vs plan', c2[0].delta < 0); t.eq('Not the same as plan', c2[0].sameAsPlan, false);
+    // Not burning and breaches.
+    var rich = sc('T71').baseline, cr = E.kpiCards(rich, R, 12);
+    t.eq('Runway not burning', cr[5].valueState, 'not_burning'); t.eq('Runway value', cr[5].value, Infinity); t.eq('Runway delta has no number', cr[5].delta, null);
+    t.eq('Burn multiple not burning', cr[7].valueState, 'not_burning'); t.eq('Burn multiple passes when not burning', cr[7].guardrail.pass, true);
+    var poor = sc('T53').baseline, cp = E.kpiCards(poor, R, 6);
+    t.eq('Cash below floor', cp[4].guardrail.pass, false); t.eq('Cash below covenant', cp[4].covenant.pass, false); t.eq('Runway breach', cp[5].guardrail.pass, false);
+    var gm = E.kpiCards(sc('T79a').baseline, R, 12); t.eq('Gross margin breach', gm[2].guardrail.pass, false);
+    // A scenario longer than the plan has no plan value past the plan's last month.
+    var longer = E.runModel(withA(function (a) { a.horizonMonths = 40; }), []), cl = E.kpiCards(longer, R, 40);
+    t.eq('No plan value past the plan', cl[0].planValue, null); t.eq('No delta past the plan', cl[0].delta, null);
+    [0, 37, 2.5].forEach(function (m) { var threw = false; try { E.kpiCards(R, R, m); } catch (e) { threw = true; } t.ok('Month ' + m + ' is rejected', threw); });
+  });
+
   // ---------- runner ----------
   function run() {
     var results = [];
@@ -2824,90 +3431,866 @@ window.TestSuite = (function () {
 <script id="ui">
 (function () {
   'use strict';
+  var E = window.Engine;
   var params = new URLSearchParams(location.search);
+  var DEFAULTS = E.defaultAssumptions();
+  var SVGNS = 'http://www.w3.org/2000/svg';
 
-  function money(x) {
-    if (x == null) return 'n/a';
-    if (!isFinite(x)) return x > 0 ? 'not burning' : 'n/a';
-    return Math.round(x).toLocaleString('en-US');
+  var state = {
+    A: E.defaultAssumptions(),  // the working copy the Assumptions panel edits
+    plan: null,                 // the plan: default assumptions, no initiatives
+    res: null,                  // last good evaluation of the working copy
+    error: null,                // engine message when the working copy is invalid
+    invalid: {},                // inputs that are not numbers yet, by path
+    asOf: 12, tab: 'pl', grain: 'month', bridge: null, t0: 1
+  };
+
+  // ------------------------------------------------------------------
+  // Formatting only. Every number shown here comes from the engine.
+  // ------------------------------------------------------------------
+  function isNum(x) { return typeof x === 'number' && isFinite(x); }
+  function compact(x) {
+    if (!isNum(x)) return 'n/a';
+    var a = Math.abs(x), s = x < 0 ? '-' : '';
+    if (a >= 999.95e6) return s + '$' + (a / 1e9).toFixed(1) + 'B';
+    if (a >= 999.95e3) return s + '$' + (a / 1e6).toFixed(1) + 'M';
+    if (a >= 999.5) return s + '$' + (a / 1e3).toFixed(1) + 'K';
+    return s + '$' + Math.round(a);
   }
-  function num(x, d) {
-    if (x == null) return 'n/a';
-    if (!isFinite(x)) return 'not burning';
-    return x.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+  function whole(x) { return Math.round(Math.abs(x)).toLocaleString('en-US'); }
+  function dollars(x) { return isNum(x) ? (x < 0 && Math.round(x) !== 0 ? '-' : '') + '$' + whole(x) : 'n/a'; }
+  function money(x) { if (!isNum(x)) return ''; var w = whole(x); return x < 0 && w !== '0' ? '(' + w + ')' : w; }
+  function pct(x, d) { return isNum(x) ? (x * 100).toFixed(d == null ? 1 : d) + '%' : 'n/a'; }
+  function signed(text, x) { return (x > 0 ? '+' : x < 0 ? '-' : '') + text; }
+  function plain(n) { return Number(n.toPrecision(12)).toLocaleString('en-US', { maximumFractionDigits: 10 }); }
+  function el(tag, attrs, text) {
+    var e = document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function (k) {
+      if (k === 'class') e.className = attrs[k]; else if (attrs[k] !== null && attrs[k] !== undefined) e.setAttribute(k, attrs[k]);
+    });
+    if (text != null) e.textContent = text;
+    return e;
   }
-  function pct(x) { return x == null ? 'n/a' : (x * 100).toFixed(1) + '%'; }
-  function el(tag, text) { var e = document.createElement(tag); if (text != null) e.textContent = text; return e; }
-  function table(headers, rows) {
-    var t = el('table'); t.border = '1'; t.cellPadding = '3';
-    var tr = el('tr'); headers.forEach(function (h) { tr.appendChild(el('th', h)); }); t.appendChild(tr);
-    rows.forEach(function (r) { var row = el('tr'); r.forEach(function (c) { row.appendChild(el('td', c)); }); t.appendChild(row); });
-    return t;
+  function svg(tag, attrs, text) {
+    var e = document.createElementNS(SVGNS, tag);
+    Object.keys(attrs || {}).forEach(function (k) { e.setAttribute(k, attrs[k]); });
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); return node; }
+  function $(id) { return document.getElementById(id); }
+
+  // Clean axis ticks between lo and hi.
+  function niceScale(lo, hi, count) {
+    if (hi === lo) hi = lo + 1;
+    var raw = (hi - lo) / count, mag = Math.pow(10, Math.floor(Math.log10(raw))), n = raw / mag;
+    var stepSize = (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * mag;
+    var a = Math.floor(lo / stepSize) * stepSize, b = Math.ceil(hi / stepSize) * stepSize, ticks = [];
+    for (var v = a; v <= b + stepSize / 2; v += stepSize) ticks.push(Math.abs(v) < stepSize / 1e6 ? 0 : v);
+    return { lo: a, hi: b, ticks: ticks };
+  }
+  function axisMoney(v) {
+    if (v === 0) return '$0';
+    var a = Math.abs(v), s = v < 0 ? '-' : '';
+    if (a >= 1e6) return s + '$' + plain(a / 1e6) + 'M';
+    if (a >= 1e3) return s + '$' + plain(a / 1e3) + 'K';
+    return s + '$' + plain(a);
+  }
+  // A bar with rounded corners only at its data end.
+  function barPath(x, y, w, h, rTop, rBottom) {
+    var rt = Math.max(0, Math.min(rTop, w / 2, h / 2)), rb = Math.max(0, Math.min(rBottom, w / 2, h / 2));
+    return 'M' + x + ',' + (y + rt) + 'a' + rt + ',' + rt + ' 0 0 1 ' + rt + ',' + (-rt) + 'h' + (w - 2 * rt) +
+      'a' + rt + ',' + rt + ' 0 0 1 ' + rt + ',' + rt + 'v' + (h - rt - rb) + 'a' + rb + ',' + rb + ' 0 0 1 ' + (-rb) + ',' + rb +
+      'h' + (-(w - 2 * rb)) + 'a' + rb + ',' + rb + ' 0 0 1 ' + (-rb) + ',' + (-rb) + 'z';
   }
 
-  function renderBadge(res) {
-    var b = Engine.checkSummary(res.checks.baseline), s = Engine.checkSummary(res.checks.scenario);
+  // ------------------------------------------------------------------
+  // Paths into the assumptions object, for example channels.paid.acv or
+  // plannedHires[3].month (the same spelling the engine's messages use).
+  // ------------------------------------------------------------------
+  function tokens(path) { return path.match(/[^.[\]]+/g).map(function (t) { return /^\d+$/.test(t) ? Number(t) : t; }); }
+  function getPath(obj, path) { return tokens(path).reduce(function (o, k) { return o == null ? undefined : o[k]; }, obj); }
+  function setPath(obj, path, value) {
+    var t = tokens(path), o = obj;
+    for (var i = 0; i < t.length - 1; i++) o = o[t[i]];
+    o[t[t.length - 1]] = value;
+  }
+  var SKIP = { channelOrder: 1, 'guardrails.cashFloor': 1 }; // structure, and the floor shown once (AUDIT-1 finding 4)
+  function leaves(obj, prefix, out) {
+    out = out || [];
+    if (obj === null || typeof obj !== 'object') { out.push(prefix); return out; }
+    if (Array.isArray(obj)) obj.forEach(function (v, i) { leaves(v, prefix + '[' + i + ']', out); });
+    else Object.keys(obj).forEach(function (k) {
+      var p = prefix ? prefix + '.' + k : k;
+      if (!SKIP[p]) leaves(obj[k], p, out);
+    });
+    return out;
+  }
+  function sameValue(a, b) {
+    if (typeof a === 'number' && typeof b === 'number') return a === b || Math.abs(a - b) <= 1e-12 * Math.max(1, Math.abs(b));
+    return a === b;
+  }
+  function changedPaths() {
+    var cur = leaves(state.A, ''), def = leaves(DEFAULTS, ''), seen = {}, out = [];
+    cur.concat(def).forEach(function (p) {
+      if (seen[p]) return; seen[p] = 1;
+      if (!sameValue(getPath(state.A, p), getPath(DEFAULTS, p))) out.push(p);
+    });
+    return out;
+  }
+
+  // ------------------------------------------------------------------
+  // Labels and units for the Assumptions panel
+  // ------------------------------------------------------------------
+  var LABELS = {
+    companyName: 'Company name', startYear: 'First year of the model', startMonth: 'First calendar month', horizonMonths: 'Months modeled', currency: 'Currency',
+    openingArr: 'Opening ARR', openingCustomers: 'Opening customers', churnRateMonthly: 'Churn per month', contractionRateMonthly: 'Contraction per month',
+    expansionRateMonthly: 'Expansion per month', name: 'Name', leadSource: 'Where leads come from', aeSelfSourced: 'AEs also source opportunities',
+    programSpendMonthly: 'Program spend per month', costPerLead: 'Cost per lead', leadToMqlRate: 'Lead to MQL rate', mqlToOppRate: 'MQL to opportunity rate',
+    winRate: 'Win rate', salesCycleMonths: 'Sales cycle', acv: 'Average contract value (ACV)', openingPipelineOppsPerMonth: 'Opportunities per month before 2027',
+    leadsPerSdrPerMonth: 'Leads per ramped SDR per month', selfSourcedOppsPerAePerMonth: 'Opportunities an AE sources per month',
+    oppCapacityPerAePerMonth: 'Opportunities an AE can work per month', aeRampMonths: 'AE ramp', sdrRampMonths: 'SDR ramp', commissionRate: 'Commission on new ARR',
+    department: 'Department', plLine: 'P&L line', openingCount: 'People at opening', loadedCostAnnual: 'Loaded cost per person per year',
+    hostingCostPerCustomerPerMonth: 'Hosting per customer per month', hostingCostGrowthAnnual: 'Hosting cost growth per year', thirdPartyPctOfRevenue: 'Third-party software, share of revenue',
+    'nonHeadcountMonthly.rd': 'R&D non-headcount per month', 'nonHeadcountMonthly.sm': 'S&M non-headcount per month', 'nonHeadcountMonthly.ga': 'G&A non-headcount per month',
+    costInflationAnnual: 'Cost inflation per year', meritIncreaseAnnual: 'Merit increase per year', programSpendGrowthAnnual: 'Program spend growth per year',
+    annualBillingShare: 'Share of ARR billed annually upfront', dsoDays: 'Days to collect (DSO)', dpoDays: 'Days to pay vendors (DPO)',
+    openingMonthlyBillings: 'Billings per month before 2027', openingMonthlyVendorSpend: 'Vendor spend per month before 2027',
+    capexMonthly: 'Capex per month', usefulLifeMonths: 'Useful life of new equipment', openingPpeRemainingLifeMonths: 'Remaining life of opening PP&E',
+    debtInterestRateAnnual: 'Interest rate on venture debt', debtAmortStartMonth: 'First principal payment', debtAmortMonths: 'Months of principal payments',
+    minCashCovenant: 'Minimum cash covenant', cashFloor: 'Cash floor (internal policy and guardrail)', cashYieldAnnual: 'Interest earned on cash',
+    taxRate: 'Tax rate', openingNol: 'Tax losses carried forward',
+    'opening.cash': 'Cash', 'opening.accountsReceivable': 'Accounts receivable', 'opening.prepaidAndOther': 'Prepaid and other', 'opening.ppeNet': 'PP&E, net',
+    'opening.accountsPayable': 'Accounts payable', 'opening.accruedLiabilities': 'Accrued liabilities', 'opening.ventureDebt': 'Venture debt', 'opening.paidInCapital': 'Paid-in capital',
+    owner: 'Owner', shipMonth: 'Ships in', teamSize: 'Engineers on the team', rampMonths: 'Ramp after shipping', enabled: 'In the plan',
+    hostingCostReduction: 'Hosting cost reduction', winRateLift: 'Win rate lift (relative)', acvLift: 'ACV lift (relative)', churnReduction: 'Churn reduction (relative)',
+    discountRateAnnual: 'Discount rate for NPV', 'objective.arrTarget': 'ARR target', 'objective.month': 'Target month',
+    'guardrails.minRunwayMonths': 'Runway, at least', 'guardrails.maxBlendedCacPaybackMonths': 'Blended CAC payback, at most',
+    'guardrails.maxBurnMultiple': 'Burn multiple, at most', 'guardrails.minGrossMargin': 'Gross margin, at least',
+    low: 'Low', mode: 'Most likely', high: 'High', drawn: 'Drawn once per', shift: 'Shift', p: 'Probability', seed: 'Random seed', runs: 'Runs',
+    month: 'Month', booth: 'Booth and sponsorship', travel: 'Travel', staffDays: 'Staff days', dayCost: 'Loaded cost per staff day', expectedLeads: 'Expected leads',
+    channel: 'Channel', count: 'People', startMonth_t: 'Start month', recruitingEach: 'Recruiting per person', toolsPerSdrMonthly: 'Tools per SDR per month',
+    budget: 'Budget', months: 'Months', cplMultiplier: 'Cost per lead multiplier', setup: 'Setup cost', setupMonth: 'Setup month', coMarketingMonthly: 'Co-marketing per month'
+  };
+  var ACRONYMS = { Ae: 'AE', Sdr: 'SDR', Sdrs: 'SDRs', Aes: 'AEs', Ga: 'G&A', Rd: 'R&D', Sm: 'S&M' };
+  function humanize(key) {
+    var words = String(key).replace(/_/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').split(' ');
+    return words.map(function (w, i) { var c = w.charAt(0).toUpperCase() + w.slice(1); return ACRONYMS[c] || (i === 0 ? c : w.toLowerCase()); }).join(' ');
+  }
+  function last(path) { var t = tokens(path); return t[t.length - 1]; }
+  function labelFor(path) {
+    var k = last(path), m;
+    if (/^plannedHires/.test(path)) return k === 'month' ? 'Start month' : 'Role';
+    if ((m = /^openingInvoiceWeights\[(\d+)\]$/.exec(path))) return 'Share invoiced in ' + E.monthLabel(state.A, Number(m[1]) - 11);
+    if (/^templates\./.test(path) && k === 'startMonth') return LABELS.startMonth_t;
+    if (/^uncertainty\.salesCycleShift/.test(path)) return k === 'p' ? 'Probability' : 'Shift in months';
+    var stripped = path.replace(/\[\d+\]/g, '');
+    return LABELS[stripped] || LABELS[k] || humanize(k);
+  }
+  var PCT = { churnRateMonthly: 1, contractionRateMonthly: 1, expansionRateMonthly: 1, leadToMqlRate: 1, mqlToOppRate: 1, winRate: 1, commissionRate: 1,
+    hostingCostGrowthAnnual: 1, thirdPartyPctOfRevenue: 1, costInflationAnnual: 1, meritIncreaseAnnual: 1, programSpendGrowthAnnual: 1, annualBillingShare: 1,
+    debtInterestRateAnnual: 1, cashYieldAnnual: 1, taxRate: 1, discountRateAnnual: 1, minGrossMargin: 1, hostingCostReduction: 1, winRateLift: 1, acvLift: 1,
+    churnReduction: 1, p: 1 };
+  var MONEY = { openingArr: 1, programSpendMonthly: 1, costPerLead: 1, acv: 1, loadedCostAnnual: 1, hostingCostPerCustomerPerMonth: 1, openingMonthlyBillings: 1,
+    openingMonthlyVendorSpend: 1, capexMonthly: 1, minCashCovenant: 1, cashFloor: 1, openingNol: 1, arrTarget: 1, booth: 1, travel: 1, dayCost: 1,
+    recruitingEach: 1, toolsPerSdrMonthly: 1, budget: 1, setup: 1, coMarketingMonthly: 1 };
+  var MONTHS = { horizonMonths: 1, salesCycleMonths: 1, aeRampMonths: 1, sdrRampMonths: 1, usefulLifeMonths: 1, openingPpeRemainingLifeMonths: 1,
+    debtAmortMonths: 1, rampMonths: 1, minRunwayMonths: 1, maxBlendedCacPaybackMonths: 1, months: 1 };
+  var MONTH_NO = { debtAmortStartMonth: 1, shipMonth: 1, month: 1, startMonth: 1, setupMonth: 1 };
+  var ENUMS = {
+    plLine: [['cogs', 'COGS'], ['rd', 'R&D'], ['sm', 'S&M'], ['ga', 'G&A']],
+    leadSource: [['sdr', 'SDR outreach'], ['spend', 'Program spend']],
+    drawn: [['channel', 'Channel'], ['initiative', 'Initiative'], ['milestone', 'Milestone']]
+  };
+  function kindOf(path) {
+    var k = last(path), v = getPath(DEFAULTS, path);
+    if (v === undefined) v = getPath(state.A, path);
+    if (/^plannedHires\[\d+\]\.role$/.test(path)) return { type: 'enum', options: Object.keys(state.A.roles).map(function (r) { return [r, humanize(r)]; }) };
+    if (/^templates\.[^.]+\.channel$/.test(path)) return { type: 'enum', options: state.A.channelOrder.map(function (c) { return [c, state.A.channels[c].name]; }) };
+    if (ENUMS[k]) return { type: 'enum', options: ENUMS[k] };
+    if (typeof v === 'boolean') return { type: 'bool' };
+    if (typeof v === 'string') return { type: 'text' };
+    if (path === 'startMonth') return { type: 'num', unit: 'calendar' };
+    if (/^openingInvoiceWeights/.test(path) || PCT[k]) return { type: 'num', unit: 'pct' };
+    if (/^opening\./.test(path) || /^nonHeadcountMonthly\./.test(path) || MONEY[k]) return { type: 'num', unit: 'money', nullable: k === 'costPerLead' };
+    if (MONTH_NO[k]) return { type: 'num', unit: 'monthNo' };
+    if (MONTHS[k]) return { type: 'num', unit: 'months' };
+    if (k === 'dsoDays' || k === 'dpoDays') return { type: 'num', unit: 'days' };
+    if (k === 'maxBurnMultiple' || k === 'low' || k === 'mode' || k === 'high' || k === 'cplMultiplier') return { type: 'num', unit: 'multiple' };
+    return { type: 'num', unit: 'count' };
+  }
+  function showNumber(v, kind) {
+    if (v === null || v === undefined) return '';
+    if (typeof v !== 'number' || !isFinite(v)) return '';
+    return plain(kind.unit === 'pct' ? v * 100 : v);
+  }
+  function describe(v, kind) {
+    if (kind.type === 'bool') return v ? 'yes' : 'no';
+    if (kind.type === 'enum') { var o = (kind.options.filter(function (x) { return x[0] === v; })[0]); return o ? o[1] : String(v); }
+    if (kind.type === 'text') return v;
+    if (v === null) return 'none';
+    var n = showNumber(v, kind);
+    return kind.unit === 'money' ? '$' + n : kind.unit === 'pct' ? n + '%' : kind.unit === 'multiple' ? n + 'x' :
+      kind.unit === 'months' ? n + ' months' : kind.unit === 'days' ? n + ' days' : n;
+  }
+  function monthHint(v, kind) {
+    if (!isNum(v)) return '';
+    if (kind.unit === 'calendar') return v >= 1 && v <= 12 && Math.floor(v) === v ? ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][v - 1] : '';
+    if (kind.unit === 'monthNo') return 'Month ' + v + ' is ' + E.monthLabel(state.A, v);
+    return '';
+  }
+
+  // ------------------------------------------------------------------
+  // Recalculation
+  // ------------------------------------------------------------------
+  function recalc() {
+    try {
+      state.res = E.evaluate(state.A, []);
+      state.error = null;
+    } catch (err) {
+      state.error = String(err && err.message || err);
+    }
+    renderAll();
+  }
+  var timer = null;
+  function recalcSoon() { clearTimeout(timer); timer = setTimeout(recalc, 120); }
+
+  function renderAll() {
+    renderBadge();
+    renderInputError();
+    renderChangeCount();
+    markFields();
+    if (!state.res) return;
+    $('app').classList.toggle('stale', !!state.error);
+    ['where', 'charts', 'statements'].forEach(function (id) { $(id).hidden = false; });
+    renderAsOf();
+    renderKpis();
+    renderGuardrails();
+    renderBridge();
+    renderCash13();
+    renderStatements();
+  }
+
+  function renderBadge() {
+    var badge = $('badge'), box = clear($('check-failures'));
+    if (state.error) {
+      badge.textContent = 'Input error'; badge.className = 'bad';
+      return;
+    }
+    var res = state.res;
+    var b = E.checkSummary(res.checks.baseline), s = E.checkSummary(res.checks.scenario);
     var worst = b.passed <= s.passed ? b : s;
-    var badge = document.getElementById('badge');
     badge.textContent = worst.label;
-    badge.style.color = worst.passed === worst.total ? 'green' : 'red';
-    badge.style.fontWeight = 'bold';
-    var box = document.getElementById('check-failures');
-    box.innerHTML = '';
+    badge.className = worst.passed === worst.total ? 'ok' : 'bad';
+    badge.title = worst.passed === worst.total ? 'Every integrity check in SPEC.md passes on this recalculation.' : 'Some integrity checks fail. See the list below the header.';
+    var fails = [];
     [['Baseline', res.checks.baseline], ['Scenario', res.checks.scenario]].forEach(function (pair) {
-      pair[1].filter(function (c) { return !c.pass; }).forEach(function (c) {
-        var p = el('p', pair[0] + ' ' + c.id + ' ' + c.name + ' failed: ' + c.reason);
-        p.style.color = 'red';
-        box.appendChild(p);
-      });
+      pair[1].filter(function (c) { return !c.pass; }).forEach(function (c) { fails.push(pair[0] + ' ' + c.id + ' ' + c.name + ' failed: ' + c.reason); });
+    });
+    if (fails.length) {
+      var d = el('div', { class: 'error' });
+      fails.forEach(function (f) { d.appendChild(el('p', null, f)); });
+      box.appendChild(d);
+    }
+  }
+  function renderInputError() {
+    var box = clear($('input-error')), bad = Object.keys(state.invalid);
+    if (!state.error && !bad.length) return;
+    var d = el('div', { class: 'error' });
+    if (state.error) {
+      // Name each bad input in words (the engine names it by its path).
+      var msgs = E.validateAssumptions(state.A).map(function (m) { var p = m.split(/ must | is /)[0]; var sk = subKey(p); return (sk ? subTitle(sk) + ': ' : '') + labelFor(p) + m.slice(p.length); });
+      d.appendChild(el('p', null, msgs.length ? 'Check your inputs: ' + msgs.join('; ') + '.' : state.error + '.'));
+    }
+    else d.appendChild(el('p', null, 'Some inputs are not numbers yet: ' + bad.map(labelFor).join(', ') + '.'));
+    d.appendChild(el('p', null, 'The numbers below are from your last valid inputs.'));
+    box.appendChild(d);
+  }
+  function renderChangeCount() {
+    var n = changedPaths().length, c = $('change-count');
+    c.textContent = String(n); c.hidden = n === 0;
+    c.setAttribute('aria-label', n + ' changed');
+    $('where-sub').textContent = n === 0
+      ? 'Plan: the default assumptions. Change vs plan appears when you edit an assumption.'
+      : 'Your edited assumptions (' + n + (n === 1 ? ' change' : ' changes') + '), compared with the plan.';
+  }
+
+  function current() { return state.res.scenario; }
+
+  // ------------------------------------------------------------------
+  // KPI cards
+  // ------------------------------------------------------------------
+  function renderAsOf() {
+    var R = current(), sel = $('asof');
+    if (state.asOf > R.H) state.asOf = R.H;
+    if (sel.options.length !== R.H || sel.options[0].textContent !== R.months[1]) {
+      clear(sel);
+      for (var m = 1; m <= R.H; m++) sel.appendChild(el('option', { value: m }, R.months[m]));
+    }
+    sel.value = String(state.asOf);
+  }
+  function valueText(c, v) {
+    if (c.unit === 'money') return { main: compact(v), unit: '' };
+    if (c.unit === 'pct') return { main: pct(v), unit: '' };
+    if (c.unit === 'months') return v === Infinity ? { main: 'Not burning', unit: '' } : { main: isNum(v) ? v.toFixed(1) : 'n/a', unit: isNum(v) ? 'months' : '' };
+    if (c.unit === 'multiple') {
+      if (isNum(v) && v >= 0) return { main: v.toFixed(2) + 'x', unit: '' };
+      return { main: (isNum(v) && v < 0) || c.valueState === 'not_burning' ? 'Not burning' : 'n/a', unit: '' };
+    }
+    return { main: String(v), unit: '' };
+  }
+  function deltaText(c) {
+    if (c.sameAsPlan) return { text: 'Same as plan', cls: '' };
+    if (c.delta === null) {
+      var pv = valueText(c, c.planValue);
+      return { text: 'Plan: ' + pv.main + (pv.unit ? ' ' + pv.unit : ''), cls: '' };
+    }
+    var d = c.delta, txt, shown;
+    if (c.unit === 'money') { shown = Math.round(d); txt = compact(Math.abs(d)); }
+    else if (c.unit === 'pct') { shown = Number((d * 100).toFixed(1)); txt = Math.abs(d * 100).toFixed(1) + ' pts'; }
+    else if (c.unit === 'months') { shown = Number(d.toFixed(1)); txt = Math.abs(d).toFixed(1) + ' months'; }
+    else { shown = Number(d.toFixed(2)); txt = Math.abs(d).toFixed(2) + 'x'; }
+    if (shown === 0) return { text: 'Same as plan', cls: '' };
+    var good = (d > 0) === (c.better === 'up');
+    return { text: (d > 0 ? '▲ ' : '▼ ') + signed(txt, d) + ' vs plan', cls: good ? 'good' : 'bad' };
+  }
+  function guardPill(c) {
+    if (c.id === 'arr') {
+      if (!c.objective.due) return null;
+      return c.objective.pass ? { cls: 'pass', text: 'Objective met' } : { cls: 'fail', text: 'Short of objective' };
+    }
+    if (c.id === 'cash') {
+      if (c.covenant.pass === false) return { cls: 'fail', text: 'Covenant breach' };
+      if (c.guardrail.pass === false) return { cls: 'warn', text: 'Below floor' };
+      return { cls: 'pass', text: 'Above floor' };
+    }
+    if (!c.guardrail) return null;
+    if (c.guardrail.pass === null) return { cls: 'neutral', text: 'n/a' };
+    return c.guardrail.pass ? { cls: 'pass', text: 'Within guardrail' } : { cls: 'fail', text: 'Breach' };
+  }
+  function cardNote(c) {
+    var A = current().inputs.assumptions, g = c.guardrail;
+    switch (c.id) {
+      case 'arr':
+        if (!c.objective.due) return 'Objective: ' + compact(c.objective.target) + ' by ' + c.objective.monthLabel + '.';
+        return c.objective.pass ? 'Met the ' + compact(c.objective.target) + ' objective in ' + c.objective.monthLabel + '.'
+          : compact(c.objective.gap) + ' short of the ' + compact(c.objective.target) + ' objective in ' + c.objective.monthLabel + '.';
+      case 'revenueGrowth':
+        return c.basis === 'arr' ? 'ARR growth, annualized. Revenue growth needs 13 months of history.' : 'Revenue vs the same month a year earlier.';
+      case 'grossMargin': return 'Trailing ' + c.window + ' months. Guardrail: at least ' + pct(g.target, 0) + '.';
+      case 'ebitdaMargin': return 'This month. Profit before interest, tax and depreciation, over revenue.';
+      case 'cash': return 'Month-end. Floor ' + compact(g.target) + ', covenant ' + compact(c.covenant.target) + '.';
+      case 'runway': return 'Cash over the last 3 months of average burn. Guardrail: at least ' + plain(g.target) + ' months.';
+      case 'cacPayback': return 'Months of gross profit to earn back S&M. Blended, trailing ' + c.window + ' months. Guardrail: ' + plain(g.target) + ' or less.';
+      case 'burnMultiple':
+        return (c.valueState === 'not_meaningful' ? 'ARR did not grow, so the multiple has no meaning. ' : 'Net burn over net new ARR, trailing ' + c.window + ' months. ') +
+          'Guardrail: ' + plain(g.target) + 'x or less.';
+    }
+    return '';
+  }
+  function sparkline(c, width) {
+    var h = 40, padY = 5, H = c.series.length - 1;
+    var showPlan = JSON.stringify(c.series) !== JSON.stringify(c.planSeries);
+    var vals = [];
+    function collect(series) { for (var m = 1; m < series.length; m++) if (isNum(series[m])) vals.push(series[m]); }
+    collect(c.series); if (showPlan) collect(c.planSeries);
+    var s = svg('svg', { class: 'spark', viewBox: '0 0 ' + width + ' ' + h, width: width, height: h, role: 'img',
+      'aria-label': c.label + ' by month, ' + (showPlan ? 'with the plan in gray' : 'month 1 to ' + H) });
+    if (!vals.length) return s;
+    var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
+    if (hi === lo) { hi += 1; lo -= 1; }
+    var Hmax = Math.max(H, c.planSeries.length - 1);
+    function X(m) { return 4 + (m - 1) / Math.max(1, Hmax - 1) * (width - 8); }
+    function Y(v) { return padY + (hi - v) / (hi - lo) * (h - 2 * padY); }
+    function line(series, cls) {
+      var d = '', pen = false;
+      for (var m = 1; m < series.length; m++) {
+        if (!isNum(series[m])) { pen = false; continue; }
+        d += (pen ? 'L' : 'M') + X(m).toFixed(1) + ',' + Y(series[m]).toFixed(1); pen = true;
+      }
+      if (d) s.appendChild(svg('path', { d: d, fill: 'none', stroke: cls, 'stroke-width': cls === 'var(--plan-line)' ? 1.5 : 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+    }
+    if (lo < 0 && hi > 0) s.appendChild(svg('line', { x1: 4, x2: width - 4, y1: Y(0), y2: Y(0), stroke: 'var(--grid)', 'stroke-width': 1 }));
+    if (showPlan) line(c.planSeries, 'var(--plan-line)');
+    line(c.series, 'var(--accent)');
+    var v = c.series[c.month];
+    if (isNum(v)) s.appendChild(svg('circle', { cx: X(c.month), cy: Y(v), r: 4, fill: 'var(--accent)', stroke: 'var(--surface)', 'stroke-width': 2 }));
+    else s.appendChild(svg('line', { x1: X(c.month), x2: X(c.month), y1: 2, y2: h - 2, stroke: 'var(--axis)', 'stroke-width': 1 }));
+    return s;
+  }
+  function renderKpis() {
+    var cards = E.kpiCards(current(), state.plan, state.asOf), box = $('kpis');
+    clear(box);
+    cards.forEach(function (c) {
+      var art = el('article', { class: 'kpi', 'data-kpi': c.id });
+      var head = el('div', { class: 'kpi-head' });
+      head.appendChild(el('h3', null, c.label));
+      var p = guardPill(c);
+      if (p) head.appendChild(el('span', { class: 'pill ' + p.cls }, p.text));
+      art.appendChild(head);
+      var v = valueText(c, c.value), val = el('div', { class: 'kpi-value' }, v.main);
+      if (v.unit) val.appendChild(el('span', { class: 'unit' }, v.unit));
+      art.appendChild(val);
+      var d = deltaText(c);
+      art.appendChild(el('div', { class: 'delta ' + d.cls, 'data-delta': '' }, d.text));
+      box.appendChild(art);
+      art.appendChild(sparkline(c, Math.max(120, art.clientWidth - 28)));
+      art.appendChild(el('p', { class: 'kpi-note' }, cardNote(c)));
     });
   }
 
-  function renderApp(res) {
-    var R = res.baseline, app = document.getElementById('app');
-    app.innerHTML = '';
-
-    app.appendChild(el('h2', 'Objective and guardrails (baseline)'));
-    var G = R.guardrails.items;
-    app.appendChild(table(['Item', 'Value', 'Month', 'Target', 'Result'], [
-      ['ARR target', money(G.objective.value), R.months[G.objective.month], money(G.objective.target), G.objective.pass ? 'met' : 'not met, gap ' + money(G.objective.gap)],
-      ['Cash floor', money(G.cashFloor.value), R.months[G.cashFloor.month], money(G.cashFloor.target), G.cashFloor.pass ? 'pass' : 'fail'],
-      ['Covenant', money(G.covenant.value), R.months[G.covenant.month], money(G.covenant.target), G.covenant.pass ? 'pass' : 'fail'],
-      ['Runway (months)', num(G.runway.value, 2), R.months[G.runway.month], num(G.runway.target, 0), G.runway.pass ? 'pass' : 'fail'],
-      ['Blended CAC payback (months)', num(G.cacPayback.value, 2), R.months[G.cacPayback.month], num(G.cacPayback.target, 0), G.cacPayback.pass ? 'pass' : 'fail'],
-      ['Burn multiple', num(G.burnMultiple.value, 2), R.months[G.burnMultiple.month], num(G.burnMultiple.target, 2), G.burnMultiple.pass ? 'pass' : 'fail'],
-      ['Gross margin, trailing', pct(G.grossMargin.value), R.months[G.grossMargin.month], pct(G.grossMargin.target), G.grossMargin.pass ? 'pass' : 'fail']
-    ]));
-
-    app.appendChild(el('h2', 'Monthly baseline (raw engine output)'));
-    var rows = [];
-    for (var m = 1; m <= R.H; m++) {
-      rows.push([String(m), R.months[m], money(R.arr.newArr[m]), money(R.arr.arr[m]), num(R.arr.customers[m], 1), money(R.pl.revenue[m]),
-        money(R.pl.grossProfit[m]), money(R.pl.ebitda[m]), money(R.pl.netIncome[m]), money(R.cf.netBurn[m]), money(R.bs.cash[m]),
-        money(R.bs.deferredRevenue[m]), String(R.headcount.total[m]), pct(R.capacity.utilization[m]), num(R.kpis.runway[m], 1),
-        num(R.kpis.burnMultiple[m], 2), num(R.kpis.blendedCacPayback[m], 1)]);
+  function renderGuardrails() {
+    var R = current(), G = R.guardrails.items, A = R.inputs.assumptions, box = clear($('guardrails'));
+    function item(key, label, value, note, pass, warnOnly) {
+      var li = el('li', { 'data-guard': key });
+      var top = el('div', { class: 'g-top' });
+      top.appendChild(el('span', null, label));
+      top.appendChild(el('span', { class: 'pill ' + (pass ? 'pass' : warnOnly ? 'warn' : 'fail') }, pass ? 'Pass' : 'Fail'));
+      li.appendChild(top);
+      li.appendChild(el('span', { class: 'g-value' }, value));
+      li.appendChild(el('span', { class: 'g-note' }, note));
+      box.appendChild(li);
     }
-    app.appendChild(table(['m', 'Month', 'New ARR', 'Closing ARR', 'Customers', 'Revenue', 'Gross profit', 'EBITDA', 'Net income',
-      'Net burn', 'Ending cash', 'Deferred revenue', 'Headcount', 'Utilization', 'Runway', 'Burn multiple', 'Blended CAC payback'], rows));
+    var o = G.objective;
+    item('objective', 'Objective: ARR in ' + R.months[o.month], compact(o.value), 'Target ' + compact(o.target) + (o.pass ? '. Met.' : '. Gap ' + compact(o.gap) + '.'), o.pass);
+    item('cashFloor', 'Cash floor', compact(G.cashFloor.value), 'Lowest month-end, ' + R.months[G.cashFloor.month] + '. Floor ' + compact(G.cashFloor.target) + '.', G.cashFloor.pass);
+    item('covenant', 'Covenant', compact(G.covenant.value), 'Same low point. Lender minimum ' + compact(G.covenant.target) + '.', G.covenant.pass);
+    item('runway', 'Runway', G.runway.value === Infinity ? 'Not burning' : G.runway.value.toFixed(1) + ' months',
+      'Lowest in the first 12 months. At least ' + plain(G.runway.target) + '.', G.runway.pass);
+    item('cacPayback', 'Blended CAC payback', isNum(G.cacPayback.value) ? G.cacPayback.value.toFixed(1) + ' months' : 'n/a',
+      'Trailing 12 months to ' + R.months[G.cacPayback.month] + '. At most ' + plain(G.cacPayback.target) + '.', G.cacPayback.pass);
+    var bmv = G.burnMultiple.value;
+    item('burnMultiple', 'Burn multiple', isNum(bmv) && bmv >= 0 ? bmv.toFixed(2) + 'x' : (isNum(bmv) || G.burnMultiple.pass ? 'Not burning' : 'n/a'),
+      'Trailing 12 months to ' + R.months[G.burnMultiple.month] + '. At most ' + plain(G.burnMultiple.target) + 'x.', G.burnMultiple.pass);
+    item('grossMargin', 'Gross margin', pct(G.grossMargin.value), 'Trailing 12 months. At least ' + pct(G.grossMargin.target, 0) + '.', G.grossMargin.pass);
+  }
 
-    app.appendChild(el('h2', '13-week cash forecast from ' + R.months[R.cash13.t0]));
-    app.appendChild(table(['Week', 'Days', 'Receipts', 'Payroll and commissions', 'Vendors and capex', 'Debt service', 'Tax', 'Net cash flow', 'Ending cash'],
-      R.cash13.weeks.map(function (w) {
-        return [String(w.week), w.label, money(w.receipts), money(w.payrollAndCommissions), money(w.vendorsAndCapex), money(w.debtService),
-          money(w.tax), money(w.net), money(w.endCash)];
-      })));
+  // ------------------------------------------------------------------
+  // ARR bridge
+  // ------------------------------------------------------------------
+  function renderBridge() {
+    var R = current(), years = E.periods(R, 'year'), sel = $('bridge-period');
+    var opts = years.map(function (p) { return { key: 'y' + p.key, label: p.label, from: p.from, to: p.to }; });
+    opts.push({ key: 'all', label: 'All ' + R.H + ' months', from: 1, to: R.H });
+    var chosen = opts.filter(function (o) { return o.key === state.bridge; })[0] || opts[0];
+    state.bridge = chosen.key;
+    clear(sel);
+    opts.forEach(function (o) { sel.appendChild(el('option', { value: o.key }, o.label)); });
+    sel.value = chosen.key;
 
-    app.appendChild(el('h2', 'Integrity checks (baseline)'));
-    app.appendChild(table(['Check', 'Name', 'Result', 'Reason'], res.checks.baseline.map(function (c) {
-      return [c.id, c.name, c.pass ? 'pass' : 'FAIL', c.reason];
-    })));
+    var b = E.arrBridge(R, chosen.from, chosen.to);
+    $('bridge-sub').textContent = 'ARR at the end of ' + b.openingLabel + ' to the end of ' + b.closingLabel + '.';
+    var box = clear($('bridge')), width = Math.max(280, box.clientWidth || 520), narrow = width < 440;
+    var height = 250, m = { l: 48, r: 8, t: 22, b: 30 }, pw = width - m.l - m.r, ph = height - m.t - m.b;
+    var steps = [
+      { key: 'opening', label: narrow ? 'Open' : 'Opening', value: b.opening, type: 'total' },
+      { key: 'newArr', label: 'New', value: b.newArr, type: 'up' },
+      { key: 'expansion', label: narrow ? 'Expand' : 'Expansion', value: b.expansion, type: 'up' },
+      { key: 'contraction', label: narrow ? 'Contract' : 'Contraction', value: -b.contraction, type: 'down' },
+      { key: 'churn', label: 'Churn', value: -b.churn, type: 'down' },
+      { key: 'closing', label: narrow ? 'Close' : 'Closing', value: b.closing, type: 'total' }
+    ];
+    var run = 0, hi = 0, lo = 0;
+    steps.forEach(function (st) {
+      if (st.type === 'total') { st.y0 = 0; st.y1 = st.value; run = st.value; }
+      else { st.y0 = run; st.y1 = run + st.value; run = st.y1; }
+      hi = Math.max(hi, st.y0, st.y1); lo = Math.min(lo, st.y0, st.y1);
+    });
+    var sc = niceScale(lo, hi * 1.08, 4);
+    function Y(v) { return m.t + (sc.hi - v) / (sc.hi - sc.lo) * ph; }
+    var s = svg('svg', { viewBox: '0 0 ' + width + ' ' + height, width: width, height: height, role: 'img',
+      'aria-label': 'ARR bridge from ' + compact(b.opening) + ' to ' + compact(b.closing) });
+    sc.ticks.forEach(function (t) {
+      s.appendChild(svg('line', { class: t === 0 ? 'baseline' : 'gridline', x1: m.l, x2: width - m.r, y1: Y(t), y2: Y(t) }));
+      s.appendChild(svg('text', { x: m.l - 6, y: Y(t) + 4, 'text-anchor': 'end' }, axisMoney(t)));
+    });
+    var slot = pw / steps.length, bw = Math.min(24, slot * 0.5);
+    steps.forEach(function (st, i) {
+      var cx = m.l + slot * (i + 0.5), x = cx - bw / 2, top = Math.max(st.y0, st.y1), bot = Math.min(st.y0, st.y1);
+      var y = Y(top), h = Math.max(1, Y(bot) - Y(top));
+      var fill = st.type === 'total' ? 'var(--total)' : st.type === 'up' ? 'var(--up)' : 'var(--down)';
+      var p = svg('path', { d: barPath(x, y, bw, h, st.type === 'down' ? 0 : 4, st.type === 'down' ? 4 : 0), fill: fill, 'data-bar': st.key, tabindex: 0 });
+      p.appendChild(svg('title', null, st.label + ': ' + dollars(st.type === 'total' ? st.value : st.value)));
+      s.appendChild(p);
+      if (i < steps.length - 1) {
+        var yEnd = Y(st.y1);
+        s.appendChild(svg('line', { x1: x + bw, x2: cx + slot - bw / 2, y1: yEnd, y2: yEnd, stroke: 'var(--axis)', 'stroke-width': 1 }));
+      }
+      // On a narrow chart, labels drop the $ and show millions, so neighbors do not collide.
+      var amount = narrow ? plain(Number((Math.abs(st.value) / 1e6).toFixed(1))) + 'M' : compact(Math.abs(st.value));
+      var label = st.type === 'total' ? (narrow ? amount : compact(st.value)) : signed(amount, st.value);
+      s.appendChild(svg('text', { class: st.type === 'total' ? 'lbl-strong' : 'lbl', x: cx, y: Y(top) - 6, 'text-anchor': 'middle', 'data-value': st.key }, label));
+      s.appendChild(svg('text', { x: cx, y: height - m.b + 16, 'text-anchor': 'middle' }, st.label));
+    });
+    box.appendChild(s);
+    $('bridge-summary').textContent = 'Net new ARR ' + signed(compact(Math.abs(b.netNew)), b.netNew) +
+      (b.growth == null ? '' : ' (' + signed(pct(Math.abs(b.growth)), b.growth) + ')') + '. ' +
+      b.deals.toFixed(1) + ' new customers; customers went from ' + b.customersOpening.toFixed(1) + ' to ' + b.customersClosing.toFixed(1) + '.';
+  }
+
+  // ------------------------------------------------------------------
+  // 13-week cash
+  // ------------------------------------------------------------------
+  function renderCash13() {
+    var R = current(), A = R.inputs.assumptions, sel = $('cash13-start');
+    if (state.t0 > R.H) state.t0 = 1;
+    clear(sel);
+    for (var mm = 1; mm <= R.H; mm++) sel.appendChild(el('option', { value: mm }, R.months[mm]));
+    sel.value = String(state.t0);
+    var F = E.cash13Week(R, state.t0), days = F.dailyCash.length - 1;
+    var box = clear($('cash13')), width = Math.max(280, box.clientWidth || 520), height = 260;
+    var m = { l: 52, r: 10, t: 14, b: 28 }, pw = width - m.l - m.r, ph = height - m.t - m.b;
+    var floor = A.cashFloor, cov = A.minCashCovenant;
+    var lo = Math.min(0, Math.min.apply(null, F.dailyCash)), hi = Math.max(Math.max.apply(null, F.dailyCash), floor) * 1.06;
+    var sc = niceScale(lo, hi, 5);
+    function X(d) { return m.l + d / Math.max(1, days) * pw; }
+    function Y(v) { return m.t + (sc.hi - v) / (sc.hi - sc.lo) * ph; }
+    var s = svg('svg', { viewBox: '0 0 ' + width + ' ' + height, width: width, height: height, role: 'img', tabindex: 0,
+      'aria-label': '13-week cash from ' + R.months[state.t0] + '. Use the left and right arrow keys to read each week.' });
+    sc.ticks.forEach(function (t) {
+      s.appendChild(svg('line', { class: t === 0 ? 'baseline' : 'gridline', x1: m.l, x2: width - m.r, y1: Y(t), y2: Y(t) }));
+      s.appendChild(svg('text', { x: m.l - 6, y: Y(t) + 4, 'text-anchor': 'end' }, axisMoney(t)));
+    });
+    [[floor, 'var(--serious)', 'floor', 'Cash floor ' + compact(floor), -5], [cov, 'var(--critical)', 'covenant', 'Covenant ' + compact(cov), 13]].forEach(function (r) {
+      s.appendChild(svg('line', { x1: m.l, x2: width - m.r, y1: Y(r[0]), y2: Y(r[0]), stroke: r[1], 'stroke-width': 1.5, 'stroke-dasharray': '5 4', 'data-ref': r[2] }));
+      s.appendChild(svg('text', { class: 'lbl', x: width - m.r - 2, y: Y(r[0]) + r[4], 'text-anchor': 'end' }, r[3]));
+    });
+    var d = '';
+    F.dailyCash.forEach(function (v, i) { d += (i ? 'L' : 'M') + X(i).toFixed(1) + ',' + Y(v).toFixed(1); });
+    s.appendChild(svg('path', { d: d, fill: 'none', stroke: 'var(--accent)', 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round', 'data-series': 'cash' }));
+    F.weeks.forEach(function (w) {
+      s.appendChild(svg('circle', { cx: X(w.endDay), cy: Y(w.endCash), r: 4, fill: 'var(--accent)', stroke: 'var(--surface)', 'stroke-width': 2, 'data-week': w.week }));
+    });
+    var labelWeeks = F.weeks.length >= 13 ? [1, 5, 9, 13] : F.weeks.map(function (w) { return w.week; }).filter(function (w, i, a) { return i % 2 === 0 || i === a.length - 1; });
+    labelWeeks.forEach(function (wn) {
+      var w = F.weeks[wn - 1]; if (!w) return;
+      s.appendChild(svg('text', { x: X(w.endDay), y: height - m.b + 16, 'text-anchor': wn === F.weeks.length ? 'end' : 'middle' }, w.label.split(' to ')[1]));
+    });
+    var cross = svg('line', { y1: m.t, y2: m.t + ph, stroke: 'var(--axis)', 'stroke-width': 1, visibility: 'hidden' });
+    s.appendChild(cross);
+    var hit = svg('rect', { x: m.l, y: m.t, width: pw, height: ph, fill: 'transparent' });
+    s.appendChild(hit);
+    box.appendChild(s);
+    var tip = el('div', { class: 'tooltip', hidden: '' });
+    box.appendChild(tip);
+    var active = null;
+    function show(i) {
+      if (!F.weeks.length) return;
+      active = Math.max(0, Math.min(F.weeks.length - 1, i));
+      var w = F.weeks[active], x = X(w.endDay);
+      cross.setAttribute('x1', x); cross.setAttribute('x2', x); cross.setAttribute('visibility', 'visible');
+      clear(tip); tip.hidden = false;
+      tip.appendChild(el('strong', null, dollars(w.endCash)));
+      tip.appendChild(el('div', null, 'Week ' + w.week + ', ' + w.label));
+      [['Receipts', w.receipts], ['Payroll and commissions', -w.payrollAndCommissions], ['Vendors and capex', -w.vendorsAndCapex],
+        ['Debt service', -w.debtService], ['Tax', -w.tax], ['Net', w.net]].forEach(function (r) {
+        if (r[0] === 'Tax' && !r[1]) return;
+        var row = el('div', { class: 'row' }); row.appendChild(el('span', null, r[0])); row.appendChild(el('b', null, dollars(r[1]))); tip.appendChild(row);
+      });
+      var left = x + 12 + 200 > width ? x - 12 - 200 : x + 12;
+      tip.style.left = Math.max(0, left) + 'px'; tip.style.top = (m.t + 4) + 'px';
+    }
+    function hide() { tip.hidden = true; cross.setAttribute('visibility', 'hidden'); }
+    function nearest(evt) {
+      var rect = s.getBoundingClientRect(), px = (evt.clientX - rect.left) * width / rect.width, best = 0;
+      F.weeks.forEach(function (w, i) { if (Math.abs(X(w.endDay) - px) < Math.abs(X(F.weeks[best].endDay) - px)) best = i; });
+      return best;
+    }
+    hit.addEventListener('pointermove', function (e) { show(nearest(e)); });
+    hit.addEventListener('pointerleave', hide);
+    s.addEventListener('focus', function () { show(active == null ? 0 : active); });
+    s.addEventListener('blur', hide);
+    s.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowRight') { show((active == null ? -1 : active) + 1); e.preventDefault(); }
+      if (e.key === 'ArrowLeft') { show((active == null ? 1 : active) - 1); e.preventDefault(); }
+      if (e.key === 'Escape') hide();
+    });
+
+    var lowW = F.weeks[F.lowestWeek - 1];
+    var verdict = F.anyWeekBelowCovenant ? 'At least one week ends below the ' + compact(cov) + ' covenant.'
+      : F.anyWeekBelowFloor ? 'At least one week ends below the ' + compact(floor) + ' floor, but above the covenant.'
+      : 'Every week ends above the ' + compact(floor) + ' floor.';
+    $('cash13-summary').textContent = (lowW ? 'Lowest week-end: week ' + lowW.week + ' (' + lowW.label + '), ' + compact(lowW.endCash) + '. ' : '') +
+      'Lowest day: ' + compact(F.lowestDayCash) + ', around payroll. ' + verdict +
+      (days < 91 ? ' The model ends after ' + days + ' days, so this view is shorter than 13 weeks.' : '');
+    $('cash13-sub').textContent = 'Daily cash from ' + R.months[state.t0] + ', with week-end points. Payroll goes out on the 15th and the last day.';
+
+    var t = el('table', { class: 'fin compact' }), hr = el('tr');
+    ['Week', 'Days', 'Receipts', 'Payroll and commissions', 'Vendors and capex', 'Debt service', 'Tax', 'Net cash flow', 'Ending cash'].forEach(function (h) { hr.appendChild(el('th', { scope: 'col' }, h)); });
+    var th = el('thead'); th.appendChild(hr); t.appendChild(th);
+    var tb = el('tbody');
+    F.weeks.forEach(function (w) {
+      var tr = el('tr');
+      [String(w.week), w.label, money(w.receipts), money(w.payrollAndCommissions), money(w.vendorsAndCapex), money(w.debtService), money(w.tax), money(w.net), money(w.endCash)]
+        .forEach(function (v, i) { tr.appendChild(el('td', null, v)); });
+      tb.appendChild(tr);
+    });
+    t.appendChild(tb);
+    clear($('cash13-table')).appendChild(t);
+  }
+
+  // ------------------------------------------------------------------
+  // Financial statements
+  // ------------------------------------------------------------------
+  function renderStatements() {
+    var st = E.statements(current(), state.grain), part = st[state.tab], box = clear($('fs-table'));
+    document.querySelectorAll('[data-tab]').forEach(function (b) { b.setAttribute('aria-selected', String(b.getAttribute('data-tab') === state.tab)); });
+    document.querySelectorAll('[data-grain]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-grain') === state.grain)); });
+    $('fs-table').setAttribute('aria-labelledby', 'tab-' + state.tab);
+    var t = el('table', { class: 'fin', 'data-statement': state.tab, 'data-grain': state.grain });
+    var hr = el('tr');
+    hr.appendChild(el('th', { scope: 'col' }, state.tab === 'bs' ? 'At the end of' : 'Line'));
+    part.columns.forEach(function (c) { hr.appendChild(el('th', { scope: 'col' }, c)); });
+    var thead = el('thead'); thead.appendChild(hr); t.appendChild(thead);
+    var tbody = el('tbody');
+    part.rows.forEach(function (r) {
+      if (r.optional && r.values.every(function (v) { return v === 0; })) return;
+      var tr = el('tr', { class: r.style, 'data-row': r.key });
+      tr.appendChild(el('th', { scope: 'row' }, r.label));
+      r.values.forEach(function (v) {
+        var td = el('td', null, r.kind === 'pct' ? (v == null ? '' : pct(v)) : money(v));
+        if (r.kind !== 'pct' && v < 0) td.className = 'neg';
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    t.appendChild(tbody);
+    box.appendChild(t);
+    var changed = changedPaths().length;
+    $('fs-sub').textContent = (changed ? 'With your edited assumptions. ' : 'The plan. ') +
+      'Whole dollars; losses in parentheses. Costs are shown as positive numbers.' +
+      (st.periods.some(function (p) { return p.partial; }) ? ' Some periods are partial.' : '');
+  }
+
+  // ------------------------------------------------------------------
+  // Assumptions panel
+  // ------------------------------------------------------------------
+  var GROUPS = [
+    ['Model frame', ['companyName', 'startYear', 'startMonth', 'horizonMonths', 'currency']],
+    ['ARR and customers', ['openingArr', 'openingCustomers', 'churnRateMonthly', 'contractionRateMonthly', 'expansionRateMonthly']],
+    ['Go-to-market channels', ['channels.'], 'Each channel turns spend or SDR time into leads, then MQLs, opportunities and deals. Outbound has no cost per lead: its leads come from SDRs.'],
+    ['Sales capacity', ['leadsPerSdrPerMonth', 'selfSourcedOppsPerAePerMonth', 'oppCapacityPerAePerMonth', 'aeRampMonths', 'sdrRampMonths', 'commissionRate']],
+    ['Headcount and loaded cost', ['roles.']],
+    ['Planned hires', ['plannedHires'], 'One person per row. A hire costs a full month of pay from the start month.'],
+    ['Cost of revenue', ['hostingCostPerCustomerPerMonth', 'hostingCostGrowthAnnual', 'thirdPartyPctOfRevenue']],
+    ['Operating expenses', ['nonHeadcountMonthly.', 'costInflationAnnual', 'meritIncreaseAnnual', 'programSpendGrowthAnnual']],
+    ['Billing and working capital', ['annualBillingShare', 'dsoDays', 'dpoDays', 'openingMonthlyBillings', 'openingMonthlyVendorSpend', 'openingInvoiceWeights'],
+      'If you change days to collect or to pay, change the opening receivables or payables to match, or month-1 collections can go negative.'],
+    ['Capex and depreciation', ['capexMonthly', 'usefulLifeMonths', 'openingPpeRemainingLifeMonths']],
+    ['Debt, covenant and cash', ['debtInterestRateAnnual', 'debtAmortStartMonth', 'debtAmortMonths', 'minCashCovenant', 'cashFloor', 'cashYieldAnnual'],
+      'The cash floor is both the internal policy and the guardrail, so it is one input here.'],
+    ['Tax', ['taxRate', 'openingNol']],
+    ['Opening balance sheet (Dec 31, 2026)', ['opening.'], 'Retained earnings is the balancing figure, so the opening balance sheet always balances.'],
+    ['Product roadmap', ['milestones.'], 'A milestone has no effect in the month it ships, then ramps in over its ramp months.'],
+    ['Objective, guardrails and discount rate', ['objective.', 'guardrails.', 'discountRateAnnual']],
+    ['Uncertainty ranges', ['uncertainty.', 'simulation.'], 'Used by the simulation in a later step. They do not change the numbers on this page yet.'],
+    ['Initiative template defaults', ['templates.'], 'Starting values for the Initiative Evaluator in a later step. They do not change the numbers on this page.']
+  ];
+  var SUBTITLES = { tradeShow: 'Trade show or event', hireSdrs: 'Hire SDRs', hireAes: 'Hire AEs', paidCampaign: 'Paid campaign', partnerProgram: 'Partner program',
+    salesCycleShift: 'Sales cycle shift' };
+  function matches(path, p) {
+    if (p.charAt(p.length - 1) === '.') return path.indexOf(p) === 0;
+    return path === p || path.indexOf(p + '.') === 0 || path.indexOf(p + '[') === 0;
+  }
+  function subKey(path) {
+    var t = path.match(/^(channels|roles|milestones|templates|uncertainty)\.([^.[]+)/);
+    return t && (t[1] !== 'uncertainty' || /\./.test(path.slice(t[0].length)) || /\[/.test(path.slice(t[0].length))) ? t[1] + '.' + t[2] : null;
+  }
+  function subTitle(key) {
+    var t = key.split('.');
+    if (t[0] === 'channels') return state.A.channels[t[1]] ? state.A.channels[t[1]].name : humanize(t[1]);
+    if (t[0] === 'milestones') return state.A.milestones[t[1]] ? state.A.milestones[t[1]].name : humanize(t[1]);
+    return SUBTITLES[t[1]] || humanize(t[1]);
+  }
+  var fieldSeq = 0;
+  function field(path) {
+    var kind = kindOf(path), v = getPath(state.A, path), id = 'f' + (++fieldSeq);
+    var row = el('div', { class: 'field', 'data-row': path });
+    var lab = el('label', { for: id }, labelFor(path));
+    var type = E.assumptionType(path);
+    lab.appendChild(el('span', { class: 'tag ' + type.toLowerCase() }, type));
+    row.appendChild(lab);
+    var ctl = el('div', { class: 'control' + (kind.type === 'bool' ? ' check' : '') }), input;
+    var attrs = { id: id, 'data-path': path };
+    if (path === 'cashFloor') attrs['data-also'] = 'guardrails.cashFloor';
+    if (kind.type === 'bool') {
+      input = el('input', Object.assign(attrs, { type: 'checkbox' }));
+      input.checked = !!v;
+    } else if (kind.type === 'enum') {
+      input = el('select', attrs);
+      kind.options.forEach(function (o) { input.appendChild(el('option', { value: o[0] }, o[1])); });
+      input.value = v;
+    } else if (kind.type === 'text') {
+      input = el('input', Object.assign(attrs, { type: 'text', class: 'text', autocomplete: 'off' }));
+      input.value = v;
+    } else {
+      if (kind.unit === 'money') ctl.appendChild(el('span', { class: 'affix' }, '$'));
+      input = el('input', Object.assign(attrs, { type: 'text', inputmode: 'decimal', autocomplete: 'off', spellcheck: 'false',
+        placeholder: kind.nullable ? 'none' : '' }));
+      input.value = showNumber(v, kind);
+      var suffix = { pct: '%', months: 'months', days: 'days', multiple: 'x' }[kind.unit];
+      ctl.appendChild(input);
+      if (suffix) ctl.appendChild(el('span', { class: 'affix' }, suffix));
+    }
+    if (!input.parentNode) ctl.appendChild(input);
+    row.appendChild(ctl);
+    row.appendChild(el('div', { class: 'hint' }));
+    input.addEventListener(kind.type === 'bool' || kind.type === 'enum' ? 'change' : 'input', function () { onEdit(path, input, kind); });
+    if (kind.type === 'num') input.addEventListener('blur', function () {
+      var cur = getPath(state.A, path);
+      if (!state.invalid[path] && (isNum(cur) || cur === null)) input.value = showNumber(cur, kind);
+    });
+    return row;
+  }
+  function onEdit(path, input, kind) {
+    var value;
+    if (kind.type === 'bool') value = input.checked;
+    else if (kind.type === 'enum' || kind.type === 'text') value = input.value;
+    else {
+      var raw = input.value.replace(/[,$%\sx]/gi, '');
+      if (raw === '' && kind.nullable) value = null;
+      else {
+        value = raw === '' ? NaN : Number(raw);
+        if (isNum(value) && kind.unit === 'pct') value = value / 100;
+      }
+      if (value === null || isNum(value)) delete state.invalid[path]; else state.invalid[path] = true;
+    }
+    setPath(state.A, path, value);
+    if (path === 'cashFloor') setPath(state.A, 'guardrails.cashFloor', value);
+    if (/\.name$/.test(path) && /^(channels|milestones)\./.test(path)) {
+      var h = document.querySelector('[data-sub="' + path.replace(/\.name$/, '') + '"]');
+      if (h) h.textContent = value;
+    }
+    recalcSoon();
+  }
+  function markFields() {
+    var bad = {};
+    if (state.error) E.validateAssumptions(state.A).forEach(function (msg) { bad[msg.split(/ must | is /)[0]] = msg; });
+    document.querySelectorAll('#assumption-groups .field').forEach(function (row) {
+      var path = row.getAttribute('data-row'), kind = kindOf(path), v = getPath(state.A, path), d = getPath(DEFAULTS, path);
+      var changed = d !== undefined && !sameValue(v, d), hint = row.querySelector('.hint');
+      var invalid = state.invalid[path] ? 'Enter a number.' : bad[path] ? bad[path].replace(/^\S+ /, 'This ') + '.' : '';
+      row.classList.toggle('changed', changed);
+      row.classList.toggle('invalid', !!invalid);
+      var parts = [];
+      if (invalid) parts.push(invalid);
+      var mh = monthHint(v, kind); if (mh) parts.push(mh);
+      if (changed) parts.push('Default: ' + describe(d, kind));
+      hint.textContent = parts.join('. ');
+    });
+  }
+  function buildPanel() {
+    var body = clear($('assumption-groups')), all = leaves(state.A, ''), used = {};
+    var openNow = {};
+    document.querySelectorAll('#assumption-groups details[open]').forEach(function (d) { openNow[d.getAttribute('data-group')] = 1; });
+    var groups = GROUPS.slice();
+    groups.push(['Other inputs', null]);
+    groups.forEach(function (g, gi) {
+      var paths = g[1] ? [] : all.filter(function (p) { return !used[p]; });
+      if (g[1]) g[1].forEach(function (pre) { all.forEach(function (p) { if (!used[p] && matches(p, pre)) { used[p] = 1; paths.push(p); } }); });
+      if (!paths.length && g[0] !== 'Planned hires') return;
+      var det = el('details', { class: 'group', 'data-group': g[0] });
+      if (openNow[g[0]]) det.open = true;
+      det.appendChild(el('summary', null, g[0]));
+      if (g[2]) det.appendChild(el('p', { class: 'group-note' }, g[2]));
+      if (g[0] === 'Planned hires') { det.appendChild(hiresEditor()); body.appendChild(det); return; }
+      var subs = {}, order = [];
+      paths.forEach(function (p) {
+        var k = subKey(p) || '';
+        if (!subs[k]) { subs[k] = []; order.push(k); }
+        subs[k].push(p);
+      });
+      order.forEach(function (k) {
+        var wrap = k ? el('div', { class: 'subgroup' }) : det;
+        if (k) { wrap.appendChild(el('h3', { 'data-sub': k }, subTitle(k))); det.appendChild(wrap); }
+        subs[k].forEach(function (p) { wrap.appendChild(field(p)); });
+      });
+      body.appendChild(det);
+    });
+    markFields();
+    applySearch();
+  }
+  function hiresEditor() {
+    var box = el('div');
+    state.A.plannedHires.forEach(function (h, i) {
+      var r = el('div', { class: 'hire-row' });
+      var month = field('plannedHires[' + i + '].month'), role = field('plannedHires[' + i + '].role');
+      r.appendChild(month); r.appendChild(role);
+      var rm = el('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Remove hire ' + (i + 1) }, 'Remove');
+      rm.addEventListener('click', function () { state.A.plannedHires.splice(i, 1); buildPanel(); recalcSoon(); });
+      r.appendChild(rm);
+      box.appendChild(r);
+    });
+    var add = el('button', { type: 'button', class: 'btn' }, 'Add a hire');
+    add.addEventListener('click', function () {
+      state.A.plannedHires.push({ month: Math.min(state.asOf + 1, state.A.horizonMonths || 1), role: 'engineer' });
+      buildPanel(); recalcSoon();
+    });
+    box.appendChild(add);
+    return box;
+  }
+  function applySearch() {
+    var q = $('assumption-search').value.trim().toLowerCase();
+    document.querySelectorAll('#assumption-groups details.group').forEach(function (det) {
+      var any = false;
+      det.querySelectorAll('.field').forEach(function (row) {
+        var text = (row.querySelector('label').textContent + ' ' + (row.closest('.subgroup') ? row.closest('.subgroup').querySelector('h3').textContent : '') + ' ' + det.getAttribute('data-group')).toLowerCase();
+        var show = !q || text.indexOf(q) >= 0;
+        row.hidden = !show; if (show) any = true;
+      });
+      det.querySelectorAll('.subgroup').forEach(function (sg) { sg.hidden = !Array.prototype.some.call(sg.querySelectorAll('.field'), function (f) { return !f.hidden; }); });
+      det.hidden = q ? !any : false;
+      if (q && any) det.open = true;
+    });
+  }
+  function openPanel(open) {
+    var d = $('assumptions');
+    d.classList.toggle('open', open); d.setAttribute('aria-hidden', String(!open));
+    $('scrim').classList.toggle('open', open);
+    $('open-assumptions').setAttribute('aria-expanded', String(open));
+    if (open) $('assumption-search').focus(); else $('open-assumptions').focus();
+  }
+
+  // ------------------------------------------------------------------
+  // Wiring
+  // ------------------------------------------------------------------
+  function wire() {
+    $('asof').addEventListener('change', function (e) { state.asOf = Number(e.target.value); renderKpis(); });
+    $('bridge-period').addEventListener('change', function (e) { state.bridge = e.target.value; renderBridge(); });
+    $('cash13-start').addEventListener('change', function (e) { state.t0 = Number(e.target.value); renderCash13(); });
+    document.querySelectorAll('[data-tab]').forEach(function (b) {
+      b.addEventListener('click', function () { state.tab = b.getAttribute('data-tab'); renderStatements(); });
+      b.addEventListener('keydown', function (e) {
+        var tabs = ['pl', 'bs', 'cf'], i = tabs.indexOf(state.tab);
+        if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+        state.tab = tabs[(i + (e.key === 'ArrowRight' ? 1 : 2)) % 3]; renderStatements(); $('tab-' + state.tab).focus();
+      });
+    });
+    document.querySelectorAll('[data-grain]').forEach(function (b) {
+      b.addEventListener('click', function () { state.grain = b.getAttribute('data-grain'); renderStatements(); });
+    });
+    $('open-assumptions').addEventListener('click', function () { openPanel(!$('assumptions').classList.contains('open')); });
+    $('close-assumptions').addEventListener('click', function () { openPanel(false); });
+    $('scrim').addEventListener('click', function () { openPanel(false); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && $('assumptions').classList.contains('open')) openPanel(false); });
+    $('assumption-search').addEventListener('input', applySearch);
+    $('reset-assumptions').addEventListener('click', function () {
+      state.A = E.defaultAssumptions(); state.invalid = {};
+      buildPanel(); recalc();
+    });
+    var lastW = window.innerWidth;
+    window.addEventListener('resize', function () {
+      if (Math.abs(window.innerWidth - lastW) < 8 || !state.res) return;
+      lastW = window.innerWidth;
+      clearTimeout(wire.t); wire.t = setTimeout(function () { renderKpis(); renderBridge(); renderCash13(); }, 120);
+    });
   }
 
   function main() {
-    var res = Engine.evaluate(Engine.defaultAssumptions(), []);
-    renderBadge(res);
     if (params.get('test') === '1') {
-      var out = document.getElementById('test-output');
+      state.res = E.evaluate(E.defaultAssumptions(), []);
+      renderBadge();
+      var out = $('test-output');
       out.hidden = false;
       var report = window.TestSuite.run();
       window.__TEST_RESULTS__ = report;
@@ -2915,12 +4298,16 @@ window.TestSuite = (function () {
       document.title = (report.failed === 0 ? 'PASS ' : 'FAIL ') + report.passed + '/' + report.total;
       return;
     }
-    renderApp(res);
+    state.plan = E.runModel(DEFAULTS, []);
+    wire();
+    buildPanel();
+    recalc();
+    window.__APP__ = { state: state, recalc: recalc };
   }
   try { main(); }
   catch (err) {
     window.__TEST_RESULTS__ = { error: String(err && err.stack || err) };
-    var b = document.getElementById('badge'); b.textContent = 'Engine error: ' + err.message; b.style.color = 'red';
+    var b = $('badge'); b.textContent = 'Engine error: ' + err.message; b.className = 'bad';
   }
 })();
 </script>
