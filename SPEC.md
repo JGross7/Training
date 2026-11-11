@@ -15,6 +15,7 @@ Contents
 6. Proof of work: opening balance sheet and January 2027 by hand
 7. Assumptions a real CFO would question
 8. Baseline reference tables
+9. Product development acceleration
 
 ---
 
@@ -305,6 +306,8 @@ Each milestone ships on its planned date in the baseline and its effect ramps in
 
 The effect share in month `m` is `ramp(m − shipMonth, rampMonths)`: zero in the ship month, full `rampMonths` later. Example: the integrations hub ships in month 12, so the win-rate lift is 0 in month 12, 1.33% in month 13 and the full 8% from month 18.
 
+Section 9 adds two more effect kinds (`expansionLift`, `thirdPartyCostReduction`) and optional timing for each effect (section 9.2). Their defaults leave this roadmap and the baseline unchanged.
+
 ### 1.15 Valuation, objective and guardrails
 
 | Key | Value | Type |
@@ -333,7 +336,7 @@ Each run draws one multiplier per driver from a triangular distribution (low, mo
 | Direct leads from an initiative (for example badge scans) | 0.70 | 1.00 | 1.20 | once per initiative |
 | Size of a milestone effect | 0.50 | 1.00 | 1.25 | once per milestone |
 
-Sales cycle shifts by a whole number of months, drawn once per channel: −1 month (15%), 0 (55%), +1 (20%), +2 (10%). The cycle never goes below 0. Ship-date slip is defined with product acceleration in a later phase. Random numbers come from a seeded generator (`simulation.seed`, default 2027; `simulation.runs`, default 1,000).
+Sales cycle shifts by a whole number of months, drawn once per channel: −1 month (15%), 0 (55%), +1 (20%), +2 (10%). The cycle never goes below 0. Ship-date slip is defined in section 9.9. Random numbers come from a seeded generator (`simulation.seed`, default 2027; `simulation.runs`, default 1,000).
 
 ### 1.17 Initiative template defaults
 
@@ -695,7 +698,7 @@ Effect kinds (`byMonth` maps a month number to an amount):
 | `allocated_cost` | `byMonth` | The cost of existing staff time. It does **not** change the P&L, the balance sheet or cash, because those people are already paid. It is counted in the investment and in the return measures (section 2.17) |
 | `capex` | `byMonth` | Adds to capex |
 | `driver_change` | `driver`, `channel` (optional), `fromMonth`, `toMonth`, `mode` ("multiply" or "add"), `value` | Changes one driver for those months. Drivers: `costPerLead`, `leadToMqlRate`, `mqlToOppRate`, `winRate`, `acv` (per channel), `churnRateMonthly`, `expansionRateMonthly`, `contractionRateMonthly`, `hostingCostPerCustomerPerMonth` |
-| `milestone_shift` | reserved | Defined with product acceleration in a later phase |
+| `milestone_shift` | `milestone`, `shipMonth` | Sets the month one roadmap milestone ships in this run (section 9.7). The costs of pulling it in are separate `headcount` and `vendor_cost` effects |
 
 Rules:
 
@@ -782,7 +785,7 @@ Names are suggestions; the behavior is required.
 
 ## 3. Integrity checks
 
-The engine runs every check on every recalculation, for the baseline and for the current scenario. The header badge shows "Integrity N/16" (a check that is missing counts as failed). A failed check is shown in red with its name, the first month that fails and the size of the difference.
+The engine runs every check on every recalculation, for the baseline and for the current scenario. The header badge shows "Integrity N/16" (a check that is missing counts as failed). A failed check is shown in red with its name, the first month that fails and the size of the difference. Section 9.10 adds checks C17 to C20 for product acceleration; once that section is built the badge shows "Integrity N/20".
 
 Tolerance: a dollar check passes when the absolute difference is at most 0.01. A count check passes at 1e-6.
 
@@ -1483,6 +1486,8 @@ Each item says what was chosen and why. All of them are editable in the Assumpti
 25. **Guardrails are tested at month-end.** The 13-week view shows cash dipping within a month around payroll dates; the floor and covenant tests use month-end balances only.
 26. **Uncertainty ranges and template defaults (sections 1.16, 1.17) are judgment.** They are starting points, not evidence.
 
+Items 27 to 41, on product acceleration, are in section 9.15.
+
 Differences from `CLAUDE.md`: month-1 burn 1.04M (brief: about 1.1M); new-deal ACV averages about 41.7K while the installed base averages 40K; the product roadmap has exact months (hosting optimization September 2027, integrations hub December 2027) inside the quarters the brief gives.
 
 ---
@@ -1617,3 +1622,777 @@ Reference values for the default assumptions with no initiatives. Tests T07 to T
 | 13 | Mar 26 to Apr 1 | 617,263.27 | 1,073,335.00 | 245,174.78 | 91,666.67 | −792,913.18 | 35,005,855.48 |
 
 Cash on January 31 (day 31) is 36,964,790.00, on February 28 (day 59) 35,951,218.77 and on March 31 (day 90) 34,967,666.36, equal to the monthly model. Week 13 ends on April 1 at 35,005,855.48. The lowest week is week 13. No week is below the floor or the covenant.
+
+---
+
+## 9. Product development acceleration
+
+This section defines the second initiative type: **pulling a roadmap milestone forward** by adding engineers, contractors or tooling. It adds to sections 1 to 8 and changes none of their numbers. With no acceleration initiative, every value in section 8 and every test T01 to T97 is unchanged (test T100).
+
+The short version:
+
+1. Added people and tools add capacity. Capacity decides the **target ship month**, so months gained are an output, not a wish (9.3).
+2. The pulled-in date can slip. A one-line rule gives the probability of each ship month (9.4).
+3. Cost is counted month by month and depends on when the milestone actually ships, because contractors and other until-it-ships costs keep running during a slip (9.5).
+4. Once shipped, the milestone's effects ramp in and flow through the same funnel, ARR rollforward and COGS formulas as the baseline (9.6).
+5. The value of acceleration is "pulled-in date" minus "planned date", with both measured against the same run without the milestone (9.8).
+
+### 9.1 What an acceleration initiative is, and the three runs
+
+An acceleration initiative names **one** milestone from the roadmap (section 1.14) and lists the resources added to its team. It does two things and nothing else:
+
+- it changes the month that milestone ships, through a `milestone_shift` effect;
+- it adds cost, through the existing `headcount` and `vendor_cost` effects (section 2.16).
+
+The engine then reruns the whole model. Nothing is added to the results after the fact.
+
+Three runs are used throughout this section. All use the same assumptions.
+
+| Run | Symbol | The milestone ships | Added resources |
+|---|---|---|---|
+| Without | `R0` | never (that one milestone has `enabled = false`) | none |
+| Planned date | `B` | in its planned month `P` | none |
+| Pulled-in date | `S_k` | in month `T + k` (target month `T`, slip of `k` months) | yes |
+
+`B` is the baseline of section 2.16, because the plan already contains every milestone on its planned date. So the incremental result of an acceleration initiative is `S − B`, exactly as for any other initiative. `R0` exists only to show what the milestone itself is worth (9.8).
+
+### 9.2 Assumptions
+
+New company-wide inputs. All are type Assumption and all are editable in the Assumptions panel.
+
+| Key | Value | Meaning |
+|---|---|---|
+| `acceleration.engineerRampMonths` | 3 | A new engineer is at 0% in the start month, then 33%, 67%, 100% |
+| `acceleration.contractorRampMonths` | 1 | A new contractor is at 0% in the start month, then 100% |
+| `acceleration.addedPersonEfficiency` | 0.80 | A fully ramped added person counts as 0.8 of an existing team member (coordination and hand-offs) |
+| `acceleration.maxCompression` | 50% | No pull-in can cut more than this share of the planned months remaining, whatever is added |
+| `acceleration.contractorMonthlyRate` | 20,000 | Default cost of one contract engineer per month |
+| `acceleration.engineerRecruitingEach` | 20,000 | Default one-time recruiting cost per engineer hired |
+| `acceleration.slipSensitivity` | 1.0 | How fast the chance of hitting the new date falls as the schedule is compressed (9.4) |
+| `acceleration.minOnTimeProbability` | 10% | The rule never gives a chance of hitting the date below this |
+| `acceleration.maxOverrunMonths` | 0 | How many months after the **planned** date a pulled-in milestone can still slip to. 0 means the worst case is "ships on the planned date" |
+| `uncertainty.plannedShipSlip` | 0 months (60%), +1 (20%), +2 (12%), +3 (8%) | Simulation only: slip of a milestone's planned date (9.9) |
+
+Additions to each milestone in the roadmap (section 1.14). Defaults leave the baseline unchanged.
+
+| Key (per milestone) | Default | Meaning |
+|---|---|---|
+| `effects.expansionLift` | none (0) | Relative lift of the monthly expansion rate |
+| `effects.thirdPartyCostReduction` | none (0) | Relative cut of third-party software cost as a share of revenue |
+| `effectTiming.<effect>.delayMonths` | 0 | Months after shipping before this effect starts to ramp |
+| `effectTiming.<effect>.rampMonths` | the milestone's `rampMonths` | Months this effect takes to reach full size |
+
+The initiative itself:
+
+```
+initiative = {
+  id, name, template: "accelerateRevenue" or "accelerateCost",
+  acceleration: {
+    milestone,                                   id of an enabled roadmap milestone
+    people: [
+      { type: "contractor", count, startMonth, monthlyRate, rampMonths },
+      { type: "employee", role, count, startMonth, loadedCostAnnual, rampMonths,
+        recruitingEach, afterLaunch: "leave" | "stay" | "replace_planned_hire" }
+    ],
+    tooling:    { startMonth, oneTime, monthly, speedup, afterLaunch: "stop" | "keep" },
+    extraCloud: { startMonth, monthly, line: "rd" | "cogs" },
+    slip:       { pOnTime, probabilities },      both optional (9.4)
+    actualShipMonth                              optional: a known ship month (learning loop)
+  }
+}
+```
+
+`rampMonths`, `monthlyRate`, `loadedCostAnnual` and `recruitingEach` default to the inputs above and to the role's loaded cost. `role` defaults to `engineer`. `people`, `tooling` and `extraCloud` are each optional.
+
+Template defaults (same style as section 1.17). They are the two worked examples in 9.11 and 9.12.
+
+| Template | Inputs and defaults |
+|---|---|
+| Pull in a revenue milestone (`accelerateRevenue`) | Milestone `integrations_hub`. Contractors: 8 from month 1 at 20,000 a month. Engineers: 2 from month 2 at 215,000 a year, recruiting 20,000 each, after launch `replace_planned_hire`. Tooling from month 1: 30,000 once and 10,000 a month until it ships, speed-up 15%. Extra cloud: 6,000 a month from month 1 until it ships, on R&D (test environments). Slip from the rule |
+| Pull in a cost-saving milestone (`accelerateCost`) | Milestone `hosting_optimization`. Contractors: 4 from month 1 at 20,000 a month. No engineers and no tooling. Extra cloud: 15,000 a month from month 4 until it ships, on COGS (old and new infrastructure running side by side). Slip from the rule |
+
+### 9.3 Months gained: work, capacity and the target ship date
+
+The baseline team finishes the milestone in month `P` (the roadmap `shipMonth`). The work left is measured in person-months. Added people and tools add capacity, and the milestone ships in the first month in which enough work has been done.
+
+```
+P  = planned ship month of the milestone
+a  = the earliest startMonth among the people lines and a tooling line with speedup > 0   (acceleration start)
+R  = P − a + 1                                   planned months of work left: months a … P
+W  = teamSize × R                                planned work left, in person-months
+
+Added_m  = addedPersonEfficiency × Σ over people lines ( count × ramp(m − startMonth, rampMonths) )
+Speed_m  = tooling.speedup if m > tooling.startMonth, else 0
+Cap_m    = (teamSize + Added_m) × (1 + Speed_m)                  for m = a … P
+CumCap_m = Σ_{j=a}^{m} Cap_j
+
+T_raw   = the first month m ≥ a with CumCap_m ≥ W − 1e-9
+T_floor = a − 1 + ceil( R × (1 − maxCompression) − 1e-9 )
+T       = min(P, max(T_raw, T_floor))            target ship month
+G       = P − T                                  months gained if it ships on the target date
+c       = G / R                                  compression: the share of the remaining schedule that is cut
+```
+
+Notes:
+
+- `ramp` is the function of section 0, so a person does no useful work in the start month. This is the same convention as AEs and SDRs (section 1.4).
+- For capacity, every added person counts until the milestone ships, whatever happens to them afterward (9.5).
+- `Cap_m ≥ teamSize`, so `T_raw ≤ P` always: adding people never delays the target. A late or overstaffed project is handled by slip (9.4), not here.
+- If `T_floor > T_raw`, the compression limit binds. The engine reports `limitedByCompression = true` and the card says "more people would not ship this sooner".
+- If `G = 0`, the resources do not gain a whole month. The cost still counts. The card says so.
+- With no people and no tooling speed-up, `T = P`, `G = 0`, `c = 0` (the null acceleration).
+- `T` does not depend on which month is called `a`: every earlier month adds `teamSize` to both `W` and `CumCap`. `a` matters only for `R`, `c` and `T_floor`.
+- Ship months are whole months. A milestone has no effect in the month it ships (section 1.14), so shipping in month `T` means the first effect is in month `T + 1`.
+
+### 9.4 The actual ship date: a simple slip model
+
+A pulled-in date can still slip. The rule, in words: **each month from the target date on, the milestone ships with probability `q` if it has not shipped yet. If it still has not shipped by the planned date, it ships then.** `q` falls one for one with compression: cut a third of the remaining schedule and the chance of hitting the new date is two in three; cut half and it is a coin flip.
+
+```
+q   = slip.pOnTime                                                  if the initiative gives one
+    = clamp(1 − slipSensitivity × c, minOnTimeProbability, 1)        otherwise
+
+K   = G + maxOverrunMonths                       the largest slip
+p_k = q × (1 − q)^k                              for k = 0 … K − 1
+p_K = (1 − q)^K                                  whatever is left
+Ship_k = T + k                                   the actual ship month with a slip of k months
+```
+
+`p_0 = q` is the probability of hitting the new date. The `p_k` sum to 1. If `slip.probabilities` is given it replaces the whole table: a list of `p_0, p_1, …` of any length, each between 0 and 1, summing to 1 within 1e-9. A list longer than `G + 1` lets the milestone ship later than its planned date.
+
+Reported from the table:
+
+```
+ExpectedSlip         = Σ_k k × p_k
+ExpectedShipMonth    = T + ExpectedSlip                               (can be a fraction)
+ExpectedMonthsGained = G − ExpectedSlip
+ProbabilityOnTime    = p_0
+ProbabilityNoGain    = Σ p_k over outcomes with Ship_k ≥ P             (the money is spent and nothing is gained)
+ShippedBy_m          = Σ p_k over outcomes with Ship_k ≤ m             (cumulative, for the chart)
+PlanningSlip         = floor(ExpectedSlip + 0.5)                       (nearest whole month, halves round later)
+PlanningShipMonth    = T + PlanningSlip
+```
+
+Slip here means months of the pull-in that are lost. The planned date itself is assumed to hold in the deterministic model (see 9.9 for the simulation and 9.15 for why that is a weak assumption).
+
+### 9.5 Cost of acceleration by month
+
+Let `A` be the actual ship month of the run (one of the `Ship_k`). Costs that run "until it ships" stop after month `A`, so a slip costs twice: the benefit starts later and the bills keep coming.
+
+| Cost line | Amount in month `m` | Months | Effect kind and P&L line |
+|---|---|---|---|
+| Contractors | `count × monthlyRate` | `startMonth … A` | `vendor_cost` on R&D |
+| Employees | `count × loadedCostAnnual / 12 × step(meritIncreaseAnnual, m)` | `startMonth … End` | `headcount`: payroll on the role's P&L line |
+| Recruiting | `count × recruitingEach` | `startMonth` only | `vendor_cost` on R&D |
+| Tooling, one-time | `oneTime` | `tooling.startMonth` only | `vendor_cost` on R&D |
+| Tooling, monthly | `monthly` | `startMonth … A` if "stop", `startMonth … 36` if "keep" | `vendor_cost` on R&D |
+| Extra cloud | `monthly` | `startMonth … A` | `vendor_cost` on `line`: R&D for test environments, COGS for production capacity |
+
+**Whether added people stay after launch.** Contractors always leave at the end of the ship month. For each employee line, `afterLaunch` sets `End`:
+
+| `afterLaunch` | `End` | Meaning |
+|---|---|---|
+| `"leave"` | `A` | Temporary staff. Paid through the ship month |
+| `"stay"` | 36 | Permanent hires. The initiative carries their cost to the end of the model |
+| `"replace_planned_hire"` | one month before the matched planned hire starts | The person is hired early into a seat the plan already has (section 1.6). From the planned start month the baseline pays for that seat, so the initiative pays only for the months in between |
+
+Matching for `"replace_planned_hire"`: each added person takes the earliest planned hire of the same role whose start month is after the person's start month and that is not already taken. A planned hire can be taken once per run (people are matched in the order the initiatives and lines are listed). A person with no seat left is treated as `"stay"`. The matched planned hire still appears in the baseline roster from its planned month, so headcount is never counted twice.
+
+Rules:
+
+1. A line whose `startMonth` is after `A` costs nothing. A line whose `startMonth` is after `P` is an input error.
+2. Contractor rates, tooling and extra cloud are not inflated. Employee pay takes the merit step each January like every other role (section 2.2).
+3. Payroll is paid in the month. Vendor costs are paid through payables, one month later at 30 days (section 2.8).
+4. `Investment_m` (section 2.17) is the sum of the lines above as expensed. There is no `allocated_cost`: the existing team's time is the same work done sooner.
+5. Recruiting is charged even for `"replace_planned_hire"`. The plan has no recruiting cost for planned hires, so this slightly overstates the cost.
+
+**Team time freed (reported, not counted).** When the milestone ships early, the existing team is free sooner. No cash is saved, because those people are paid anyway, so this is left out of every return measure. It is shown beside them:
+
+```
+FreedPersonMonths = teamSize × (P − A)                                           negative if A > P
+FreedValue_m      = teamSize × roles.engineer.loadedCostAnnual / 12 × step(meritIncreaseAnnual, m)
+                    for m = A + 1 … P       (with a minus sign for m = P + 1 … A when A > P; months after 36 are ignored)
+FreedTeamValue    = Σ_m FreedValue_m
+NpvWithFreedTeam  = NPV + Σ_m FreedValue_m / (1 + r)^m                           r from section 2.17
+```
+
+### 9.6 Effects once shipped: revenue and COGS
+
+Every effect of every enabled milestone has a ramp-up curve: nothing through the ship month plus its delay, then a straight line up to full size.
+
+```
+Ship_i      = the roadmap shipMonth of milestone i, or the month named by a milestone_shift for i
+s_i,e(m)    = ramp(m − Ship_i − delayMonths_i,e, rampMonths_i,e)      share of effect e that is live in month m
+              (0 for every m if milestone i is disabled)
+
+Lift_e(m)   = Σ_i effects_i,e × s_i,e(m)                              e = winRateLift, acvLift, expansionLift
+Cut_e(m)    = clamp( Σ_i effects_i,e × s_i,e(m), 0, 1 )               e = churnReduction, hostingCostReduction,
+                                                                          thirdPartyCostReduction
+```
+
+| Effect | What it changes | Formula (replaces the single-milestone form in sections 2.3, 2.4 and 2.7) | Month it uses |
+|---|---|---|---|
+| `winRateLift` | Win rate, all channels | `WinRate_c,m = clamp(winRate_c × (1 + Lift_win(m)), 0, 1)` | The month the deal closes |
+| `acvLift` | ACV of new deals, all channels | `ACV_c,m = acv_c × (1 + Lift_acv(m))` | The month the deal closes |
+| `expansionLift` | Expansion rate | `ExpansionRate_m = clamp(expansionRateMonthly × (1 + Lift_exp(m)), 0, 1)` | The month it is applied |
+| `churnReduction` | Churn rate (ARR and customers) | `ChurnRate_m = churnRateMonthly × (1 − Cut_churn(m))` | The month it is applied |
+| `hostingCostReduction` | Hosting cost per customer | `Hosting_m = average customers × hostingCostPerCustomerPerMonth × step(hostingCostGrowthAnnual, m) × (1 − Cut_host(m))` | The month of the cost |
+| `thirdPartyCostReduction` | Third-party software cost | `ThirdParty_m = Revenue_m × thirdPartyPctOfRevenue × (1 − Cut_tp(m))` | The month of the cost |
+
+The driver on the right of each formula is the value after any `driver_change` (section 2.16 rule 1). With the default roadmap and no timing overrides these formulas give exactly the baseline of section 2.
+
+How the revenue effects flow, with no new formulas:
+
+- A higher win rate gives more deals from the same opportunities: `Deals_c,m = OppsWorked_c,(m − cycle) × WinRate_c,m`. It needs no extra leads and no extra AE capacity.
+- A higher ACV makes each new deal larger: `NewARR_c,m = Deals_c,m × ACV_c,m`. It does not reprice the installed base.
+- Extra new ARR, extra expansion and lower churn all enter the ARR rollforward (section 2.4) and from then on expand, contract and churn like any other ARR.
+- Extra deals and lower churn add customers, which add hosting cost. Extra revenue adds third-party cost (4%). Extra new ARR pays commission (10%); expansion does not.
+- 60% of new and expansion ARR is invoiced a year upfront (section 2.6), so pulled-in ARR pulls cash forward as well as revenue.
+
+COGS effects change no revenue. They lower `COGS_m`, raise gross profit and gross margin by the same amount, and reach cash one month later through lower vendor payments.
+
+A useful identity for a milestone whose ramps finish inside the model: summed over all months, the extra share from shipping in month `T` instead of month `P` is exactly `P − T`. Pulling a milestone in by 3 months buys 3 months of its full effect, spread over the months when one ramp is ahead of the other (test T112).
+
+### 9.7 Running an acceleration: outcomes, expected case and planning case
+
+For an actual ship month `A` the initiative expands into ordinary effects:
+
+```
+effects(A) = [ { kind: "milestone_shift", milestone, shipMonth: A } ]  +  the cost effects of 9.5 for ship month A
+```
+
+`milestone_shift` sets `Ship_i = A` for that milestone in that run. `shipMonth` is a whole month of 1 or more; a month after 36 means the milestone has no effect inside the model. Two `milestone_shift` effects on the same milestone in one run are an input error (two ways of accelerating one milestone are alternatives, not a pair).
+
+**Outcomes.** There is one run per row of the slip table:
+
+```
+S_k       = runModel(assumptions, [ the initiative expanded at Ship_k ])
+Δ_k       = S_k − B                                 every series, section 2.16
+returns_k = the measures of section 2.17 for S_k against B
+SO_k      = runModel(assumptions, [ the milestone_shift to Ship_k alone ])      "shift only": the date with no cost
+```
+
+**On-target case.** Outcome `k = 0`: what happens if the new date holds.
+
+**Expected case** (the headline on the decision card). Each outcome is weighted by its probability:
+
+```
+E[X] = Σ_k p_k × X_k        for every monthly Δ series, Investment_m, NF_m, CumNF_m, TotalInvestment and NPV
+
+ExpectedROI             = E[CumNF_36] / E[TotalInvestment]
+ExpectedNewArrPerDollar = E[Σ ΔNewARR] / E[TotalInvestment]
+ExpectedPaybackMonth    = the payback rule of section 2.17 applied to the series E[CumNF_m]
+ProbabilityOfPayback    = Σ p_k over outcomes whose own PaybackMonth is a month
+```
+
+Because NPV is a weighted sum of net flows, `Σ_k p_k × NPV_k` equals the NPV of the series `E[NF_m]` (check C20).
+
+**Benefit and cost, separately.**
+
+```
+BenefitNpv_k = NPV of SO_k against B               what the earlier date is worth with no cost: the most it is worth paying
+CostNpv_k    = BenefitNpv_k − NPV_k                what the acceleration costs, in today's dollars
+ValuePerMonthGained = E[BenefitNpv] / ExpectedMonthsGained
+CostPerMonthGained  = E[CostNpv] / ExpectedMonthsGained
+```
+
+The on-target versions use `k = 0` and `G`. If months gained is 0 the two per-month figures are not shown.
+
+**Planning case.** A run that contains several initiatives needs one ship month per milestone. Whenever an acceleration initiative is part of a combined run (the scenario on "Where we stand", the guardrails of the combined plan, a portfolio), it is expanded at `PlanningShipMonth` (9.4), or at `actualShipMonth` if one is given. KPI effects and guardrail results on its own decision card are also those of the planning case, because ratios such as burn multiple do not average. Beside them the card shows, for each guardrail, the probability-weighted share of outcomes that pass it.
+
+**Input checks** (section 2.16 rule 5 applies). The run stops with a plain reason if: the milestone is unknown or disabled; a `startMonth` is not a whole month from 1 to `P`; a count, rate or cost is negative or not finite; `speedup` is negative; `afterLaunch` or `line` is not one of the listed values; `pOnTime` is outside 0 to 1; `probabilities` has a value outside 0 to 1 or does not sum to 1; `actualShipMonth` is not a whole month of 1 or more; or two initiatives in one run shift the same milestone.
+
+### 9.8 Showing the value: planned date versus pulled-in date
+
+"Ship on the planned date" compared with the baseline is zero by definition, because the baseline is the planned date. To show what is at stake, both dates are measured against the same reference, the run without the milestone:
+
+```
+Planned_X   = X(B)   − X(R0)        what the milestone adds if it ships on the planned date
+PulledIn_X  = X(S)   − X(R0)        what it adds if it ships on the pulled-in date, after the cost of pulling it in
+Value_X     = PulledIn_X − Planned_X = X(S) − X(B)        the value of acceleration
+```
+
+`Value_X` is the initiative's ordinary delta, so the side-by-side and the decision card can never disagree (check C20). `S` is the expected case by default (`X(S) = Σ_k p_k × X(S_k)`), with the on-target case one tap away.
+
+The side-by-side table has four columns (Without, Planned date, Pulled-in date, Value of acceleration) and these rows:
+
+| Row | Measure `X` |
+|---|---|
+| Ship month | `P`, then `T` with the expected ship month, then months gained |
+| First month with an effect | Ship month plus 1 plus the shortest delay |
+| ARR at month 12 and at month 36 | `ARR_12`, `ARR_36` |
+| New ARR, revenue, COGS, gross profit, EBITDA | Each summed over months 1 to 36 |
+| Hosting cost (cost-saving milestones) | Summed over months 1 to 36 |
+| Gross margin | `GrossMarginTrailing` at months 12, 24 and 36, in percentage points |
+| Net flow and NPV | `CumNF_36` and NPV of section 2.17, computed against `R0` for the two date columns |
+| Cash at month 36 | `Cash_36` |
+
+For net flow and NPV the Planned column is the return of `B` against `R0` (no investment: the baseline team is already paid) and the Pulled-in column is the return of `S` against `R0` (investment is the acceleration cost). Their difference is the NPV on the decision card.
+
+The decision card for an acceleration initiative shows, all from the engine:
+
+1. **Schedule:** planned month, target month, months gained, compression, whether the compression limit binds, and capacity against work by month.
+2. **Ship date odds:** the slip table as a small chart, the probability of hitting the new date, the expected ship month, the expected months gained and the probability of no gain.
+3. **Added cost by month,** by line (9.5), for the expected case and the on-target case, with the total.
+4. **Benefit by month:** extra new ARR, ARR, revenue and gross profit for a revenue milestone; hosting or third-party savings and gross margin points for a cost-saving milestone.
+5. **Returns:** NPV, payback month, ROI, new ARR per dollar, benefit NPV and cost NPV, value and cost per month gained, for the expected case, with the on-target case and the worst outcome beside it.
+6. **Guardrails and KPIs** for the planning case, with the share of outcomes that pass each guardrail.
+7. **The side-by-side** above.
+8. **Not counted:** team time freed (person-months and dollars) with `NpvWithFreedTeam`, and the extra ARR still in place at month 36.
+
+### 9.9 Simulation rules for ship dates
+
+This replaces the note in section 1.16 that ship-date slip is defined later. In each simulation run:
+
+1. **Planned-date slip.** For every enabled milestone, draw one slip from `uncertainty.plannedShipSlip` (0, 1, 2 or 3 months). Add it to that milestone's ship month in **both** the baseline and the scenario of that run. This is the risk every project carries, pulled in or not.
+2. **Acceleration slip.** For every acceleration initiative, draw one `k` from its slip table (9.4). The scenario ships that milestone in month `T + k + planned-date slip`; the baseline ships it in `P + planned-date slip`.
+3. Costs that run until the milestone ships (9.5) run until the scenario's ship month in that run.
+4. The effect-size multiplier of section 1.16 applies to every effect of the milestone in both runs.
+5. Draws are made in a fixed order (milestones in roadmap order, then initiatives in list order) from the seeded generator, so the same seed gives the same results.
+
+The planned-date slip moves the baseline and the scenario together, so it changes when the benefit arrives but not the months gained. The deterministic model uses no planned-date slip.
+
+### 9.10 Integrity checks C17 to C20
+
+These follow the rules of section 3: same tolerances, and every check compares numbers computed by different paths. Once this section is built the badge reads "Integrity N/20".
+
+The model result must expose what the checks need: the ship month used for each milestone, every effect share `s_i,e(m)`, the win rate and ACV used per channel and month, the expansion rate, churn rate, hosting reduction and third-party reduction used per month, the initiative cost by line and month, and, for each acceleration initiative, its schedule (9.3), slip table (9.4) and the ship month it was expanded at.
+
+| # | Check | Passes when |
+|---|---|---|
+| C17 | Milestone effects follow the ship dates | (a) The ship month used for each milestone equals its roadmap `shipMonth`, or the month in the one `milestone_shift` that names it. (b) Every stored share equals `ramp(m − Ship − delay, rampMonths)` recomputed from (a), lies between 0 and 1, is 0 for `m ≤ Ship + delay` and never falls from one month to the next. (c) The outputs agree with the rates rebuilt from the inputs, the driver changes and the shares of (b): `Deals_c,m = OppsWorked_c,(m − cycle) × WinRate_c,m`; `NewARR_c,m = Deals_c,m × ACV_c,m`; `Expansion_m = ARR_(m−1) × ExpansionRate_m`; `Churn_m = ARR_(m−1) × ChurnRate_m`; `Hosting_m` and `ThirdParty_m` equal the formulas of 9.6 |
+| C18 | Acceleration schedule ties | For each acceleration initiative, rebuilt from its resource lines: `W = teamSize × R`; `Cap_m ≥ teamSize`; `CumCap_T ≥ W`; `CumCap_(T−1) < W` unless `T = T_floor`; `a ≤ T ≤ P`; `G = P − T`; `c = G / R ≤ maxCompression`. Every slip probability is between 0 and 1 and they sum to 1 within 1e-9; `Ship_k = T + k`; `ExpectedShipMonth = Σ p_k × Ship_k`; `PlanningShipMonth = T + floor(ExpectedSlip + 0.5)`. The ship month the run used for that milestone is the planning month, the given `actualShipMonth`, or (in an outcome run) that outcome's `Ship_k` |
+| C19 | Acceleration cost follows the ship date | For each run that contains an acceleration initiative and every month: initiative payroll by role, initiative vendor cost by P&L line and `Investment_m` in the model equal the amounts rebuilt by `runChecks` from the resource lines and the ship month the run used (9.5). Nothing from a contractor line, a `"leave"` line, stop-at-launch tooling or extra cloud falls after the ship month. A `"replace_planned_hire"` person's pay stops the month before the matched planned hire starts, and headcount in that role equals baseline headcount plus the initiative people still active. Every amount is 0 or more |
+| C20 | Expected value and the side-by-side tie | For each acceleration initiative evaluated alone: (a) the planned-date run rebuilt as "a `milestone_shift` to month `P` and no resources" equals the baseline in every series, within 1e-6 (the acceleration version of C7); (b) in `R0` every share of that milestone is 0 in every month; (c) for every row of the side-by-side, stored `PulledIn − Planned` equals the delta returned by `applyInitiatives`, for each outcome and for the expected case; (d) every stored expected series equals `Σ_k p_k ×` the outcome series recomputed, `Σ_k p_k × NPV_k` equals the NPV of the stored `E[NF_m]`, and `E[TotalInvestment] = Σ_m E[Investment_m]`; (e) for each outcome `BenefitNpv_k − CostNpv_k = NPV_k`, with `BenefitNpv_k` taken from the shift-only run |
+
+When the scenario has no acceleration initiative, C18 to C20 run on the **null acceleration** of every enabled milestone (that milestone with no people, no tooling and no extra cloud). It must give `T = P`, `G = 0`, a slip table of one row with probability 1, zero cost in every month and zero difference from the baseline in every series. The null initiative of check C7 also gains a `milestone_shift` of each milestone to its own planned month.
+
+A broken guardrail in some outcomes is a business warning, not an integrity failure.
+
+### 9.11 Hand-calculated example: Enterprise integrations hub, pulled in 2 quarters
+
+**Initiative.** The `accelerateRevenue` template with its defaults (9.2). The hub is planned for December 2027 (`P = 12`), team of 8, win-rate lift 8% and ACV lift 5% on all channels, ramp 6 months.
+
+**Schedule (9.3).** `a = 1`, `R = 12`, `W = 8 × 12 = 96` person-months.
+
+| Month | Existing team | Contractors: 8 × ramp × 0.8 | Engineers: 2 × ramp × 0.8 | Tooling factor | Capacity | Cumulative |
+|---|---|---|---|---|---|---|
+| 1 | 8 | 0 | 0 | 1.00 | 8.0000 | 8.0000 |
+| 2 | 8 | 6.4 | 0 | 1.15 | 16.5600 | 24.5600 |
+| 3 | 8 | 6.4 | 0.5333 | 1.15 | 17.1733 | 41.7333 |
+| 4 | 8 | 6.4 | 1.0667 | 1.15 | 17.7867 | 59.5200 |
+| 5 | 8 | 6.4 | 1.6 | 1.15 | 18.4000 | 77.9200 |
+| 6 | 8 | 6.4 | 1.6 | 1.15 | 18.4000 | 96.3200 |
+
+```
+T_raw   = 6            (96.32 ≥ 96 in month 6; 77.92 < 96 in month 5)
+T_floor = 0 + ceil(12 × 0.5) = 6
+T = 6 (June 2027),  G = 12 − 6 = 6 months,  c = 6 / 12 = 0.5
+```
+
+The pull-in sits exactly at the compression limit and clears the work by only 0.32 person-months.
+
+**Slip (9.4).** `q = 1 − 1.0 × 0.5 = 0.5`, `K = 6`: probabilities 1/2, 1/4, 1/8, 1/16, 1/32, 1/64 and 1/64 for ship months 6 to 12.
+
+```
+ExpectedSlip = 1/4 + 2/8 + 3/16 + 4/32 + 5/64 + 6/64 = 0.984375 months
+ExpectedShipMonth = 6.984375;  ExpectedMonthsGained = 5.015625
+ProbabilityOnTime = 0.5;  ProbabilityNoGain = 1/64 = 0.015625
+PlanningSlip = floor(0.984375 + 0.5) = 1, so PlanningShipMonth = 7 (July 2027)
+```
+
+**Cost if it ships on the target date (`A = 6`).** Contractors: 8 × 20,000 = 160,000 a month in months 1 to 6. Engineers: 215,000 / 12 = 17,916.67 a month each. Both start in month 2; the first takes the planned engineer seat of month 4, so the initiative pays for months 2 and 3; the second takes the seat of month 10, so months 2 to 9. Tooling: 30,000 + 10,000 in month 1, then 10,000 a month to month 6. Extra cloud: 6,000 a month in months 1 to 6.
+
+| Month | Contractors | Engineer pay | Recruiting | Tooling | Extra cloud | Total cost |
+|---|---|---|---|---|---|---|
+| 1 | 160,000.00 | 0.00 | 0.00 | 40,000.00 | 6,000.00 | 206,000.00 |
+| 2 | 160,000.00 | 35,833.33 | 40,000.00 | 10,000.00 | 6,000.00 | 251,833.33 |
+| 3 | 160,000.00 | 35,833.33 | 0.00 | 10,000.00 | 6,000.00 | 211,833.33 |
+| 4 | 160,000.00 | 17,916.67 | 0.00 | 10,000.00 | 6,000.00 | 193,916.67 |
+| 5 | 160,000.00 | 17,916.67 | 0.00 | 10,000.00 | 6,000.00 | 193,916.67 |
+| 6 | 160,000.00 | 17,916.67 | 0.00 | 10,000.00 | 6,000.00 | 193,916.67 |
+| 7 | 0.00 | 17,916.67 | 0.00 | 0.00 | 0.00 | 17,916.67 |
+| 8 | 0.00 | 17,916.67 | 0.00 | 0.00 | 0.00 | 17,916.67 |
+| 9 | 0.00 | 17,916.67 | 0.00 | 0.00 | 0.00 | 17,916.67 |
+| Total | 960,000.00 | 179,166.67 | 40,000.00 | 90,000.00 | 36,000.00 | 1,305,166.67 |
+
+Each month of slip adds 160,000 + 10,000 + 6,000 = 176,000 (the engineers do not depend on the ship date). Headcount: engineers are 2 above the baseline in months 2 and 3, 1 above in months 4 to 9, and equal from month 10.
+
+**Benefit.** Let `f(h) = (1 + 0.08h)(1 + 0.05h) − 1` be the combined lift on new ARR at share `h`. The lift is the same on every channel, so new ARR equals the new ARR of the run without the hub times `1 + f(h)`. Without the hub, new ARR is 289,600 in months 1 to 11, 297,700 in month 12, 305,800 in months 13 and 14, 307,825 in month 15 and 310,390 in months 16 and 17.
+
+Pulled in, the share is `(m − 6) / 6` in months 7 to 12 and 1 after. Planned, it is 0 through month 12, `(m − 12) / 6` in months 13 to 17 and 1 from month 18. Factors below are shown to 7 decimals; the amounts use full precision.
+
+```
+m = 7:   f(1/6) = 0.0217778   Δ New ARR = 289,600 × 0.0217778 =  6,306.84
+m = 8:   f(2/6) = 0.0437778   Δ New ARR = 289,600 × 0.0437778 = 12,678.04
+m = 9:   f(3/6) = 0.0660000   Δ New ARR = 289,600 × 0.0660000 = 19,113.60
+m = 10:  f(4/6) = 0.0884444   Δ New ARR = 289,600 × 0.0884444 = 25,613.51
+m = 11:  f(5/6) = 0.1111111   Δ New ARR = 289,600 × 0.1111111 = 32,177.78
+m = 12:  f(1)   = 0.1340000   Δ New ARR = 297,700 × 0.1340000 = 39,891.80
+m = 13:  0.134 − f(1/6) = 0.1122222   Δ New ARR = 305,800 × 0.1122222 = 34,317.56
+m = 14:  0.134 − f(2/6) = 0.0902222   Δ New ARR = 305,800 × 0.0902222 = 27,589.96
+m = 15:  0.134 − f(3/6) = 0.0680000   Δ New ARR = 307,825 × 0.0680000 = 20,932.10
+m = 16:  0.134 − f(4/6) = 0.0455556   Δ New ARR = 310,390 × 0.0455556 = 14,139.99
+m = 17:  0.134 − f(5/6) = 0.0228889   Δ New ARR = 310,390 × 0.0228889 =  7,104.48
+m ≥ 18:  both at full lift, Δ New ARR = 0
+Sum of Δ New ARR = 239,865.66
+```
+
+Extra ARR at month 12, with each month's new ARR growing at the net monthly rate 1.008 (section 4.3):
+
+```
+ΔARR_12 = 6,306.84 × 1.008^5 + 12,678.04 × 1.008^4 + 19,113.60 × 1.008^3
+        + 25,613.51 × 1.008^2 + 32,177.78 × 1.008 + 39,891.80 = 137,579.80
+```
+
+**Month 1.** Cost 206,000, all vendor bills: `ΔEBITDA = −206,000`, nothing is paid yet, `NF_1 = 0`.
+
+**Month 2.** `ΔEBITDA = −251,833.33`. Cash out: last month's vendor bills 206,000 plus this month's pay 35,833.33. `NF_2 = −241,833.33`.
+
+**Month 3.** Vendor bills of month 2 are 160,000 + 40,000 + 10,000 + 6,000 = 216,000. `NF_3 = −216,000 − 35,833.33 = −251,833.33`. `CumNF_3 = −493,666.67`.
+
+**Months 4 to 6.** `NF = −176,000 − 17,916.67 = −193,916.67` each. `CumNF_6 = −1,075,416.67`.
+
+**Month 7 (first lifted deals).**
+
+```
+ΔDeals_7      = 6.94 × 0.08 × 1/6 = 0.0925          (the win-rate part of the lift only)
+ΔARR_7        = 6,306.84;  ΔRevenue_7 = 6,306.84 / 24 = 262.79
+ΔHosting_7    = 0.0925 / 2 × 360 = 16.66;  ΔThirdParty_7 = 0.04 × 262.79 = 10.51
+ΔGrossProfit_7 = 262.79 − 16.66 − 10.51 = 235.62
+ΔCommissions_7 = 630.68
+ΔEBITDA_7     = 235.62 − 630.68 − 17,916.67 = −18,311.73
+ΔBillings_7   = 0.60 × 6,306.84 + 0.40 × 262.79 = 3,889.22      (collected in months 8 and 9)
+NF_7 = −176,000 (June vendor bills) − 17,916.67 − 630.68 = −194,547.35;  CumNF_7 = −1,269,964.02
+```
+
+**Month 8.**
+
+```
+ΔARR_8 = 6,306.84 × 1.008 + 12,678.04 = 19,035.34;  ΔRevenue_8 = (6,306.84 + 19,035.34) / 24 = 1,055.92
+ΔCollections_8 = 0.5 × 3,889.22 = 1,944.61;  ΔVendorPaid_8 = 16.66 + 10.51 = 27.17;  ΔCommissions_8 = 1,267.80
+NF_8 = 1,944.61 − 27.17 − 1,267.80 − 17,916.67 = −17,267.03;  CumNF_8 = −1,287,231.05
+```
+
+From month 10 the monthly net flow is positive, but it never recovers the 1.3 million inside the model.
+
+**Month by month, on target** (reference values from the same recurrences):
+
+| m | Month | Cost | Δ New ARR | Δ ARR | Δ Revenue | Δ COGS | Δ Gross profit | Δ EBITDA | Δ Collections | Δ Vendor paid | Net flow NF | Cumulative NF | Δ Cash balance |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | Jan 2027 | 206,000.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | −206,000.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 |
+| 2 | Feb 2027 | 251,833.33 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | −251,833.33 | 0.00 | 206,000.00 | −241,833.33 | −241,833.33 | −241,833.33 |
+| 3 | Mar 2027 | 211,833.33 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | −211,833.33 | 0.00 | 216,000.00 | −251,833.33 | −493,666.67 | −494,472.78 |
+| 4 | Apr 2027 | 193,916.67 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | −193,916.67 | 0.00 | 176,000.00 | −193,916.67 | −687,583.33 | −690,037.69 |
+| 5 | May 2027 | 193,916.67 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | −193,916.67 | 0.00 | 176,000.00 | −193,916.67 | −881,500.00 | −886,254.48 |
+| 6 | Jun 2027 | 193,916.67 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | −193,916.67 | 0.00 | 176,000.00 | −193,916.67 | −1,075,416.67 | −1,083,125.33 |
+| 7 | Jul 2027 | 17,916.67 | 6,306.84 | 6,306.84 | 262.79 | 27.17 | 235.62 | −18,311.73 | 0.00 | 176,000.00 | −194,547.35 | −1,269,964.02 | −1,281,283.10 |
+| 8 | Aug 2027 | 17,916.67 | 12,678.04 | 19,035.34 | 1,055.92 | 108.76 | 947.16 | −18,237.31 | 1,944.61 | 27.17 | −17,267.03 | −1,287,231.05 | −1,302,821.07 |
+| 9 | Sep 2027 | 17,916.67 | 19,113.60 | 38,301.23 | 2,389.02 | 244.97 | 2,144.06 | −17,683.97 | 5,974.35 | 108.76 | −13,962.44 | −1,301,193.49 | −1,321,126.25 |
+| 10 | Oct 2027 | 0.00 | 25,613.51 | 64,221.15 | 4,271.77 | 418.30 | 3,853.47 | 1,292.12 | 10,287.30 | 244.97 | 7,480.99 | −1,293,712.50 | −1,318,049.01 |
+| 11 | Nov 2027 | 0.00 | 32,177.78 | 96,912.69 | 6,713.91 | 626.85 | 6,087.06 | 2,869.28 | 14,887.90 | 418.30 | 11,251.82 | −1,282,460.68 | −1,311,190.69 |
+| 12 | Dec 2027 | 0.00 | 39,891.80 | 137,579.80 | 9,770.52 | 868.21 | 8,902.31 | 4,913.13 | 19,780.58 | 626.85 | 15,164.55 | −1,267,296.13 | −1,300,396.78 |
+| 13 | Jan 2028 | 0.00 | 34,317.56 | 172,997.99 | 12,940.74 | 1,175.59 | 11,765.15 | 8,333.39 | 25,304.48 | 868.21 | 21,004.51 | −1,246,291.62 | −1,283,726.92 |
+| 14 | Feb 2028 | 0.00 | 27,589.96 | 201,971.93 | 15,623.75 | 1,411.42 | 14,212.33 | 11,453.34 | 27,367.84 | 1,175.59 | 23,433.25 | −1,222,858.37 | −1,264,572.76 |
+| 15 | Mar 2028 | 0.00 | 20,932.10 | 224,519.80 | 17,770.49 | 1,595.99 | 16,174.50 | 14,081.29 | 25,030.54 | 1,411.42 | 21,525.91 | −1,201,332.46 | −1,247,262.09 |
+| 16 | Apr 2028 | 0.00 | 14,139.99 | 240,455.95 | 19,373.99 | 1,729.36 | 17,644.63 | 16,230.63 | 22,135.39 | 1,595.99 | 19,125.40 | −1,182,207.06 | −1,232,294.23 |
+| 17 | May 2028 | 0.00 | 7,104.48 | 249,484.08 | 20,414.17 | 1,810.21 | 18,603.96 | 17,893.51 | 18,974.10 | 1,729.36 | 16,534.30 | −1,165,672.76 | −1,219,867.58 |
+| 18 | Jun 2028 | 0.00 | 0.00 | 251,479.95 | 20,873.50 | 1,837.61 | 19,035.90 | 19,035.90 | 15,446.91 | 1,810.21 | 13,636.71 | −1,152,036.05 | −1,210,297.10 |
+| 24 | Dec 2028 | 0.00 | 0.00 | 264,620.39 | 21,954.43 | 1,847.91 | 20,106.52 | 20,106.52 | 27,598.59 | 1,845.28 | 25,753.32 | −1,054,158.99 | −1,136,210.62 |
+| 36 | Dec 2029 | 0.00 | 0.00 | 294,307.12 | 24,417.42 | 1,934.32 | 22,483.09 | 22,483.09 | 30,106.37 | 1,930.62 | 28,175.75 | −792,599.34 | −915,731.84 |
+
+**Every outcome.** Cost rises by 176,000 and the benefit falls with each month of slip. "Benefit NPV" is the shift-only run (9.7). Guardrails are those of section 2.18.
+
+| Slip k | Ship month | Probability (fraction) | Probability | Months gained | Cost | Benefit NPV | NPV | Δ ARR at month 12 | Δ ARR at month 36 | Burn multiple at month 12 | Cash low point | Guardrails passed | NPV with freed team |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 0 | 6 (Jun 2027) | 1/2 | 0.500000 | 6 | 1,305,166.67 | 410,365.51 | −841,257.30 | 137,579.80 | 294,307.12 | 1.9267 | 17,046,921.95 | 5 of 5 | −54,952.97 |
+| 1 | 7 (Jul 2027) | 1/4 | 0.250000 | 5 | 1,481,166.67 | 332,067.79 | −1,082,747.69 | 97,812.69 | 245,488.61 | 1.9707 | 16,765,576.13 | 5 of 5 | −430,607.57 |
+| 2 | 8 (Aug 2027) | 1/8 | 0.125000 | 4 | 1,657,166.67 | 257,963.99 | −1,318,510.22 | 64,937.55 | 196,606.36 | 2.0122 | 16,489,992.37 | 4 of 5 | −799,273.22 |
+| 3 | 9 (Sep 2027) | 1/16 | 0.062500 | 3 | 1,833,166.67 | 187,975.91 | −1,548,637.50 | 38,835.83 | 147,665.29 | 2.0512 | 16,220,095.66 | 4 of 5 | −1,161,054.39 |
+| 4 | 10 (Oct 2027) | 1/32 | 0.031250 | 2 | 2,009,166.67 | 121,960.96 | −1,773,286.40 | 19,389.94 | 98,614.71 | 2.0875 | 15,953,878.65 | 4 of 5 | −1,516,119.68 |
+| 5 | 11 (Nov 2027) | 1/64 | 0.015625 | 1 | 2,185,166.67 | 59,763.10 | −1,992,627.12 | 6,483.24 | 49,390.61 | 2.1211 | 15,689,355.97 | 4 of 5 | −1,864,650.93 |
+| 6 | 12 (Dec 2027) | 1/64 | 0.015625 | 0 | 2,361,166.67 | 0.00 | −2,208,056.00 | 0.00 | 0.00 | 2.1233 | 15,426,536.97 | 4 of 5 | −2,208,056.00 |
+
+The burn multiple guardrail (2.0 or less) breaks whenever the hub slips two months or more: it passes in 75% of outcomes. The cash floor holds in every outcome, with as little as 426,536.97 to spare.
+
+**Expected case.**
+
+```
+E[TotalInvestment] = 1,305,166.67 + 176,000 × 0.984375 = 1,478,416.67
+E[Investment_m], m ≥ 7 = 17,916.67 (to month 9) + 176,000 × probability it has not shipped before month m
+   m = 7: 105,916.67   m = 8: 61,916.67   m = 9: 39,916.67   m = 10: 11,000.00   m = 11: 5,500.00   m = 12: 2,750.00
+E[NPV] = 0.5 × (−841,257.30) + 0.25 × (−1,082,747.69) + 0.125 × (−1,318,510.22) + 0.0625 × (−1,548,637.50)
+       + 0.03125 × (−1,773,286.40) + 0.015625 × (−1,992,627.12) + 0.015625 × (−2,208,056.00) = −1,073,970.07
+```
+
+**Planned date versus pulled-in date, on target** (9.8):
+
+| Integrations hub, on target | Without the hub | Planned date (Dec 2027) | Pulled-in date (Jun 2027) | Value of acceleration |
+|---|---|---|---|---|
+| ARR at month 12 | 30,048,489.36 | 0.00 | 137,579.80 | 137,579.80 |
+| ARR at month 36 | 45,700,686.96 | 1,055,508.77 | 1,349,815.88 | 294,307.12 |
+| New ARR, 36 months | 11,464,226.75 | 965,360.10 | 1,205,225.76 | 239,865.66 |
+| Revenue, 36 months | 101,763,468.67 | 894,434.69 | 1,434,039.87 | 539,605.18 |
+| Hosting cost, 36 months | 7,695,293.30 | 43,907.85 | 68,222.56 | 24,314.71 |
+| COGS, 36 months | 20,351,791.38 | 79,685.24 | 125,584.15 | 45,898.92 |
+| Gross profit, 36 months | 81,411,677.29 | 814,749.45 | 1,308,455.72 | 493,706.26 |
+| EBITDA, 36 months | −23,087,407.31 | 718,213.44 | −117,233.53 | −835,446.97 |
+| Cash at month 36 | 17,180,865.60 | 952,835.88 | 37,104.04 | −915,731.84 |
+| Gross margin, trailing, month 12 (points) | 77.4538 | 0.0000 | 0.0119 | 0.0119 |
+| Gross margin, trailing, month 24 (points) | 80.3642 | 0.0530 | 0.1285 | 0.0755 |
+| Gross margin, trailing, month 36 (points) | 81.3696 | 0.1685 | 0.2360 | 0.0675 |
+| Net flow, 36 months | n/a | 930,954.89 | 138,355.55 | −792,599.34 |
+| NPV of net flow at 12% | n/a | 708,400.64 | −132,856.67 | −841,257.30 |
+
+Read across: on its planned date the hub is worth 708,400.64 of NPV inside the model. Pulling it in adds 410,365.51 of benefit and costs 1,251,622.81 in today's dollars, which turns the hub's whole contribution negative.
+
+**Tests T103, T104 and T105, expected results.**
+
+| Measure | On target (k = 0) | Expected case | Planning case (k = 1) |
+|---|---|---|---|
+| Ship month | 6 | 6.984375 | 7 |
+| Months gained | 6 | 5.015625 | 5 |
+| Total investment | 1,305,166.67 | 1,478,416.67 | 1,481,166.67 |
+| Extra new ARR (sum) | 239,865.66 | 201,145.24 | 200,873.86 |
+| ΔARR at month 12 | 137,579.80 | 104,494.74 | 97,812.69 |
+| ΔARR at month 36 | 294,307.12 | 246,184.02 | 245,488.61 |
+| Sum of Δ revenue | 539,605.18 | 446,156.23 | 441,804.10 |
+| Sum of Δ gross profit | 493,706.26 | 408,168.17 | 404,167.07 |
+| Sum of Δ EBITDA | −835,446.97 | −1,090,363.02 | −1,097,086.98 |
+| Cumulative NF at month 36 | −792,599.34 | −1,057,280.55 | −1,065,930.27 |
+| NPV at 12% | −841,257.30 | −1,073,970.07 | −1,082,747.69 |
+| Benefit NPV | 410,365.51 | 336,938.78 | 332,067.79 |
+| Cost NPV | 1,251,622.81 | 1,410,908.85 | 1,414,815.48 |
+| Value per month gained | 68,394.25 | 67,177.82 | not tested |
+| Cost per month gained | 208,603.80 | 281,302.70 | not tested |
+| ROI | −0.6073 | −0.7151 | −0.7197 |
+| New ARR per dollar | 0.1838 | 0.1361 | 0.1356 |
+| Payback month (cash) | not within 36 months | not within 36 months | not within 36 months |
+| Probability of payback | not tested | 0 | not tested |
+| Team time freed | 48 person-months, 860,000.00 | 40.125 person-months, 718,906.25 | not tested |
+| NPV with freed team | −54,952.97 | −418,618.21 | not tested |
+| ARR at month 12 (gap to 31,200,000) | 30,186,069.16 (1,013,930.84) | not tested | 30,146,302.06 (1,053,697.94) |
+| Cash low point | 17,046,921.95 in month 34 | not tested | 16,765,576.13 in month 34 |
+| Burn multiple at month 12 (baseline 1.7556) | 1.9267 | not tested | 1.9707 |
+| Blended CAC payback at month 12 (baseline 18.03) | 17.77 | not tested | 17.84 |
+| Lowest runway, months 1 to 12 (baseline 34.44) | 27.35 | not tested | 27.06 |
+| Gross margin, trailing, month 12 (baseline 77.4538%) | 77.4657% | not tested | 77.4610% |
+| Guardrails passed | 5 of 5 | burn multiple passes in 75% of outcomes, the other four in 100% | 5 of 5 |
+| Every cell of the three tables above | as shown | | |
+
+### 9.12 Hand-calculated example: Hosting cost optimization, pulled in 1 quarter
+
+**Initiative.** The `accelerateCost` template with its defaults (9.2). The project is planned for September 2027 (`P = 9`), team of 5, and cuts hosting cost per customer by 20% over a 3-month ramp.
+
+**Schedule.** `a = 1`, `R = 9`, `W = 5 × 9 = 45` person-months. Four contractors add `4 × 0.8 = 3.2` from month 2.
+
+```
+Capacity:    5.0 in month 1, then 8.2 a month
+Cumulative:  5.0, 13.2, 21.4, 29.6, 37.8, 46.0      (46.0 ≥ 45 in month 6; 37.8 < 45 in month 5)
+T_raw = 6;  T_floor = 0 + ceil(9 × 0.5) = 5;  T = 6 (June 2027);  G = 3 months;  c = 3 / 9 = 1/3
+```
+
+**Slip.** `q = 1 − 1/3 = 2/3`, `K = 3`: probabilities 2/3, 2/9, 2/27 and 1/27 for ship months 6 to 9.
+
+```
+ExpectedSlip = 2/9 + 2 × 2/27 + 3 × 1/27 = 13/27 = 0.481481 months
+ExpectedShipMonth = 6.481481;  ExpectedMonthsGained = 2.518519;  ProbabilityNoGain = 1/27 = 0.037037
+PlanningSlip = floor(0.481481 + 0.5) = 0, so PlanningShipMonth = 6
+```
+
+**Cost if it ships on the target date.** Contractors 4 × 20,000 = 80,000 a month in months 1 to 6 (R&D). Extra cloud 15,000 a month in months 4 to 6 (COGS). Total `480,000 + 45,000 = 525,000`. Each month of slip adds 95,000.
+
+**Benefit.** Customers do not change, so the only effect is on hosting. "Hosting before the project" is average customers × 360 (the hosting line of the run without the milestone).
+
+```
+Saving_m = Hosting before the project × 0.20 × (share pulled in − share planned)
+
+m = 7:   223,686.92 × 0.20 × (1/3 − 0)   = 14,912.46
+m = 8:   224,843.20 × 0.20 × (2/3 − 0)   = 29,979.09
+m = 9:   225,992.54 × 0.20 × (1 − 0)     = 45,198.51
+m = 10:  227,134.99 × 0.20 × (1 − 1/3)   = 30,284.67
+m = 11:  228,270.58 × 0.20 × (1 − 2/3)   = 15,218.04
+m ≥ 12:  both at the full 20%, saving = 0
+Total saving = 135,592.77
+```
+
+The extra shares are 1/3 + 2/3 + 1 + 2/3 + 1/3 = 3, the months gained: three months of the full saving, about 45,000 each.
+
+**Cash.** Every line is a vendor bill, paid a month later.
+
+```
+NF_1 = 0
+NF_2, NF_3, NF_4 = −80,000 each              (contractor bills of months 1 to 3)
+NF_5, NF_6, NF_7 = −95,000 each              (contractors plus extra cloud, months 4 to 6)
+NF_8 = +14,912.46;  NF_9 = +29,979.09;  NF_10 = +45,198.51;  NF_11 = +30,284.67;  NF_12 = +15,218.04
+CumNF_36 = −525,000 + 135,592.77 = −389,407.23
+```
+
+**Gross margin.** Extra cloud in COGS costs 45,000 of gross profit in months 4 to 6 and the earlier saving adds 135,592.77 in months 7 to 11, so gross profit over 2027 is up 90,592.77 and trailing gross margin at month 12 rises from 77.4538% to 77.7896%. By month 24 the two cases are identical.
+
+**Month by month, on target** (reference values):
+
+| m | Month | Cost | Δ Hosting | Δ COGS | Δ Gross profit | Δ EBITDA | Δ Vendor paid | Net flow NF | Cumulative NF | Δ Cash balance |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | Jan 2027 | 80,000.00 | 0.00 | 0.00 | 0.00 | −80,000.00 | 0.00 | 0.00 | 0.00 | 0.00 |
+| 2 | Feb 2027 | 80,000.00 | 0.00 | 0.00 | 0.00 | −80,000.00 | 80,000.00 | −80,000.00 | −80,000.00 | −80,000.00 |
+| 3 | Mar 2027 | 80,000.00 | 0.00 | 0.00 | 0.00 | −80,000.00 | 80,000.00 | −80,000.00 | −160,000.00 | −160,266.67 |
+| 4 | Apr 2027 | 95,000.00 | 0.00 | 15,000.00 | −15,000.00 | −95,000.00 | 80,000.00 | −80,000.00 | −240,000.00 | −240,800.89 |
+| 5 | May 2027 | 95,000.00 | 0.00 | 15,000.00 | −15,000.00 | −95,000.00 | 95,000.00 | −95,000.00 | −335,000.00 | −336,603.56 |
+| 6 | Jun 2027 | 95,000.00 | 0.00 | 15,000.00 | −15,000.00 | −95,000.00 | 95,000.00 | −95,000.00 | −430,000.00 | −432,725.57 |
+| 7 | Jul 2027 | 0.00 | −14,912.46 | −14,912.46 | 14,912.46 | 14,912.46 | 95,000.00 | −95,000.00 | −525,000.00 | −529,167.99 |
+| 8 | Aug 2027 | 0.00 | −29,979.09 | −29,979.09 | 29,979.09 | 29,979.09 | −14,912.46 | 14,912.46 | −510,087.54 | −516,019.42 |
+| 9 | Sep 2027 | 0.00 | −45,198.51 | −45,198.51 | 45,198.51 | 45,198.51 | −29,979.09 | 29,979.09 | −480,108.44 | −487,760.39 |
+| 10 | Oct 2027 | 0.00 | −30,284.67 | −30,284.67 | 30,284.67 | 30,284.67 | −45,198.51 | 45,198.51 | −434,909.94 | −444,187.75 |
+| 11 | Nov 2027 | 0.00 | −15,218.04 | −15,218.04 | 15,218.04 | 15,218.04 | −30,284.67 | 30,284.67 | −404,625.27 | −415,383.71 |
+| 12 | Dec 2027 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | −15,218.04 | 15,218.04 | −389,407.23 | −401,550.29 |
+| 13 | Jan 2028 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | −389,407.23 | −402,888.79 |
+| 24 | Dec 2028 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | −389,407.23 | −417,910.06 |
+| 36 | Dec 2029 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | −389,407.23 | −434,936.36 |
+
+**Every outcome.**
+
+| Slip k | Ship month | Probability (fraction) | Probability | Months gained | Cost | Benefit NPV | NPV | Hosting saved | Gross margin, trailing, month 12 | Burn multiple at month 12 | Cash low point | Guardrails passed | NPV with freed team |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 0 | 6 (Jun 2027) | 2/3 | 0.666667 | 3 | 525,000.00 | 123,372.85 | −379,237.48 | 135,592.77 | 77.7896% | 1.8220 | 17,576,455.71 | 5 of 5 | −130,036.72 |
+| 1 | 7 (Jul 2027) | 2/9 | 0.222222 | 2 | 620,000.00 | 82,068.99 | −508,628.30 | 90,624.59 | 77.5673% | 1.8454 | 17,424,001.05 | 5 of 5 | −343,280.17 |
+| 2 | 8 (Aug 2027) | 2/27 | 0.074074 | 1 | 715,000.00 | 40,944.20 | −637,012.06 | 45,426.54 | 77.3441% | 1.8688 | 17,271,803.89 | 5 of 5 | −554,728.38 |
+| 3 | 9 (Sep 2027) | 1/27 | 0.037037 | 0 | 810,000.00 | 0.00 | −764,395.03 | 0.00 | 77.1201% | 1.8921 | 17,119,865.70 | 5 of 5 | −764,395.03 |
+
+**Expected case.**
+
+```
+E[TotalInvestment] = 525,000 + 95,000 × 13/27 = 570,740.74
+E[Hosting saved]   = 2/3 × 135,592.77 + 2/9 × 90,624.59 + 2/27 × 45,426.54 = 113,898.91
+E[NPV]             = 2/3 × (−379,237.48) + 2/9 × (−508,628.30) + 2/27 × (−637,012.06) + 1/27 × (−764,395.03) = −441,350.50
+```
+
+**Planned date versus pulled-in date, on target:**
+
+| Hosting optimization, on target | Without the project | Planned date (Sep 2027) | Pulled-in date (Jun 2027) | Value of acceleration |
+|---|---|---|---|---|
+| ARR at month 12 | 30,048,489.36 | 0.00 | 0.00 | 0.00 |
+| ARR at month 36 | 46,756,195.73 | 0.00 | 0.00 | 0.00 |
+| New ARR, 36 months | 12,429,586.85 | 0.00 | 0.00 | 0.00 |
+| Revenue, 36 months | 102,657,903.36 | 0.00 | 0.00 | 0.00 |
+| Hosting cost, 36 months | 9,119,130.92 | −1,379,929.77 | −1,515,522.54 | −135,592.77 |
+| COGS, 36 months | 21,811,406.39 | −1,379,929.77 | −1,470,522.54 | −90,592.77 |
+| Gross profit, 36 months | 80,846,496.97 | 1,379,929.77 | 1,470,522.54 | 90,592.77 |
+| EBITDA, 36 months | −23,749,123.63 | 1,379,929.77 | 990,522.54 | −389,407.23 |
+| Cash at month 36 | 16,761,634.67 | 1,372,066.81 | 937,130.45 | −434,936.36 |
+| Gross margin, trailing, month 12 (points) | 77.1147 | 0.3391 | 0.6750 | 0.3359 |
+| Gross margin, trailing, month 24 (points) | 78.6295 | 1.7876 | 1.7876 | 0.0000 |
+| Gross margin, trailing, month 36 (points) | 79.9039 | 1.6342 | 1.6342 | 0.0000 |
+| Net flow, 36 months | n/a | 1,320,332.96 | 930,925.72 | −389,407.23 |
+| NPV of net flow at 12% | n/a | 1,049,672.75 | 670,435.27 | −379,237.48 |
+
+The project is worth 1,049,672.75 of NPV on its planned date. A quarter sooner is worth 123,372.85 more and costs 502,610.33.
+
+**Tests T106, T107 and T108, expected results.**
+
+| Measure | On target (k = 0, also the planning case) | Expected case |
+|---|---|---|
+| Ship month | 6 | 6.481481 |
+| Months gained | 3 | 2.518519 |
+| Total investment | 525,000.00 | 570,740.74 |
+| Hosting saved (sum of −Δ hosting) | 135,592.77 | 113,898.91 |
+| Sum of Δ gross profit | 90,592.77 | 61,676.68 |
+| Sum of Δ EBITDA | −389,407.23 | −456,841.84 |
+| Cumulative NF at month 36 | −389,407.23 | −456,841.84 |
+| NPV at 12% | −379,237.48 | −441,350.50 |
+| Benefit NPV | 123,372.85 | 103,519.02 |
+| Cost NPV | 502,610.33 | 544,869.53 |
+| Value per month gained | 41,124.28 | 41,103.14 |
+| Cost per month gained | 167,536.78 | 216,345.25 |
+| ROI | −0.7417 | −0.8004 |
+| Payback month (cash) | not within 36 months | not within 36 months |
+| Team time freed | 15 person-months, 268,750.00 | 12.592593 person-months, 225,617.28 |
+| NPV with freed team | −130,036.72 | −232,377.54 |
+| ΔARR at month 12 and month 36 | 0.00 | 0.00 |
+| ΔCash balance at month 12 / month 36 | −401,550.29 / −434,936.36 | not tested |
+| Cash low point | 17,576,455.71 in month 34 (change −432,051.22) | not tested |
+| Burn multiple at month 12 (baseline 1.7556) | 1.8220 | not tested |
+| Blended CAC payback at month 12 (baseline 18.03) | 17.95 | not tested |
+| Lowest runway, months 1 to 12 (baseline 34.44) | 30.88 | not tested |
+| Gross margin, trailing, month 12 (baseline 77.4538%) | 77.7896% | not tested |
+| Guardrails passed | 5 of 5 | all five pass in 100% of outcomes |
+| Every cell of the three tables above | as shown | |
+
+What the two examples say together: under the plan's assumptions neither pull-in pays for itself within 36 months. A month sooner is worth about 68,000 for the hub and 41,000 for hosting, and costs about 209,000 and 168,000 to buy with contractors. Section 9.15 explains which assumptions drive that.
+
+### 9.13 More test cases
+
+Reference values unless marked. Every scenario must pass all 20 checks.
+
+| Test | Scenario | Expected |
+|---|---|---|
+| T100 | No acceleration initiative | Every test T01 to T97 passes with its expected values unchanged. Ship months used are 9, 12 and 18. C17 to C20 pass. The badge reads "Integrity 20/20" |
+| T101 | Schedule function alone (9.3) | Hub example: `W` 96, cumulative capacity as in 9.11, `T_raw` 6, `T_floor` 6, `T` 6, `G` 6, `c` 0.5, limit not binding. Hosting example: `W` 45, `T_raw` 6, `T_floor` 5, `T` 6, `G` 3. Hub with 20 contractors from month 1 and nothing else: cumulative 8, 32, 56, 80, 104; `T_raw` 5, `T_floor` 6, `T` 6, limit binding. Hub with 2 contractors from month 1: `T` 11, `G` 1, `c` 0.083333. Hub with 1 contractor from month 9: `a` 9, `R` 4, `W` 32, cumulative 8, 16.8, 25.6, 34.4; `T` 12, `G` 0. Hub with 4 contractors from month 5: `a` 5, `R` 8, `W` 64, cumulative reaches exactly 64.0 in month 10, which counts as reached: `T_raw` 10, `T_floor` 8, `T` 10, `G` 2, `c` 0.25. Hub example with `addedPersonEfficiency` 0.79: cumulative 95.791 in month 6, so `T` 7 and `G` 5 |
+| T102 | Slip rule alone (9.4) | `G` 0: one row, probability 1. `G` 6, `c` 0.5: 0.5, 0.25, 0.125, 0.0625, 0.03125, 0.015625, 0.015625; expected slip 0.984375. `G` 3, `c` 1/3: 2/3, 2/9, 2/27, 1/27; expected slip 0.481481. `G` 6, `c` 0.5, `slipSensitivity` 1.5: `q` 0.25, last probability 0.177979, expected slip 2.466064. `slipSensitivity` 2: `q` held at the minimum 0.10, last probability 0.531441, expected slip 4.217031. `G` 3, `c` 1/3, `maxOverrunMonths` 2: six rows, last probability (1/3)^5 = 0.004115, expected slip 0.497942. Every table sums to 1 |
+| T109 | Null acceleration: the hub with no people, tooling or cloud | `T` 12, `G` 0, one outcome with probability 1, cost 0 in every month, every series equals the baseline within 1e-6, NPV 0, payback "no effect" |
+| T110 | After launch (9.5), hub example with the two engineers changed | `"stay"`: on-target investment 2,419,253.67 (cost in month 13 is 36,908.33 and in month 25 is 38,015.58), NPV −1,753,563.12; expected investment 2,592,503.67, expected NPV −1,986,275.88. `"leave"`: cost in month 4 is 211,833.33 and in month 7 is 0; on-target investment 1,305,166.67 (ten engineer-months, the same total as the example by coincidence), NPV −842,689.58; expected investment 1,513,690.10, expected NPV −1,108,140.46 |
+| T111 | Slip overrides | Hosting example with `probabilities` 0.5, 0.2, 0.1, 0.1, 0.1: five outcomes, ship months 6 to 10; expected slip 1.1; probability of no gain 0.2; planning ship month 7. The last outcome ships a month **later** than planned: investment 905,000.00, benefit NPV −40,764.05, NPV −890,785.36, hosting cost up 45,655.82. Expected investment 629,500.00, expected benefit NPV 78,118.24, expected NPV −520,563.64. Hub example with `pOnTime` 0.8: probabilities 0.8, 0.16, 0.032, 0.0064, 0.00128, 0.000256, 0.000064; expected slip 0.249984; planning ship month 6; expected investment 1,349,163.85; expected benefit NPV 391,052.56; expected NPV −901,270.32 |
+| T112 | Shift only: a `milestone_shift` and no cost | Hub to month 6: NPV 410,365.51, cumulative NF 512,567.33, ΔARR at month 36 = 294,307.12. Hosting to month 6: NPV 123,372.85, cumulative NF 135,592.77. Offline mobile app from month 18 to month 15: churn rate in month 16 = 0.585%, ΔARR at month 24 = 95,198.85 and at month 36 = 105,878.84, extra customers at month 36 = 1.6491, NPV 118,793.16. In each case the extra effect share summed over months 1 to 36 equals the months gained (6, 3 and 3) |
+| T113 | Combined runs use the planning case (9.7) | Trade show (section 4.3) with the hub example: the hub ships in month 7, so the show's deals closing in month 9 get a 2/6 share of the lift: 130,000 × (1 + 0.08 × 2/6) × (1 + 0.05 × 2/6) = 135,691.11 of new ARR instead of 130,000. Together: investment 1,557,166.67, NPV −868,254.59, which is 12,296.21 better than the two alone (202,196.90 and −1,082,747.69); ΔARR at month 12 = 236,786.51. Hub example with the hosting example (ship months 7 and 6): investment 2,006,166.67, NPV −1,461,937.29 (47.88 better than the two alone), cash low point 16,333,582.25 in month 34, lowest runway 24.71, and burn multiple at month 12 = 2.0360, so the combined plan breaks a guardrail (4 of 5 pass) that each passes alone |
+| T114 | New effect kinds and timing (9.6), as assumption edits with no initiative | `offline_mobile.effects.expansionLift` 0.05: expansion rate 1.683917% in month 19 and 1.7535% from month 24; expansion ARR in month 19 = 565,142.08 (baseline 560,471.48); ARR at month 24 = 37,695,684.95 and at month 36 = 47,314,913.89; cash at month 36 = 18,572,753.52. `hosting_optimization.effects.thirdPartyCostReduction` 0.10: third-party cost falls by 3,192.71 in month 10 and 9,927.19 in month 12; COGS in month 12 = 484,556.81; trailing gross margin at month 12 = 77.5265%; cash at month 36 = 18,452,200.84. `integrations_hub.effectTiming.acvLift` with `delayMonths` 3 and `rampMonths` 3: new ARR in month 13 = 305,800 × (1 + 0.08/6) = 309,877.33, in month 16 = 310,390 × (1 + 0.08 × 4/6) × (1 + 0.05/3) = 332,393.20, in month 18 = 359,523.36; ARR at month 36 = 46,727,401.57 |
+| T115 | Tamper tests, as in section 4.2, on the planning-case result of the hub example | Add 0.01 to the stored win-rate share in month 9: C17. Add 1.00 to `Hosting_10`: C17 and C13. Set the stored ship month of the hub to 6 while the run used 7: C17 and C18. Add 0.01 to the second slip probability: C18. Set stored months gained to 7: C18. Add 1.00 to initiative vendor cost on R&D in month 8 (after the ship month): C19. Add 1.00 to `Investment_3`: C19. Add 1.00 to the stored expected NPV: C20. Add 1.00 to the pulled-in ARR at month 36 in the side-by-side: C20. Run C20 with a null acceleration that has one contractor: C20 |
+| T116 | Input checks (9.7) | Each of these stops the run and names the input: unknown milestone; disabled milestone; `startMonth` 13 for the hub; `startMonth` 2.5; count −1; `speedup` −0.1; `afterLaunch` "maybe"; `line` "sm"; `pOnTime` 1.2; `probabilities` 0.5, 0.4; two initiatives shifting the hub in one run |
+| T117 | Template defaults | The `accelerateRevenue` and `accelerateCost` templates with no edits reproduce 9.11 and 9.12 |
+| UI (in `tests/run.js`, written in Step 4b) | The two cards | Added cost by month; months gained; probability of hitting the new date; benefit by month; payback, NPV and the gross margin effect; the side-by-side with its Value column equal to the card's numbers; the "not counted" block; no em dashes; no sideways scrolling on a 390px phone |
+
+### 9.14 Check of this section's math
+
+What was done to check the numbers above, so the next reader does not have to trust them:
+
+1. **Two independent calculations of both examples.** The reference values in 9.11 and 9.12 were computed with the audited engine of Steps 1 to 3 used as a calculator (a pulled-in ship month is an edited `shipMonth`, and every cost line is an existing `headcount` or `vendor_cost` effect). They were then recomputed by a separate script that shares no code with the engine and applies the recurrences of sections 2.3 to 2.8 directly to the deltas. Its only inputs from the model are the baseline customer counts and the new ARR and deals of the run without the hub. Across all 11 outcome runs the two agree on investment, NPV, benefit NPV and the full 36-month series of net flow and Δ gross profit (plus ΔARR and Δ revenue for the hub and Δ hosting for hosting): 1,473 values, largest difference under 0.000001.
+2. **Hand checks.** The capacity tables, both slip tables, both cost tables, all eleven hub new-ARR lines, `ΔARR_12`, hub months 1 to 8, all five hosting savings lines and the hosting net flows are worked by hand above and match the reference tables.
+3. **Integrity.** All 16 existing checks pass on every outcome run of both examples (11 runs) and on both combined runs of T113.
+4. **Identities.** Slip probabilities sum to 1 (1/2 + 1/4 + 1/8 + 1/16 + 1/32 + 1/64 + 1/64 and 2/3 + 2/9 + 2/27 + 1/27). `Σ p_k × NPV_k` equals the NPV of the expected net-flow series (−1,073,970.07 and −441,350.50 both ways). In both side-by-side tables, Pulled-in minus Planned equals the Value column, which equals the initiative delta (a cell can differ by 0.01 from rounding). Extra effect shares sum to the months gained. The hub's 1,305,166.67 and hosting's 525,000.00 foot from their cost lines.
+5. **What was checked by one path only:** the variant cases in 9.13 (T110, T111, T113) use the engine as calculator and a hand check of the cost lines. The three new-effect cases in T114 cannot be run by today's engine as written, so each was computed by expressing the new effect through an existing mechanism (a month-by-month `driver_change` for the expansion lift, a negative `vendor_cost` on COGS for the third-party cut, a second milestone entry for the delayed ACV lift), plus a hand check of the first affected month. If Step 4b gets different numbers for T114, recheck these three before changing the engine.
+
+### 9.15 Assumptions a real CFO would question
+
+These continue the list in section 7.
+
+27. **Neither worked example pays within the model, and that is a result, not a typo.** The acceleration buys work the existing team would have done anyway, a few months sooner, at about 25,000 per effective person-month (20,000 a month at 0.8 efficiency). Moving the hub by one month takes 8 person-months, about 209,000, and is worth about 68,000. For hosting it is 5 person-months, about 168,000, against 41,000. Items 28 and 29 are the two assumptions that most hold the benefit down.
+28. **No value after month 36.** Section 2.17 has no terminal value. On target, the hub pull-in still has 294,307.12 of extra ARR in place at month 36, earning about 240,000 of gross profit a year, and none of that later profit is counted. About three and a half more years of it would cover the on-target shortfall. A pull-in of a revenue milestone is exactly the kind of initiative this rule punishes.
+29. **Team time freed is not counted.** Shipping the hub 6 months early frees 8 engineers for 6 months: 48 person-months, 860,000 at loaded cost. Counting it would move the on-target NPV from −841,257.30 to −54,952.97. It is left out because no cash is saved and because its real value depends on what the team does next, which the model does not know. This is stricter than the treatment of staff time **used** by an initiative, which is charged (section 7 item 23). A CFO who believes the next roadmap item is waiting would count it.
+30. **Person-months are treated as interchangeable.** The capacity model assumes work can be handed to new people at 80% efficiency with no drag on the existing team. In practice new people slow the team down before they speed it up. The 50% compression limit is generous; a common rule of thumb is that a schedule cannot be cut by much more than a quarter.
+31. **The target date is a cliff.** Ship months are whole months, so a small change in capacity moves the date by a full month. The hub example clears its work by 0.32 person-months out of 96; at an efficiency of 0.79 instead of 0.80 the target is July, not June (T101).
+32. **The slip rule is a guess with a tidy shape.** "Chance of hitting the date = 1 minus compression" is easy to explain and has no data behind it. It ignores how the pull-in is staffed and how much slack the plan has. The same chance repeats every month, and by default the worst case is the planned date: an overstaffed project that finishes later than it would have is only modeled if `maxOverrunMonths` or a custom table says so.
+33. **Planned dates are assumed to hold.** The deterministic model ships every baseline milestone on time, so the pulled-in case carries schedule risk and the planned case carries none. The simulation adds a common slip to both (9.9).
+34. **Nobody pulls the plug.** Contractors, tooling and extra cloud run until the milestone ships. In the worst hub outcome that is 2,361,166.67 spent for nothing. A real team would stop or re-plan after a month or two of slip.
+35. **The win-rate lift reaches deals already in the pipeline.** The lift applies in the month a deal closes, so a deal opened four months before the hub ships still benefits. If only new opportunities benefited, the effect would start one sales cycle later (2 to 5 months) and a pull-in would be worth less inside the model.
+36. **Effect sizes do not depend on the ship date.** Shipping six months sooner gives the same 8% and 5%, just earlier. There is no first-mover gain, no competitor response and no decay. The lifts are the same on every channel, the ACV lift reaches new deals only, and every ramp is a straight line.
+37. **Expected values hide the spread.** The headline is a probability-weighted average of 4 or 7 outcomes. The planning case rounds the expected slip to a whole month. For the hub the burn multiple guardrail passes in the planning case and fails in 25% of outcomes, which is why the card shows the pass share.
+38. **Hiring early into a planned seat is treated as nearly free.** After the planned start month the baseline pays. That is right only if the plan would really have made that hire. Recruiting is charged in full although the fee is only moved forward.
+39. **Cost-saving effects are a fixed percentage.** The hosting project saves 20% per customer whenever it ships. Migration risk, an outage during cutover and the chance that the saving is smaller are not modeled (the simulation varies the size). Extra cloud during the cutover is a judgment, and placing it in COGS lowers gross margin for three months.
+40. **Acceleration costs are judgment.** Contractor rate, efficiency, ramp, recruiting fee and the tooling speed-up are starting points, not evidence. Contractor rates and tools are not inflated.
+41. **Initiatives do not compete for people.** Two accelerations can each hire into planned seats until the seats run out, but nothing limits how many contractors can be found or managed at once, and a slip on one milestone does not delay another.
+
+### 9.16 Glossary additions and engine interface
+
+| Term | Plain meaning |
+|---|---|
+| Pull-in (acceleration) | Spending money to ship a roadmap milestone sooner than planned |
+| Person-month | One person working for one month. The unit of work left on a milestone |
+| Planned date | The month the milestone ships in the plan |
+| Target date | The month it should ship with the added resources |
+| Months gained | Planned date minus target date |
+| Compression | Months gained as a share of the planned months of work left |
+| Slip | Months the milestone ships after its target date |
+| On-target case | The result if the milestone ships on the target date |
+| Expected case | The average result across all possible ship dates, each weighted by its probability |
+| Planning case | The single ship date used when the initiative sits in a plan with others: the expected ship month, rounded |
+| Without run | The model with this one milestone switched off. The reference for the side-by-side |
+| Benefit NPV | What the earlier date is worth in today's dollars before any cost. The most it is worth paying |
+| Team time freed | The months the existing team gets back when the milestone ships early. Reported, not counted |
+
+Engine interface (names are suggestions, behavior is required; this extends section 2.19):
+
+- `accelerationSchedule(assumptions, acceleration)` returns the schedule of 9.3 and the slip table and summary of 9.4.
+- `accelerationEffects(assumptions, acceleration, shipMonth)` returns the effects of 9.7 for one actual ship month.
+- `evaluateAcceleration(assumptions, initiative)` returns `{ schedule, without, planned, outcomes, onTarget, expected, planning, sideBySide }` using 9.7 and 9.8.
+- `runModel` and `applyInitiatives` accept an initiative that carries `acceleration` and expand it at the planning ship month, or at `actualShipMonth` when given.
+- `templates.accelerateRevenue(params)` and `templates.accelerateCost(params)` build the initiative from the defaults in 9.2.
+- `runChecks` returns 20 checks.
