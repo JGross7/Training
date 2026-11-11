@@ -334,6 +334,78 @@ const PAGE = 'file://' + path.join(ROOT, 'index.html');
     const acw = await acp.evaluate(() => ({ sw: document.documentElement.scrollWidth, right: Math.max(...Array.from(document.querySelectorAll('.card, .tile, .chart svg')).map(e => e.getBoundingClientRect().right)) }));
     check('Phone: acceleration card has no horizontal page scroll', acw.sw <= 390 && acw.right <= 390, JSON.stringify(acw));
 
+    // 7. Uncertainty on the cards and the scenario cockpit (Step 5, SPEC.md section 10), on a fresh page.
+    const un = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    un.on('pageerror', e => errors.push(String(e)));
+    await un.goto(PAGE);
+    await un.click('[data-view-tab="initiatives"]');
+    await un.click('#init-submit');
+    check('A new card shows the simulation progress or its result', (await un.$$('[data-uncertainty]')).length === 1);
+    await un.waitForSelector('[data-uncertainty][data-sim-done]', { timeout: 60000 });
+    const simRows = await un.$$eval('[data-uncertainty] [data-sim-row]', trs => Object.fromEntries(trs.map(tr => [tr.getAttribute('data-sim-row'), Array.from(tr.children).slice(1).map(c => c.textContent).join('|')])));
+    check('Trade show: P10 / P50 / P90 and plan for new ARR', simRows.newArr === '$94.1K|$122.5K|$156.4K|$130.0K', simRows.newArr);
+    check('Trade show: P10 / P50 / P90 and plan for payback month', simRows.payback === 'Month 11|Month 15|Month 21|Month 14', simRows.payback);
+    check('Trade show: P10 / P50 / P90 and plan for cash low point', simRows.cashLow === '$15.9M|$17.7M|$19.3M|$18.2M', simRows.cashLow);
+    check('Trade show: P10 / P50 / P90 and plan for NPV', simRows.npv === '$121.8K|$181.8K|$255.1K|$202.2K', simRows.npv);
+    const simTiles = await un.$$eval('[data-uncertainty] [data-tile]', els => Object.fromEntries(els.map(e => [e.getAttribute('data-tile'), e.querySelector('.t-value').textContent + ' | ' + e.querySelector('.t-note').textContent])));
+    check('Trade show: chance of paying back within 24 months', /^100% \|/.test(simTiles.pPayback24), simTiles.pPayback24);
+    check('Trade show: chance of breaking the cash floor, with the plan alone beside it', simTiles.pFloor === '2.7% | The plan alone: 3.8% of runs', simTiles.pFloor);
+    const inPage = await un.evaluate(() => { const A = Engine.defaultAssumptions(); const s = Engine.simulate(A, Engine.templates.tradeShow(A)); return [s.probabilityPaybackWithin24, s.probabilityFloorBreach, s.npv.p50]; });
+    check('The card shows the engine simulation (same seed, same numbers)', inPage[0] === 1 && inPage[1] === 0.027 && Math.round(inPage[2] / 100) === 1818, JSON.stringify(inPage));
+    const npvBins = await un.$$eval('[data-uncertainty] [data-chart="npv-spread"] [data-bin]', els => els.length);
+    const marks = await un.$$eval('[data-uncertainty] [data-chart="npv-spread"] [data-marker]', els => els.map(e => e.getAttribute('data-marker')).join(','));
+    check('NPV spread chart: 20 bins with P10, P50, P90 and plan marked', npvBins === 20 && marks === 'p10,p50,p90,plan', npvBins + ' ' + marks);
+    const torn = await un.$$eval('[data-uncertainty] [data-tornado]', els => els.map(e => e.getAttribute('data-tornado')));
+    check('Sensitivity chart: nine drivers, win rate first for the trade show', torn.length === 9 && torn[0] === 'winRate', torn.join(','));
+    const sens = await un.$eval('[data-uncertainty] [data-sens-row="winRate"]', tr => Array.from(tr.children).map(c => c.textContent).join('|'));
+    check('Sensitivity numbers: win rate at 0.75x and 1.25x', sens === 'Win rate|0.75x|$133.5K|1.25x|$270.9K|$137.4K', sens);
+
+    await un.click('[data-template="accelerateRevenue"]'); await un.click('#init-submit');
+    await un.waitForFunction(() => document.querySelectorAll('[data-uncertainty][data-sim-done]').length === 2, null, { timeout: 60000 });
+    const hubSim = await un.$$eval('[data-uncertainty]', boxes => ({ floor: boxes[1].querySelector('[data-tile="pFloor"] .t-value').textContent,
+      pay: boxes[1].querySelector('[data-sim-row="payback"]').textContent, top: boxes[1].querySelector('[data-tornado]').getAttribute('data-tornado') }));
+    check('Hub pull-in: 25% chance of breaking the floor, never pays back, slip moves NPV most', hubSim.floor === '25.0%' &&
+      hubSim.pay === 'Cash paybackAfter Dec 2029After Dec 2029After Dec 2029After Dec 2029' && hubSim.top === 'accelerationSlip', JSON.stringify(hubSim));
+
+    // Scenario cockpit: live recalculation of everything.
+    check('Cockpit is closed by default and says what it does', !(await un.$eval('#cockpit', e => e.open)) && /What-if sliders/.test(await un.textContent('#cockpit-sub')));
+    await un.click('#cockpit > summary');
+    const sliders = await un.$$eval('[data-ck-input]', els => els.map(e => e.getAttribute('data-ck-input')));
+    check('Cockpit has nine sliders', sliders.join(',') === 'winRate,acv,leadToMqlRate,mqlToOppRate,costPerLead,salesCycleShift,milestoneEffect,churnRateMonthly,expansionRateMonthly', sliders.join(','));
+    check('Each slider shows its simulation range', (await un.textContent('#ck-winRate-hint')) === 'Simulated from 0.75x to 1.25x' && (await un.textContent('#ck-churnRateMonthly-hint')) === 'Not simulated');
+    await un.fill('[data-ck-input="winRate"]', '1.1');
+    await un.waitForTimeout(500);
+    const ck = { value: await un.textContent('[data-ck-value="winRate"]'), sub: await un.textContent('#cockpit-sub'), stored: await un.evaluate(() => window.__APP__.state.A.cockpit.winRate),
+      badge: (await un.textContent('#badge')).trim(), count: await un.textContent('#change-count') };
+    check('Moving the win rate slider to 1.10x is stored and counted', ck.value === '1.10x' && ck.stored === 1.1 && /^1 driver moved/.test(ck.sub) && ck.count === '1' && ck.badge === 'Integrity 20/20', JSON.stringify(ck));
+    const expNpv = await un.evaluate(() => { const A = Engine.defaultAssumptions(); A.cockpit.winRate = 1.1; return Engine.applyInitiatives(A, [Engine.templates.tradeShow(A)]).returns.npv; });
+    const tsNpv = await un.$eval('.decision [data-tile="npv"] .t-value', e => e.textContent);
+    check('The trade show card recalculates with the cockpit', tsNpv === '$' + (expNpv / 1000).toFixed(1) + 'K', tsNpv + ' vs ' + expNpv);
+    await un.waitForFunction(() => document.querySelectorAll('[data-uncertainty][data-sim-done]').length === 2, null, { timeout: 60000 });
+    const ckSim = await un.evaluate(() => { const A = Engine.defaultAssumptions(); A.cockpit.winRate = 1.1; return Engine.simulate(A, Engine.templates.tradeShow(A)).newArr.p50; });
+    const ckP50 = await un.$eval('[data-uncertainty] [data-sim-row="newArr"]', tr => tr.children[2].textContent);
+    check('The simulation reruns around the cockpit', ckP50 === '$' + (ckSim / 1000).toFixed(1) + 'K', ckP50 + ' vs ' + ckSim);
+    await un.click('[data-view-tab="stand"]');
+    const ckArr = await un.textContent('[data-kpi="arr"] [data-delta]');
+    const expArr = await un.evaluate(() => { const A = Engine.defaultAssumptions(); A.cockpit.winRate = 1.1; const x = Engine.applyInitiatives(A, [Engine.templates.tradeShow(A), Engine.templates.accelerateRevenue(A)]);
+      return x.scenario.arr.arr[12] - Engine.runModel(Engine.defaultAssumptions(), []).arr.arr[12]; });
+    check('Where we stand includes the cockpit', ckArr === '▲ +$' + (expArr / 1000).toFixed(1) + 'K vs plan', ckArr + ' vs ' + expArr);
+    await un.click('#open-assumptions');
+    check('The cockpit is listed in Assumptions', (await un.inputValue('[data-path="cockpit.winRate"]')) === '1.1');
+    await un.click('#close-assumptions').catch(() => un.keyboard.press('Escape'));
+    await un.click('#cockpit-reset'); await un.waitForTimeout(300);
+    check('Reset sliders restores the plan', (await un.evaluate(() => Engine.cockpitIsNeutral(window.__APP__.state.A.cockpit))) && (await un.textContent('[data-ck-value="winRate"]')) === 'As planned');
+
+    const unp = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    unp.on('pageerror', e => errors.push(String(e)));
+    await unp.goto(PAGE);
+    await unp.click('#cockpit > summary');
+    await unp.click('[data-view-tab="initiatives"]'); await unp.click('#init-submit');
+    await unp.waitForSelector('[data-uncertainty][data-sim-done]', { timeout: 60000 });
+    const unw = await unp.evaluate(() => ({ sw: document.documentElement.scrollWidth, right: Math.max(...Array.from(document.querySelectorAll('.card, .tile, .chart svg, .ck-item')).map(e => e.getBoundingClientRect().right)) }));
+    check('Phone: cockpit and uncertainty have no horizontal page scroll', unw.sw <= 390 && unw.right <= 390, JSON.stringify(unw));
+    check('No em dashes with the cockpit and simulation shown', !(await unp.evaluate(() => document.body.innerText)).includes('—'));
+
     // Phone width on the evaluator with a card and its sources open.
     const evp = await browser.newPage({ viewport: { width: 390, height: 844 } });
     evp.on('pageerror', e => errors.push(String(e)));

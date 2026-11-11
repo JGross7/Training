@@ -16,6 +16,7 @@ Contents
 7. Assumptions a real CFO would question
 8. Baseline reference tables
 9. Product development acceleration
+10. Uncertainty: simulation, sensitivity and the scenario cockpit
 
 ---
 
@@ -322,7 +323,7 @@ Section 9 adds two more effect kinds (`expansionLift`, `thirdPartyCostReduction`
 
 How each guardrail is measured is in section 2.18. The strategy layer (scoring, portfolio selection) is specified later in the playbook.
 
-### 1.16 Uncertainty ranges (for the simulation in a later phase)
+### 1.16 Uncertainty ranges (used by the simulation, section 10)
 
 Each run draws one multiplier per driver from a triangular distribution (low, most likely, high) and applies it to that driver for the whole run. The same draws apply to the baseline and to the scenario in that run, so the difference between them is measured in the same world. Type: Assumption.
 
@@ -2396,3 +2397,112 @@ Engine interface (names are suggestions, behavior is required; this extends sect
 - `runModel` and `applyInitiatives` accept an initiative that carries `acceleration` and expand it at the planning ship month, or at `actualShipMonth` when given.
 - `templates.accelerateRevenue(params)` and `templates.accelerateCost(params)` build the initiative from the defaults in 9.2.
 - `runChecks` returns 20 checks.
+
+---
+
+## 10. Uncertainty: simulation, sensitivity and the scenario cockpit
+
+This section defines how the Initiative Evaluator shows uncertainty. It uses the ranges of section 1.16 and the ship-date rules of section 9.9, adds the scenario cockpit, and changes none of the numbers in sections 1 to 9: with the cockpit neutral, every deterministic value and every test T01 to T117 is unchanged.
+
+### 10.1 The simulation
+
+Each initiative is simulated **alone**, like its decision card. A simulation is `simulation.runs` runs (default 1,000) with seed `simulation.seed` (default 2027).
+
+**Random numbers.** Run `r` (counted from 0) has its own generator, seeded from the pair (seed, `r`), so a run's draws do not depend on how many runs there are or how they are split into chunks. The generator is mulberry32 seeded with `(seed × 0x9E3779B1) XOR ((r + 1) × 0x85EBCA77)` in 32-bit integer arithmetic, with its first two numbers thrown away.
+
+**Draws, in this order** (every number is drawn in every run, even when the initiative does not use it, so one driver always gets the same random numbers whatever else changes):
+
+1. For each channel in `channelOrder`: one multiplier each for cost per lead, lead to MQL rate, MQL to opportunity rate, win rate and ACV, each from its triangular range.
+2. For each channel: one sales cycle shift from `uncertainty.salesCycleShift`.
+3. For each initiative: one multiplier on its direct leads (`uncertainty.directLeads`).
+4. For each milestone in roadmap order: one multiplier on the size of its effects (`uncertainty.milestoneEffect`), then one planned-date slip (`uncertainty.plannedShipSlip`, section 9.9 rule 1).
+5. For each acceleration initiative: one slip `k` from its slip table (section 9.4).
+
+A triangular draw with range (low `a`, mode `c`, high `b`) at uniform number `u` is `a + √(u(b − a)(c − a))` if `u < (c − a)/(b − a)`, otherwise `b − √((1 − u)(b − a)(b − c))`; a range with `b = a` always gives `c`. A discrete draw takes the first value whose cumulative probability exceeds `u`.
+
+**Applying the draws.** Every draw is applied to the assumptions for the whole run, in both the baseline and the scenario (common random numbers):
+
+| Driver | Change |
+|---|---|
+| Cost per lead, ACV | multiplied |
+| Lead to MQL rate, MQL to opportunity rate, win rate | multiplied, then capped at 100% |
+| Sales cycle | `max(0, salesCycleMonths + shift)` |
+| Milestone effect size | every effect of that milestone multiplied |
+| Planned-date slip | added to that milestone's ship month |
+| Direct leads | the initiative's `direct_leads` amounts multiplied |
+| Acceleration slip | the pulled-in milestone ships in month `T + k + planned-date slip`, with `T` from section 9.3 on the assumptions without draws, so a planned-date slip moves both runs and keeps the months gained (section 9.9 rule 2). A known `actualShipMonth` replaces this |
+
+Each run is then `B_r = runModel(A_r, [])` and `S_r = runModel(A_r, [initiative_r])`, measured with section 2.17.
+
+**Deterministic case.** A run with every multiplier at 1, no shifts and no slips gives exactly the initiative's ordinary result (section 2.17). For an acceleration initiative the deterministic case is its expected case (section 9.7), with the cash low point of its planning case.
+
+**One driver at a time.** For checks, a simulation can be told to vary only some drivers: the others stay as planned (multiplier 1, no shift or slip; a pull-in held to plan ships on target). The draws are still made in full, so the varied drivers keep their random numbers.
+
+### 10.2 What a simulation reports
+
+Per run: NPV, new ARR (sum of ΔNewARR), cash payback month (section 2.17; a payback "not within 36 months" ranks after every month), the scenario's cash low point, whether that low point is below `guardrails.cashFloor`, and the same for the baseline.
+
+Across runs:
+
+- **P10, P50, P90** of new ARR, cash payback month, cash low point and NPV, by nearest rank: sort ascending and take the value at position `ceil(q × n)`, for `q` = 0.10, 0.50, 0.90. For payback, P10 is the earliest tenth of runs.
+- **Probability of paying back within 24 months**: the share of runs whose payback month is 24 or earlier ("never negative" counts, at its first month with an effect).
+- **Probability of breaking the cash floor**: the share of runs whose scenario cash low point is below the floor. The card shows the same share for the plan alone beside it, because the plan breaks the floor in some runs too.
+- The share of runs with NPV above zero, the mean, and a 20-bin histogram of NPV from the lowest run to the highest.
+
+A breach in some runs is a business warning, not an integrity failure.
+
+### 10.3 Sensitivity
+
+For each driver, set it to the low and the high end of its range, on every channel or milestone at once, keep every other driver as planned, and compute the initiative's headline NPV (the deterministic NPV; for an acceleration, the expected NPV over its slip table). The swing is `|NPV_high − NPV_low|`; drivers are listed largest swing first.
+
+| Driver | Low end | High end |
+|---|---|---|
+| Cost per lead, lead to MQL, MQL to opportunity, win rate, ACV | range low | range high |
+| Sales cycle | smallest shift (−1 month) | largest shift (+2 months) |
+| Direct leads (only if the initiative has any) | range low | range high |
+| Milestone effect size | range low | range high |
+| Planned ship dates slip | smallest slip (0) | largest slip (+3 months) |
+| Pulled-in date slips (accelerations only) | on target (`k = 0`) | the last row of the slip table |
+
+Because AE capacity is shared, a driver can lower NPV at both ends. Example: raising every conversion rate fills AE capacity in April 2027, so some of the trade show's own opportunities go unworked.
+
+### 10.4 Scenario cockpit
+
+The cockpit is part of the assumptions object (`cockpit`), so it is saved, labeled and editable like every other input:
+
+| Key | Neutral | Changes |
+|---|---|---|
+| `cockpit.winRate`, `acv`, `leadToMqlRate`, `mqlToOppRate`, `costPerLead` | 1 | that driver on every channel, as in 10.1 |
+| `cockpit.salesCycleShift` | 0 | every channel's sales cycle, whole months, never below 0 |
+| `cockpit.milestoneEffect` | 1 | every effect of every milestone |
+| `cockpit.churnRateMonthly`, `cockpit.expansionRateMonthly` | 1 | the monthly rate, capped at 100% |
+
+Every run applies the cockpit first, using the same function as a simulation draw, and then sets it back to neutral in its working copy, so a result can be rerun from its own inputs without applying it twice (checks C7 and C20 depend on this). The simulation then draws around the cockpit values. Multipliers must be 0 or more and the shift a whole number. The app shows the cockpit as sliders at the top of both views; every number, check, card and simulation recalculates when one moves.
+
+### 10.5 Engine interface
+
+`simulate(assumptions, initiative, { runs, seed, vary })`, `simulationSetup`, `simulationRuns(setup, from, to)` and `summarizeSimulation(setup, runs)` (the app runs the simulation in chunks of 50), `sensitivity(assumptions, initiative)`, `drawRun`, `applyDrivers`, `effectiveAssumptions`, `percentile`.
+
+### 10.6 Tests
+
+| Test | What it proves |
+|---|---|
+| T120 | The same seed and run give the same draws, and another run or seed gives others. The triangular inverse hits low, mode and high. Over 20,000 runs the mean multiplier is (low + mode + high) / 3 within 0.005, and shift and slip frequencies match their probabilities within 1.5 points. Nearest-rank percentiles of 1 to 10 are 1, 5, 9. Bad ranges, probabilities or run counts stop the simulation and name the input |
+| T121 | A run with no draws reproduces the trade show of section 4.3 and each hub outcome of section 9.11; the probability-weighted hub NPV is −1,073,970.07; a planned slip of 2 ships the pull-in in month 8 |
+| T122 | **Same seed, same results**: two 1,000-run simulations are identical, chunks give the same runs and summary, and another seed gives different results |
+| T123 | **P50 is close to the deterministic case**: for the trade show, two AEs, the hub and hosting pull-ins, for new ARR, NPV, cash low point and payback, the deterministic value lies between P10 and P90 and `|P50 − deterministic| ≤ 0.25 × (P90 − P10)`; a payback outside the model in the plan is outside it at P50 too. With every range collapsed, every run is the plan |
+| T124 | **Widening a range never narrows the P10 to P90 spread**: widening is a scale about the mode (`low' = mode − f(mode − low)`, `high' = mode + f(high − mode)`, `f` = 1.5 and 2) with the same seed. (a) Each range widened with that driver the only one varying: no output spread narrows, and each draw moves exactly `f` times as far from the mode. (b) Every range widened together in the full simulation: no output spread narrows |
+| T125 | Probabilities and percentiles tie to the individual runs; the histogram counts every run |
+| T126 | Sensitivity: the base is the deterministic NPV; win rate at 1.25x equals editing every win rate; badge scans at 0.7x equal 140 scans; the hub's largest driver is its own slip (on target −841,257.30, worst −2,208,056.00); collapsed ranges give no swing |
+| T127 | Cockpit: neutral changes nothing; each slider equals editing the driver directly (and a win-rate driver change); all 20 checks pass with the cockpit moved; the simulation centers on it; bad values are rejected |
+| UI (in `tests/run.js`) | Each card shows the P10 / P50 / P90 table, the two probabilities, the NPV spread chart and the sensitivity chart from the engine; the cockpit's nine sliders recalculate the cards, the simulation and Where we stand, appear under Assumptions and reset; no sideways scrolling on a phone |
+
+**Why widening is tested this way.** The property is exact for one driver: with the same random numbers, every draw moves `f` times further from the mode, and the output spread follows. Inside the full simulation it is not guaranteed for a single weak driver. Widening, say, cost per lead for the hub pull-in re-sorts runs that are mostly driven by the ship date and can shrink the NPV spread by about 1% (seen while building this step: at most 1.0%, for ACV widened 1.5x). That is sampling, not a modeling error, so the full-simulation test widens every range together.
+
+### 10.7 Assumptions a real CFO would question
+
+42. **The ranges are guesses.** Every triangular range and shift probability in section 1.16 is an assumption with no data behind it. The cockpit shows each slider's simulated range so a reader can see what was assumed.
+43. **Drivers are independent.** A bad quarter usually lowers win rates and stretches sales cycles together. Drawing them independently understates the chance of everything going wrong at once, so P10 is probably too kind.
+44. **One draw per run, held for 36 months.** A channel's win rate is either high or low for the whole run. Real rates drift month to month, which would narrow the spread of totals but widen month-to-month cash swings.
+45. **The plan's own drivers are not in doubt beyond these ranges.** Churn, expansion, hosting cost and costs are fixed in every run; the cockpit can move churn and expansion, but the simulation does not.
+46. **The plan sits below its own median.** Ranges skew (cost per lead up to +30%, milestone effects down to −50%) and sales cycles and planned dates slip on average, so P50 is usually a little below the deterministic plan.

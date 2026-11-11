@@ -289,6 +289,26 @@ table.fin tfoot td, table.fin tfoot th { font-weight: 650; border-top: 2px solid
 .drivers .dl-title { grid-column: 1 / -1; font-weight: 650; font-size: 13px; color: var(--ink); }
 table.trace td small { display: block; font-size: 11px; color: var(--ink-2); font-weight: 400; white-space: normal; min-width: 110px; max-width: 200px; margin-left: auto; }
 table.trace tbody th { min-width: 96px; }
+/* Scenario cockpit and uncertainty */
+.cockpit > summary { cursor: pointer; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; list-style: none; }
+.cockpit > summary::-webkit-details-marker { display: none; }
+.cockpit > summary::before { content: '\25B8'; color: var(--muted); }
+.cockpit[open] > summary::before { content: '\25BE'; }
+.cockpit .ck-title { font-weight: 650; font-size: 16px; }
+.cockpit .ck-sub { font-size: 13px; color: var(--ink-2); }
+.cockpit.active { border-color: var(--accent); }
+.ck-grid { display: grid; gap: 12px 20px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); margin-top: 12px; }
+.ck-item { display: grid; gap: 2px; min-width: 0; }
+.ck-top { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.ck-top label { font-weight: 600; }
+.ck-value { font-variant-numeric: tabular-nums; color: var(--ink-2); white-space: nowrap; }
+.ck-item.moved .ck-value { color: var(--accent-ink); font-weight: 650; }
+.ck-item input[type=range] { width: 100%; accent-color: var(--accent); margin: 4px 0 0; }
+.ck-hint { font-size: 11.5px; color: var(--muted); }
+.ck-actions { margin-top: 12px; }
+.uncertainty { border-top: 1px solid var(--grid); padding-top: 14px; }
+.progress { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; margin-top: 6px; }
+.progress span { display: block; height: 100%; background: var(--accent); }
 @media (max-width: 560px) {
   .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .tile .t-value { font-size: 17px; }
@@ -322,6 +342,12 @@ table.trace tbody th { min-width: 96px; }
 <div class="banner" id="check-failures"></div>
 <div class="banner" id="input-error" role="alert"></div>
 <main id="app">
+  <details class="card cockpit" id="cockpit">
+    <summary><span class="ck-title">Scenario cockpit</span> <span class="ck-sub" id="cockpit-sub"></span></summary>
+    <p class="d-note">Each slider multiplies a driver for every channel, month and milestone. These are assumptions too: they are saved with the others and listed under Assumptions.</p>
+    <div class="ck-grid" id="cockpit-grid"></div>
+    <div class="ck-actions"><button type="button" class="btn" id="cockpit-reset">Reset sliders</button></div>
+  </details>
   <section class="card" id="where" data-view="stand" aria-labelledby="where-title" hidden>
     <div class="section-head">
       <div>
@@ -596,6 +622,9 @@ table.trace tbody th { min-width: 96px; }
         plannedShipSlip: [{ slip: 0, p: 0.60 }, { slip: 1, p: 0.20 }, { slip: 2, p: 0.12 }, { slip: 3, p: 0.08 }]
       },
       simulation: { seed: 2027, runs: 1000 },
+      // Scenario cockpit (SPEC.md 10.4): what-if multipliers applied to every run. 1 (or 0 months) changes nothing.
+      cockpit: { winRate: 1, acv: 1, leadToMqlRate: 1, mqlToOppRate: 1, costPerLead: 1, salesCycleShift: 0, milestoneEffect: 1,
+        churnRateMonthly: 1, expansionRateMonthly: 1 },
 
       templates: {
         tradeShow: { month: 4, booth: 48000, travel: 12000, staffDays: 20, dayCost: 800, expectedLeads: 200, channel: 'events' },
@@ -692,6 +721,9 @@ table.trace tbody th { min-width: 96px; }
     if (!A || typeof A !== 'object') return ['The assumptions object is missing'];
     Object.keys(T).forEach(function (k) { if (typeof T[k] === 'number') checkNumber(bad, A[k], k, NUMBER_RULES[k]); });
     ['nonHeadcountMonthly', 'opening', 'objective', 'guardrails', 'acceleration'].forEach(function (k) { checkNumbersLike(bad, T[k], A[k], k); });
+    if (A.cockpit != null) COCKPIT_KEYS.forEach(function (k) {
+      checkNumber(bad, A.cockpit[k], 'cockpit.' + k, k === 'salesCycleShift' ? { whole: true } : { min: 0 });
+    });
     if (!Array.isArray(A.openingInvoiceWeights) || A.openingInvoiceWeights.length !== 12) bad.push('openingInvoiceWeights must list 12 months');
     else A.openingInvoiceWeights.forEach(function (w, i) { checkNumber(bad, w, 'openingInvoiceWeights[' + i + ']'); });
     var roles = (A.roles && typeof A.roles === 'object') ? A.roles : {};
@@ -953,7 +985,7 @@ table.trace tbody th { min-width: 96px; }
   // ---------------------------------------------------------------------
   function runModel(assumptionsIn, initiativesIn) {
     assertValidInputs(assumptionsIn, initiativesIn); // before cloning: a JSON copy would turn NaN into null
-    var A = clone(assumptionsIn);
+    var A = effectiveAssumptions(clone(assumptionsIn)); // the scenario cockpit, if any (SPEC.md 10.4)
     var inits = clone(initiativesIn || []);
     var H = A.horizonMonths;
     var N = H + 1;
@@ -1664,6 +1696,7 @@ table.trace tbody th { min-width: 96px; }
 
   // Months gained: work, capacity and the target ship month (SPEC.md 9.3), plus the slip table (9.4).
   function accelerationSchedule(A, acc) {
+    A = effectiveAssumptions(A);
     var X = A.acceleration, ms = A.milestones[acc.milestone], P = ms.shipMonth, team = ms.teamSize;
     var L = accelerationLines(A, acc), speedy = L.tooling && L.tooling.speedup > 0;
     var starts = L.people.map(function (l) { return l.startMonth; });
@@ -1803,7 +1836,7 @@ table.trace tbody th { min-width: 96px; }
   // the planning case and the side-by-side (SPEC.md 9.7, 9.8).
   function evaluateAcceleration(assumptions, initiative) {
     assertValidInputs(assumptions, [initiative]);
-    var A = clone(assumptions), init = clone(initiative), acc = init.acceleration, H = A.horizonMonths, N = H + 1;
+    var A = effectiveAssumptions(clone(assumptions)), init = clone(initiative), acc = init.acceleration, H = A.horizonMonths, N = H + 1;
     var ms = A.milestones[acc.milestone], P = ms.shipMonth, sch = accelerationSchedule(A, acc);
     var B = runModel(A, []);
     var A0 = clone(A); A0.milestones[acc.milestone].enabled = false;
@@ -1889,6 +1922,283 @@ table.trace tbody th { min-width: 96px; }
     planning.scenario.acceleration[0].evaluation = summary;
     return { initiative: init, schedule: sch, without: R0, planned: B, outcomes: outcomes, onTarget: onTarget, expected: ex, worst: worst,
       planning: planning, sideBySide: { expected: ex.sideBySide, onTarget: on.sideBySide }, summary: summary, firstEffectDelay: firstDelay };
+  }
+
+  // ---------------------------------------------------------------------
+  // Uncertainty: scenario cockpit, seeded simulation and sensitivity (SPEC.md section 10)
+  // ---------------------------------------------------------------------
+  var COCKPIT_KEYS = ['winRate', 'acv', 'leadToMqlRate', 'mqlToOppRate', 'costPerLead', 'salesCycleShift', 'milestoneEffect', 'churnRateMonthly', 'expansionRateMonthly'];
+  var CHANNEL_RANGES = ['costPerLead', 'leadToMqlRate', 'mqlToOppRate', 'winRate', 'acv'];
+  function neutralCockpit() {
+    return { winRate: 1, acv: 1, leadToMqlRate: 1, mqlToOppRate: 1, costPerLead: 1, salesCycleShift: 0, milestoneEffect: 1, churnRateMonthly: 1, expansionRateMonthly: 1 };
+  }
+  function cockpitIsNeutral(ck) {
+    if (!ck) return true;
+    var n = neutralCockpit();
+    return COCKPIT_KEYS.every(function (k) { return ck[k] == null || ck[k] === n[k]; });
+  }
+  // One set of driver changes for a run: per channel, per milestone, per initiative, and company-wide (SPEC.md 10.1).
+  function neutralDrivers(A, initiatives) {
+    var d = { channels: {}, milestones: {}, initiatives: [], churn: 1, expansion: 1, accelerationSlip: [] };
+    A.channelOrder.forEach(function (c) { d.channels[c] = { costPerLead: 1, leadToMqlRate: 1, mqlToOppRate: 1, winRate: 1, acv: 1, cycleShift: 0 }; });
+    Object.keys(A.milestones || {}).forEach(function (id) { d.milestones[id] = { effect: 1, slip: 0 }; });
+    (initiatives || []).forEach(function () { d.initiatives.push({ directLeads: 1 }); d.accelerationSlip.push(null); });
+    return d;
+  }
+  function cockpitDrivers(A, ck) {
+    var d = neutralDrivers(A, []);
+    A.channelOrder.forEach(function (c) {
+      CHANNEL_RANGES.forEach(function (k) { d.channels[c][k] = ck[k] == null ? 1 : ck[k]; });
+      d.channels[c].cycleShift = ck.salesCycleShift || 0;
+    });
+    Object.keys(d.milestones).forEach(function (id) { d.milestones[id].effect = ck.milestoneEffect == null ? 1 : ck.milestoneEffect; });
+    d.churn = ck.churnRateMonthly == null ? 1 : ck.churnRateMonthly;
+    d.expansion = ck.expansionRateMonthly == null ? 1 : ck.expansionRateMonthly;
+    return d;
+  }
+  // The assumptions with one set of driver changes applied. Rates stay at or below 100%; a sales cycle never goes below 0.
+  function applyDrivers(A, d) {
+    var X = clone(A);
+    X.channelOrder.forEach(function (c) {
+      var ch = X.channels[c], k = d.channels[c];
+      if (!k) return;
+      if (ch.costPerLead != null) ch.costPerLead *= k.costPerLead;
+      ch.leadToMqlRate = Math.min(1, ch.leadToMqlRate * k.leadToMqlRate);
+      ch.mqlToOppRate = Math.min(1, ch.mqlToOppRate * k.mqlToOppRate);
+      ch.winRate = Math.min(1, ch.winRate * k.winRate);
+      ch.acv *= k.acv;
+      ch.salesCycleMonths = Math.max(0, ch.salesCycleMonths + k.cycleShift);
+    });
+    Object.keys(X.milestones || {}).forEach(function (id) {
+      var ms = X.milestones[id], k = d.milestones[id];
+      if (!k) return;
+      Object.keys(ms.effects || {}).forEach(function (e) { ms.effects[e] *= k.effect; });
+      ms.shipMonth += k.slip;
+    });
+    X.churnRateMonthly = Math.min(1, X.churnRateMonthly * d.churn);
+    X.expansionRateMonthly = Math.min(1, X.expansionRateMonthly * d.expansion);
+    return X;
+  }
+  // The scenario cockpit is part of the assumptions. Every run applies it first, then sets it back to
+  // neutral in its working copy, so a result can be rerun from its own inputs without applying it twice.
+  function effectiveAssumptions(A) {
+    if (!A || cockpitIsNeutral(A.cockpit)) return A;
+    var X = applyDrivers(A, cockpitDrivers(A, A.cockpit));
+    X.cockpit = neutralCockpit();
+    return X;
+  }
+
+  // Seeded random numbers: one generator per run, so results do not depend on how runs are split up.
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      var t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  function runRandom(seed, run) {
+    var r = mulberry32((Math.imul(seed | 0, 0x9E3779B1) ^ Math.imul(run + 1, 0x85EBCA77)) >>> 0);
+    r(); r();
+    return r;
+  }
+  // Inverse of the triangular distribution (low, mode, high) at u in [0, 1).
+  function triangular(u, t) {
+    var a = t.low, c = t.mode, b = t.high;
+    if (!(b > a)) return c;
+    var F = (c - a) / (b - a);
+    return u < F ? a + Math.sqrt(u * (b - a) * (c - a)) : b - Math.sqrt((1 - u) * (b - a) * (b - c));
+  }
+  function discrete(u, list, key) {
+    var acc = 0;
+    for (var i = 0; i < list.length; i++) { acc += list[i].p; if (u < acc) return list[i][key]; }
+    return list[list.length - 1][key];
+  }
+  // Every draw of one run, in a fixed order (SPEC.md 10.1).
+  function drawRun(A, initiatives, seed, run) {
+    var rng = runRandom(seed, run), U = A.uncertainty, d = neutralDrivers(A, initiatives);
+    A.channelOrder.forEach(function (c) { CHANNEL_RANGES.forEach(function (k) { d.channels[c][k] = triangular(rng(), U[k]); }); });
+    A.channelOrder.forEach(function (c) { d.channels[c].cycleShift = discrete(rng(), U.salesCycleShift, 'shift'); });
+    (initiatives || []).forEach(function (init, i) { d.initiatives[i].directLeads = triangular(rng(), U.directLeads); });
+    Object.keys(A.milestones || {}).forEach(function (id) {
+      d.milestones[id].effect = triangular(rng(), U.milestoneEffect);
+      d.milestones[id].slip = discrete(rng(), U.plannedShipSlip, 'slip');
+    });
+    (initiatives || []).forEach(function (init, i) { d.accelerationSlip[i] = rng(); });
+    return d;
+  }
+
+  var RANGE_KEYS = ['costPerLead', 'leadToMqlRate', 'mqlToOppRate', 'winRate', 'acv', 'directLeads', 'milestoneEffect'];
+  function validateSimulation(A) {
+    var bad = [], U = A.uncertainty || {};
+    RANGE_KEYS.forEach(function (k) {
+      var t = U[k] || {}, p = 'uncertainty.' + k;
+      ['low', 'mode', 'high'].forEach(function (f) { checkNumber(bad, t[f], p + '.' + f, { min: 0 }); });
+      if (!(t.low <= t.mode && t.mode <= t.high)) bad.push(p + ' must have low at or below mode at or below high');
+    });
+    [['salesCycleShift', 'shift'], ['plannedShipSlip', 'slip']].forEach(function (pair) {
+      var list = U[pair[0]], p = 'uncertainty.' + pair[0];
+      if (!Array.isArray(list) || !list.length) { bad.push(p + ' must list at least one value'); return; }
+      var tot = 0;
+      list.forEach(function (x, i) {
+        checkNumber(bad, x && x[pair[1]], p + '[' + i + '].' + pair[1], { whole: true, min: pair[0] === 'plannedShipSlip' ? 0 : null });
+        checkNumber(bad, x && x.p, p + '[' + i + '].p', { min: 0, max: 1 });
+        tot += x && x.p;
+      });
+      if (!(Math.abs(tot - 1) <= 1e-9)) bad.push(p + ' probabilities must sum to 1');
+    });
+    var S = A.simulation || {};
+    checkNumber(bad, S.seed, 'simulation.seed', { whole: true });
+    checkNumber(bad, S.runs, 'simulation.runs', { whole: true, min: 1 });
+    return bad;
+  }
+
+  // Everything a simulation of one initiative needs, checked once.
+  function simulationSetup(assumptions, initiative, opts) {
+    opts = opts || {};
+    assertValidInputs(assumptions, [initiative]);
+    var bad = validateSimulation(assumptions);
+    if (bad.length) throw new Error('Invalid input: ' + bad.slice(0, 5).join('; '));
+    var A = effectiveAssumptions(clone(assumptions)), init = clone(initiative);
+    if (init.acceleration) { delete init.acceleration.outcomeShipMonth; }
+    return { A: A, init: init, schedule: init.acceleration ? accelerationSchedule(A, init.acceleration) : null,
+      seed: opts.seed != null ? opts.seed : A.simulation.seed, runs: opts.runs != null ? opts.runs : A.simulation.runs, vary: opts.vary || null };
+  }
+  // With `vary`, only the named drivers keep their draws; the others stay as planned. Every number is still
+  // drawn, in the same order, so a driver gets the same random numbers whatever else varies (SPEC.md 10.1).
+  var DRIVER_KEYS = ['costPerLead', 'leadToMqlRate', 'mqlToOppRate', 'winRate', 'acv', 'salesCycleShift', 'directLeads', 'milestoneEffect', 'plannedShipSlip', 'accelerationSlip'];
+  function keepOnly(d, vary, A) {
+    var on = {}; vary.forEach(function (k) { on[k] = 1; });
+    A.channelOrder.forEach(function (c) {
+      CHANNEL_RANGES.forEach(function (k) { if (!on[k]) d.channels[c][k] = 1; });
+      if (!on.salesCycleShift) d.channels[c].cycleShift = 0;
+    });
+    d.initiatives.forEach(function (x) { if (!on.directLeads) x.directLeads = 1; });
+    Object.keys(d.milestones).forEach(function (id) { if (!on.milestoneEffect) d.milestones[id].effect = 1; if (!on.plannedShipSlip) d.milestones[id].slip = 0; });
+    return d;
+  }
+  // One run: the initiative against the baseline, both with the same draws (SPEC.md 10.1, 9.9).
+  function simulationRun(setup, d, kForced) {
+    var A = setup.A, init = clone(setup.init), sch = setup.schedule, k = null, ship = null;
+    var Ar = applyDrivers(A, d);
+    (init.effects || []).forEach(function (e) {
+      if (e.kind === 'direct_leads') Object.keys(e.byMonth || {}).forEach(function (m) { e.byMonth[m] *= d.initiatives[0].directLeads; });
+    });
+    if (init.acceleration) {
+      var acc = init.acceleration, slip = d.milestones[acc.milestone].slip;
+      if (acc.actualShipMonth != null) ship = acc.actualShipMonth;
+      else {
+        if (kForced != null) k = kForced;
+        else {
+          var u = d.accelerationSlip[0], cum = 0;
+          k = sch.slip.table.length - 1;
+          for (var i = 0; i < sch.slip.table.length; i++) { cum += sch.slip.table[i].p; if (u < cum) { k = i; break; } }
+        }
+        ship = sch.T + k + slip;
+      }
+      acc.outcomeShipMonth = ship;
+    }
+    var B = runModel(Ar, []), S = runModel(Ar, [init]), r = computeReturns(B, S), pb = r.payback;
+    var floor = A.guardrails.cashFloor;
+    return { npv: r.npv, newArr: r.extraNewArr, totalInvestment: r.totalInvestment,
+      paybackMonth: pb.month === null ? Infinity : pb.month, paybackStatus: pb.status,
+      cashLow: S.cashTests.lowPoint, baselineCashLow: B.cashTests.lowPoint, floorBreach: S.cashTests.lowPoint < floor, baselineFloorBreach: B.cashTests.lowPoint < floor,
+      arr12: S.arr.arr[Math.min(12, S.H)] - B.arr.arr[Math.min(12, B.H)], k: k, shipMonth: ship };
+  }
+  function simulationRuns(setup, from, to) {
+    var out = [];
+    for (var run = from; run < to; run++) {
+      var d = drawRun(setup.A, [setup.init], setup.seed, run);
+      if (setup.vary) keepOnly(d, setup.vary, setup.A);
+      // a pull-in held to its plan ships on target when its slip is not varied
+      out.push(simulationRun(setup, d, setup.vary && setup.vary.indexOf('accelerationSlip') < 0 && setup.schedule ? 0 : null));
+    }
+    return out;
+  }
+  // Nearest rank: the value at position ceil(q x n) of the sorted list (SPEC.md 10.2).
+  function percentile(sorted, q) {
+    if (!sorted.length) return null;
+    return sorted[Math.min(sorted.length, Math.max(1, Math.ceil(q * sorted.length))) - 1];
+  }
+  function spread(values) {
+    var s = values.slice().sort(function (a, b) { return a - b; }), mean = 0, finite = 0;
+    s.forEach(function (v) { if (isFinite(v)) { mean += v; finite++; } });
+    return { p10: percentile(s, 0.10), p50: percentile(s, 0.50), p90: percentile(s, 0.90), mean: finite ? mean / finite : null,
+      min: s[0], max: s[s.length - 1], finiteShare: s.length ? finite / s.length : 0 };
+  }
+  // The deterministic case the simulation is compared with: the run without draws, or for a pull-in
+  // its expected case (SPEC.md 9.7), with the cash low point of its planning case.
+  function deterministicCase(setup) {
+    if (setup.init.acceleration) {
+      var ev = evaluateAcceleration(setup.A, setup.init), x = ev.expected;
+      return { npv: x.npv, newArr: x.extraNewArr, paybackMonth: x.payback.month === null ? Infinity : x.payback.month, paybackStatus: x.payback.status,
+        cashLow: ev.planning.scenario.cashTests.lowPoint, totalInvestment: x.totalInvestment };
+    }
+    var r = simulationRun(setup, neutralDrivers(setup.A, [setup.init]));
+    return { npv: r.npv, newArr: r.newArr, paybackMonth: r.paybackMonth, paybackStatus: r.paybackStatus, cashLow: r.cashLow, totalInvestment: r.totalInvestment };
+  }
+  function summarizeSimulation(setup, runs, det) {
+    function pick(k) { return runs.map(function (r) { return r[k]; }); }
+    function share(f) { var n = 0; runs.forEach(function (r) { if (f(r)) n++; }); return runs.length ? n / runs.length : null; }
+    var npv = spread(pick('npv'));
+    // NPV histogram, 20 equal bins from the lowest to the highest run
+    var bins = [], lo = npv.min, hi = npv.max, nb = 20;
+    for (var i = 0; i < nb; i++) bins.push({ from: lo + (hi - lo) * i / nb, to: lo + (hi - lo) * (i + 1) / nb, count: 0 });
+    runs.forEach(function (r) { var b = hi > lo ? Math.min(nb - 1, Math.floor((r.npv - lo) / (hi - lo) * nb)) : 0; bins[b].count++; });
+    return {
+      runs: runs.length, seed: setup.seed, horizon: setup.A.horizonMonths, cashFloor: setup.A.guardrails.cashFloor,
+      newArr: spread(pick('newArr')), npv: npv, cashLow: spread(pick('cashLow')), payback: spread(pick('paybackMonth')),
+      totalInvestment: spread(pick('totalInvestment')), arr12: spread(pick('arr12')),
+      probabilityPaybackWithin24: share(function (r) { return r.paybackMonth <= 24; }),
+      probabilityFloorBreach: share(function (r) { return r.floorBreach; }),
+      probabilityBaselineFloorBreach: share(function (r) { return r.baselineFloorBreach; }),
+      probabilityNpvPositive: share(function (r) { return r.npv > 0; }),
+      histogram: bins, deterministic: det || deterministicCase(setup)
+    };
+  }
+  // Run the whole simulation at once (the app runs simulationRuns in chunks and then summarizes).
+  function simulate(assumptions, initiative, opts) {
+    var setup = simulationSetup(assumptions, initiative, opts), records = simulationRuns(setup, 0, setup.runs);
+    var s = summarizeSimulation(setup, records);
+    if (opts && opts.keepRuns) s.records = records;
+    return s;
+  }
+
+  // Sensitivity: each driver at the low and high end of its range, every other driver as planned (SPEC.md 10.3).
+  function sensitivity(assumptions, initiative) {
+    var setup = simulationSetup(assumptions, initiative), A = setup.A, U = A.uncertainty, sch = setup.schedule, init = setup.init;
+    function value(d) {
+      if (!sch || init.acceleration.actualShipMonth != null) return simulationRun(setup, d).npv;
+      var t = 0;
+      sch.slip.table.forEach(function (row, k) { t += row.p * simulationRun(setup, d, k).npv; });
+      return t;
+    }
+    function with_(fn) { var d = neutralDrivers(A, [init]); fn(d); return d; }
+    var base = value(neutralDrivers(A, [init]));
+    var minOf = function (list, key) { return Math.min.apply(null, list.map(function (x) { return x[key]; })); };
+    var maxOf = function (list, key) { return Math.max.apply(null, list.map(function (x) { return x[key]; })); };
+    var defs = CHANNEL_RANGES.map(function (k) {
+      return { key: k, low: U[k].low, high: U[k].high, unit: 'multiple', set: function (d, v) { A.channelOrder.forEach(function (c) { d.channels[c][k] = v; }); } };
+    });
+    defs.push({ key: 'salesCycleShift', low: minOf(U.salesCycleShift, 'shift'), high: maxOf(U.salesCycleShift, 'shift'), unit: 'months',
+      set: function (d, v) { A.channelOrder.forEach(function (c) { d.channels[c].cycleShift = v; }); } });
+    var hasDirect = (init.effects || []).some(function (e) { return e.kind === 'direct_leads'; });
+    if (hasDirect) defs.push({ key: 'directLeads', low: U.directLeads.low, high: U.directLeads.high, unit: 'multiple', set: function (d, v) { d.initiatives[0].directLeads = v; } });
+    defs.push({ key: 'milestoneEffect', low: U.milestoneEffect.low, high: U.milestoneEffect.high, unit: 'multiple',
+      set: function (d, v) { Object.keys(d.milestones).forEach(function (id) { d.milestones[id].effect = v; }); } });
+    defs.push({ key: 'plannedShipSlip', low: minOf(U.plannedShipSlip, 'slip'), high: maxOf(U.plannedShipSlip, 'slip'), unit: 'months',
+      set: function (d, v) { Object.keys(d.milestones).forEach(function (id) { d.milestones[id].slip = v; }); } });
+    var out = defs.map(function (df) {
+      var lo = value(with_(function (d) { df.set(d, df.low); })), hi = value(with_(function (d) { df.set(d, df.high); }));
+      return { key: df.key, unit: df.unit, low: df.low, high: df.high, npvLow: lo, npvHigh: hi, swing: Math.abs(hi - lo) };
+    });
+    if (sch && init.acceleration.actualShipMonth == null) {
+      var last = sch.slip.table.length - 1, d0 = neutralDrivers(A, [init]);
+      var on = simulationRun(setup, d0, 0).npv, worst = simulationRun(setup, d0, last).npv;
+      out.push({ key: 'accelerationSlip', unit: 'months', low: 0, high: last, npvLow: on, npvHigh: worst, swing: Math.abs(worst - on) });
+    }
+    out.sort(function (a, b) { return b.swing - a.swing || (a.key < b.key ? -1 : 1); });
+    return { base: base, drivers: out };
   }
 
   // ---------------------------------------------------------------------
@@ -3174,6 +3484,10 @@ table.trace tbody th { min-width: 96px; }
     templates: templates, templateDefaults: templateDefaults, nullInitiative: nullInitiative, evaluate: evaluate,
     EFFECT_KEYS: EFFECT_KEYS, accelerationSchedule: accelerationSchedule, slipTable: slipTable, accelerationEffects: accelerationEffects,
     evaluateAcceleration: evaluateAcceleration, sideMeasures: sideMeasures, validateAcceleration: validateAcceleration,
+    COCKPIT_KEYS: COCKPIT_KEYS, neutralCockpit: neutralCockpit, cockpitIsNeutral: cockpitIsNeutral, effectiveAssumptions: effectiveAssumptions,
+    neutralDrivers: neutralDrivers, applyDrivers: applyDrivers, triangular: triangular, drawRun: drawRun, validateSimulation: validateSimulation,
+    simulationSetup: simulationSetup, simulationRun: simulationRun, simulationRuns: simulationRuns, summarizeSimulation: summarizeSimulation,
+    deterministicCase: deterministicCase, simulate: simulate, percentile: percentile, sensitivity: sensitivity,
     periods: periods, statements: statements, arrBridge: arrBridge, kpiCards: kpiCards,
     TEMPLATE_PARAMS: TEMPLATE_PARAMS, checkTemplateParams: checkTemplateParams, decisionView: decisionView,
     initiativeTrace: initiativeTrace, togetherSummary: togetherSummary, accelerationView: accelerationView
@@ -5294,6 +5608,227 @@ window.TestSuite = (function () {
     t.d('Cost card: hosting saved on target', vc.cost.onTarget.hostingSaved, 135592.77);
   });
 
+  // ===== 10. Uncertainty: simulation, sensitivity and the scenario cockpit (SPEC.md 10.6) =====
+  var RANGES = ['costPerLead', 'leadToMqlRate', 'mqlToOppRate', 'winRate', 'acv', 'directLeads', 'milestoneEffect'];
+  var SIM_CASES = { tradeShow: function (A) { return E.templates.tradeShow(A); }, hireAes: function (A) { return E.templates.hireAes(A); },
+    hub: function (A) { return E.templates.accelerateRevenue(A); }, hosting: function (A) { return E.templates.accelerateCost(A); } };
+  var simCacheT = {};
+  function simOf(key, runs) { var k = key + ':' + runs; if (!simCacheT[k]) simCacheT[k] = E.simulate(A0, SIM_CASES[key](A0), { runs: runs, keepRuns: true }); return simCacheT[k]; }
+  function widenRange(A, k, f) { var r = A.uncertainty[k]; r.low = Math.max(0, r.mode - f * (r.mode - r.low)); r.high = r.mode + f * (r.high - r.mode); }
+  function width(q) { return q.p90 - q.p10; }
+
+  test('T120', 'Simulation: random numbers, draws and percentiles (SPEC.md 10.1, 10.2)', function (t) {
+    var inits = [E.templates.tradeShow(A0)];
+    t.eq('Same seed and run: same draws', JSON.stringify(E.drawRun(A0, inits, 2027, 5)), JSON.stringify(E.drawRun(A0, inits, 2027, 5)));
+    t.ok('Another run: other draws', JSON.stringify(E.drawRun(A0, inits, 2027, 5)) !== JSON.stringify(E.drawRun(A0, inits, 2027, 6)));
+    t.ok('Another seed: other draws', JSON.stringify(E.drawRun(A0, inits, 2027, 5)) !== JSON.stringify(E.drawRun(A0, inits, 2028, 5)));
+    var wr = A0.uncertainty.winRate, F = (wr.mode - wr.low) / (wr.high - wr.low);
+    t.near('Triangular at u = 0 is the low end', E.triangular(0, wr), 0.75, 1e-12);
+    t.near('Triangular at the mode share is the mode', E.triangular(F, wr), 1, 1e-12);
+    t.near('Triangular near u = 1 is the high end', E.triangular(1 - 1e-12, wr), 1.25, 1e-5);
+    t.near('A range of one value always gives it', E.triangular(0.3, { low: 1.1, mode: 1.1, high: 1.1 }), 1.1, 1e-12);
+    // 20,000 draws: the mean of the triangular is (low + mode + high) / 3 and the sales cycle shift follows its probabilities
+    var n = 20000, sum = 0, cpl = 0, shifts = { '-1': 0, '0': 0, '1': 0, '2': 0 }, slips = { '0': 0, '1': 0, '2': 0, '3': 0 };
+    for (var r = 0; r < n; r++) {
+      var d = E.drawRun(A0, inits, 2027, r);
+      sum += d.channels.paid.winRate; cpl += d.channels.events.costPerLead;
+      shifts[d.channels.outbound.cycleShift]++; slips[d.milestones.integrations_hub.slip]++;
+    }
+    t.near('Mean win rate multiplier', sum / n, (0.75 + 1 + 1.25) / 3, 0.005);
+    t.near('Mean cost per lead multiplier (skewed up)', cpl / n, (0.85 + 1 + 1.30) / 3, 0.005);
+    A0.uncertainty.salesCycleShift.forEach(function (x) { t.near('Sales cycle shift ' + x.shift + ' frequency', shifts[x.shift] / n, x.p, 0.015); });
+    A0.uncertainty.plannedShipSlip.forEach(function (x) { t.near('Planned ship slip ' + x.slip + ' frequency', slips[x.slip] / n, x.p, 0.015); });
+    var ten = [7, 3, 10, 1, 9, 2, 8, 4, 6, 5].sort(function (a, b) { return a - b; });
+    t.eq('Nearest-rank P10, P50, P90 of 1 to 10', [E.percentile(ten, 0.1), E.percentile(ten, 0.5), E.percentile(ten, 0.9)].join(','), '1,5,9');
+    t.eq('Percentiles of one value', E.percentile([4], 0.1) + ',' + E.percentile([4], 0.9), '4,4');
+    var bad = withA(function (a) { a.uncertainty.winRate.low = 1.3; });
+    rejected(t, 'A range with low above mode', function () { E.simulate(bad, E.templates.tradeShow(bad), { runs: 5 }); }, 'uncertainty.winRate');
+    bad = withA(function (a) { a.uncertainty.salesCycleShift[0].p = 0.5; });
+    rejected(t, 'Shift probabilities that do not sum to 1', function () { E.simulate(bad, E.templates.tradeShow(bad), { runs: 5 }); }, 'salesCycleShift');
+    bad = withA(function (a) { a.simulation.runs = 0; });
+    rejected(t, 'Zero runs', function () { E.simulate(bad, E.templates.tradeShow(bad)); }, 'simulation.runs');
+  });
+
+  test('T121', 'Simulation: a run with no draws is the deterministic case (SPEC.md 10.1)', function (t) {
+    var ts = E.templates.tradeShow(A0), setup = E.simulationSetup(A0, ts), r = E.simulationRun(setup, E.neutralDrivers(setup.A, [setup.init]));
+    var x = sc('T74a');
+    t.d('NPV', r.npv, x.returns.npv); t.d('New ARR', r.newArr, x.returns.extraNewArr); t.d('Cash low point', r.cashLow, x.scenario.cashTests.lowPoint);
+    t.eq('Payback month', r.paybackMonth, 14); t.eq('No floor breach', r.floorBreach, false);
+    var hub = E.templates.accelerateRevenue(A0), hs = E.simulationSetup(A0, hub), tot = 0;
+    hs.schedule.slip.table.forEach(function (row, k) {
+      var o = E.simulationRun(hs, E.neutralDrivers(hs.A, [hs.init]), k);
+      t.eq('Hub outcome ' + k + ' ships in month ' + row.shipMonth, o.shipMonth, row.shipMonth);
+      t.d('Hub outcome ' + k + ' NPV is the SPEC 9.11 outcome NPV', o.npv, hubEv().outcomes[k].returns.npv);
+      tot += row.p * o.npv;
+    });
+    t.d('Hub: probability-weighted NPV is the expected NPV', tot, -1073970.07);
+    var det = E.deterministicCase(hs);
+    t.d('Hub deterministic case: expected NPV', det.npv, -1073970.07); t.d('Hub deterministic case: expected new ARR', det.newArr, 201145.24);
+    t.d('Hub deterministic case: planning-case cash low point', det.cashLow, 16765576.13);
+    // A planned-date slip moves both runs, so the pull-in still gains its months: target 6 plus slip 2 ships in month 8, planned 12 plus 2.
+    var d2 = E.neutralDrivers(hs.A, [hs.init]); d2.milestones.integrations_hub.slip = 2;
+    t.eq('Planned slip of 2: the pull-in ships in month 8 on target', E.simulationRun(hs, d2, 0).shipMonth, 8);
+  });
+
+  test('T122', 'Simulation: the same seed gives the same results (SPEC.md 10.1)', function (t) {
+    var a = simOf('tradeShow', 1000), b = E.simulate(A0, E.templates.tradeShow(A0), { runs: 1000, keepRuns: true });
+    t.eq('Two simulations with seed 2027 are identical', JSON.stringify(a), JSON.stringify(b));
+    t.eq('1,000 runs by default', E.simulate(A0, E.templates.tradeShow(A0)).runs, 1000);
+    var setup = E.simulationSetup(A0, E.templates.tradeShow(A0));
+    var parts = E.simulationRuns(setup, 0, 370).concat(E.simulationRuns(setup, 370, 1000));
+    t.eq('Running in chunks gives the same runs', JSON.stringify(parts), JSON.stringify(a.records));
+    t.eq('Chunks give the same summary', JSON.stringify(E.summarizeSimulation(setup, parts)), JSON.stringify(E.summarizeSimulation(setup, a.records)));
+    var other = E.simulate(A0, E.templates.tradeShow(A0), { runs: 1000, seed: 99 });
+    t.ok('Another seed gives other runs', other.npv.p50 !== a.npv.p50 && other.newArr.p10 !== a.newArr.p10);
+    var seeded = withA(function (a2) { a2.simulation.seed = 99; });
+    t.eq('The seed in the assumptions is used', JSON.stringify(E.simulate(seeded, E.templates.tradeShow(seeded), { runs: 1000 }).npv), JSON.stringify(other.npv));
+    var h1 = simOf('hub', 1000), h2 = E.simulate(A0, E.templates.accelerateRevenue(A0), { runs: 1000, keepRuns: true });
+    t.eq('Hub pull-in: two simulations are identical', JSON.stringify(h1), JSON.stringify(h2));
+  });
+
+  test('T123', 'Simulation: P50 is close to the deterministic case (SPEC.md 10.6)', function (t) {
+    Object.keys(SIM_CASES).forEach(function (key) {
+      var s = simOf(key, 1000), d = s.deterministic;
+      [['newArr', d.newArr], ['npv', d.npv], ['cashLow', d.cashLow], ['payback', d.paybackMonth]].forEach(function (m) {
+        var q = s[m[0]], label = key + ' ' + m[0];
+        t.ok(label + ': P10 <= P50 <= P90', q.p10 <= q.p50 && q.p50 <= q.p90);
+        if (!isFinite(m[1])) { t.eq(label + ': not paid back in the plan, nor at P50', q.p50, Infinity); return; }
+        if (q.p90 - q.p10 === 0) { t.near(label + ': no spread, so P50 is the plan', q.p50, m[1], 0.01); return; }
+        t.ok(label + ': the plan is between P10 and P90', q.p10 <= m[1] && m[1] <= q.p90, q.p10 + ' / ' + m[1] + ' / ' + q.p90);
+        t.ok(label + ': P50 within a quarter of the P10 to P90 spread of the plan', Math.abs(q.p50 - m[1]) <= 0.25 * (q.p90 - q.p10),
+          'P50 ' + q.p50 + ', plan ' + m[1] + ', spread ' + (q.p90 - q.p10));
+      });
+    });
+    var ts = simOf('tradeShow', 1000);
+    t.near('Trade show: P50 new ARR within 10% of the plan', ts.newArr.p50 / ts.deterministic.newArr, 1, 0.10);
+    // With every range collapsed to its mode and no shifts or slips, every run is the plan.
+    var flat = withA(function (a) {
+      RANGES.forEach(function (k) { a.uncertainty[k] = { low: 1, mode: 1, high: 1, drawn: a.uncertainty[k].drawn }; });
+      a.uncertainty.salesCycleShift = [{ shift: 0, p: 1 }]; a.uncertainty.plannedShipSlip = [{ slip: 0, p: 1 }];
+    });
+    var fs = E.simulate(flat, E.templates.tradeShow(flat), { runs: 50 });
+    t.d('No uncertainty: P10 NPV is the plan', fs.npv.p10, 202196.90); t.d('No uncertainty: P90 NPV is the plan', fs.npv.p90, 202196.90);
+    t.eq('No uncertainty: payback month 14 in every run', fs.payback.p10 + ',' + fs.payback.p90, '14,14');
+    var fh = E.simulate(flat, E.templates.accelerateRevenue(flat), { runs: 300 });
+    t.ok('No range uncertainty: the pull-in still varies with its ship date', fh.npv.p90 - fh.npv.p10 > 100000);
+    t.ok('and every run is one of the SPEC 9.11 outcomes', [fh.npv.p10, fh.npv.p50, fh.npv.p90].every(function (v) {
+      return hubEv().outcomes.some(function (o) { return Math.abs(o.returns.npv - v) < 0.01; }); }));
+  });
+
+  test('T124', 'Simulation: widening a range never narrows the P10 to P90 spread (SPEC.md 10.6)', function (t) {
+    var outputs = ['newArr', 'npv', 'cashLow', 'payback'];
+    // (a) One range widened, with that driver the only one varying: exact for the draws, and checked for every output.
+    ['tradeShow', 'hub'].forEach(function (key) {
+      RANGES.forEach(function (k) {
+        var base = E.simulate(A0, SIM_CASES[key](A0), { runs: 150, vary: [k] });
+        [1.5, 2].forEach(function (f) {
+          var A = withA(function (a) { widenRange(a, k, f); });
+          var s = E.simulate(A, SIM_CASES[key](A), { runs: 150, vary: [k] });
+          outputs.forEach(function (m) {
+            var w0 = width(base[m]), w1 = width(s[m]);
+            if (isFinite(w0)) t.ok(key + ', ' + k + ' alone, x' + f + ': ' + m + ' spread does not narrow', w1 >= w0 - 1e-6, w0 + ' -> ' + w1);
+          });
+        });
+      });
+    });
+    // The draws themselves move away from the mode by exactly the factor, so their spread widens by it.
+    var Aw = withA(function (a) { widenRange(a, 'winRate', 2); });
+    var d0 = E.drawRun(A0, [], 2027, 3).channels.paid.winRate, d1 = E.drawRun(Aw, [], 2027, 3).channels.paid.winRate;
+    t.near('A draw twice as far from the mode', d1 - 1, 2 * (d0 - 1), 1e-12);
+    // (b) Every range widened together, in the full simulation.
+    Object.keys(SIM_CASES).forEach(function (key) {
+      var base = E.simulate(A0, SIM_CASES[key](A0), { runs: 300 });
+      [1.5, 2].forEach(function (f) {
+        var A = withA(function (a) { RANGES.forEach(function (k) { widenRange(a, k, f); }); });
+        var s = E.simulate(A, SIM_CASES[key](A), { runs: 300 });
+        outputs.forEach(function (m) {
+          var w0 = width(base[m]), w1 = width(s[m]);
+          if (isFinite(w0)) t.ok(key + ', every range x' + f + ': ' + m + ' spread does not narrow', w1 >= w0 - 1e-6, w0 + ' -> ' + w1);
+        });
+      });
+    });
+  });
+
+  test('T125', 'Simulation: probabilities and percentiles tie to the runs (SPEC.md 10.2)', function (t) {
+    ['tradeShow', 'hub'].forEach(function (key) {
+      var s = simOf(key, 1000), R = s.records, n = R.length;
+      t.eq(key + ' run count', n, 1000);
+      function share(f) { return R.filter(f).length / n; }
+      t.near(key + ' payback within 24 months', s.probabilityPaybackWithin24, share(function (r) { return r.paybackMonth <= 24; }), 1e-12);
+      t.near(key + ' breaks the cash floor', s.probabilityFloorBreach, share(function (r) { return r.cashLow < A0.guardrails.cashFloor; }), 1e-12);
+      t.near(key + ' plan alone breaks the cash floor', s.probabilityBaselineFloorBreach, share(function (r) { return r.baselineCashLow < A0.guardrails.cashFloor; }), 1e-12);
+      var npv = R.map(function (r) { return r.npv; }).sort(function (a, b) { return a - b; });
+      t.eq(key + ' P10 NPV is run 100 of 1,000 by rank', s.npv.p10, npv[99]); t.eq(key + ' P50 is run 500', s.npv.p50, npv[499]); t.eq(key + ' P90 is run 900', s.npv.p90, npv[899]);
+      t.eq(key + ' histogram counts every run', s.histogram.reduce(function (a, b) { return a + b.count; }, 0), n);
+      t.ok(key + ' cash floor breach is a business warning: every run is still finite', R.every(function (r) { return isFinite(r.npv) && isFinite(r.cashLow); }));
+    });
+    var ts = simOf('tradeShow', 1000);
+    t.ok('Trade show pays back within 24 months in most runs', ts.probabilityPaybackWithin24 > 0.9);
+    t.eq('The hub pull-in never pays back within 24 months', simOf('hub', 1000).probabilityPaybackWithin24, 0);
+    t.ok('The hub pull-in raises the chance of breaking the floor', simOf('hub', 1000).probabilityFloorBreach > simOf('hub', 1000).probabilityBaselineFloorBreach);
+  });
+
+  test('T126', 'Sensitivity: which drivers move NPV the most (SPEC.md 10.3)', function (t) {
+    var sv = E.sensitivity(A0, E.templates.tradeShow(A0));
+    t.d('Trade show base is the plan NPV', sv.base, 202196.90);
+    t.ok('Sorted by swing, largest first', sv.drivers.every(function (d, i) { return i === 0 || sv.drivers[i - 1].swing >= d.swing; }));
+    t.eq('Trade show drivers', sv.drivers.map(function (d) { return d.key; }).sort().join(','),
+      'acv,costPerLead,directLeads,leadToMqlRate,milestoneEffect,mqlToOppRate,plannedShipSlip,salesCycleShift,winRate');
+    var wr = sv.drivers.filter(function (d) { return d.key === 'winRate'; })[0];
+    var hiA = withA(function (a) { a.channelOrder.forEach(function (c) { a.channels[c].winRate *= 1.25; }); });
+    t.d('Win rate at 1.25x equals editing every win rate', wr.npvHigh, E.applyInitiatives(hiA, [E.templates.tradeShow(hiA)]).returns.npv);
+    var dl = sv.drivers.filter(function (d) { return d.key === 'directLeads'; })[0];
+    t.d('Badge scans at 0.7x equals 140 scans', dl.npvLow, E.applyInitiatives(A0, [E.templates.tradeShow(A0, { expectedLeads: 140 })]).returns.npv);
+    t.d('Swing is the gap between the ends', wr.swing, Math.abs(wr.npvHigh - wr.npvLow));
+    var sh = E.sensitivity(A0, E.templates.accelerateRevenue(A0));
+    t.d('Hub base is the expected NPV', sh.base, -1073970.07);
+    t.eq('Hub: the pulled-in date slipping moves NPV the most', sh.drivers[0].key, 'accelerationSlip');
+    t.d('Hub slip: on target', sh.drivers[0].npvLow, -841257.30); t.d('Hub slip: worst outcome', sh.drivers[0].npvHigh, -2208056.00);
+    t.ok('Hub: no badge-scan driver', !sh.drivers.some(function (d) { return d.key === 'directLeads'; }));
+    var flat = withA(function (a) { RANGES.forEach(function (k) { a.uncertainty[k] = { low: 1, mode: 1, high: 1, drawn: a.uncertainty[k].drawn }; });
+      a.uncertainty.salesCycleShift = [{ shift: 0, p: 1 }]; a.uncertainty.plannedShipSlip = [{ slip: 0, p: 1 }]; });
+    t.ok('No ranges: no swing', E.sensitivity(flat, E.templates.tradeShow(flat)).drivers.every(function (d) { return d.swing === 0; }));
+  });
+
+  test('T127', 'Scenario cockpit: applied once to every run, and the same as editing the drivers (SPEC.md 10.4)', function (t) {
+    t.eq('Neutral by default', E.cockpitIsNeutral(A0.cockpit), true);
+    var noCk = withA(function (a) { delete a.cockpit; });
+    t.eq('A neutral cockpit changes nothing', E.maxSeriesDiff(E.runModel(A0, [TRADE_SHOW]), E.runModel(noCk, [TRADE_SHOW])).diff, 0);
+    function same(label, ck, edit, inits) {
+      var a1 = withA(function (a) { Object.keys(ck).forEach(function (k) { a.cockpit[k] = ck[k]; }); }), a2 = withA(edit);
+      var r1 = E.runModel(a1, inits || []), r2 = E.runModel(a2, inits || []);
+      var d = E.maxSeriesDiff(r1, r2);
+      t.ok(label, d.diff <= 1e-6, d.diff + ' at ' + d.path);
+      return r1;
+    }
+    var all = function (fn) { return function (a) { a.channelOrder.forEach(function (c) { fn(a.channels[c]); }); }; };
+    same('Win rate 1.1x equals every win rate edited', { winRate: 1.1 }, all(function (ch) { ch.winRate *= 1.1; }), [TRADE_SHOW]);
+    same('ACV 0.9x equals every ACV edited', { acv: 0.9 }, all(function (ch) { ch.acv *= 0.9; }));
+    same('Cost per lead 1.2x', { costPerLead: 1.2 }, all(function (ch) { if (ch.costPerLead != null) ch.costPerLead *= 1.2; }));
+    same('Sales cycle +1 month', { salesCycleShift: 1 }, all(function (ch) { ch.salesCycleMonths += 1; }));
+    same('Sales cycle -6 months stops at 0', { salesCycleShift: -6 }, all(function (ch) { ch.salesCycleMonths = 0; }));
+    same('Milestone effects 0.5x', { milestoneEffect: 0.5 }, function (a) { Object.keys(a.milestones).forEach(function (id) {
+      var e = a.milestones[id].effects; Object.keys(e).forEach(function (k) { e[k] *= 0.5; }); }); });
+    same('Churn 1.2x', { churnRateMonthly: 1.2 }, function (a) { a.churnRateMonthly *= 1.2; });
+    same('Expansion 0.8x', { expansionRateMonthly: 0.8 }, function (a) { a.expansionRateMonthly *= 0.8; });
+    var r = E.runModel(withA(function (a) { a.cockpit.winRate = 1.1; }), []);
+    var dc = E.runModel(A0, [driver('winRate', null, 1, 36, 'multiply', 1.1)]);
+    t.d('ARR at month 36 equals a win-rate driver change of 1.1x', r.arr.arr[36], dc.arr.arr[36]);
+    t.eq('The result stores the cockpit as applied (neutral)', E.cockpitIsNeutral(r.inputs.assumptions.cockpit), true);
+    var ckA = withA(function (a) { a.cockpit.winRate = 1.15; a.cockpit.churnRateMonthly = 1.3; a.cockpit.salesCycleShift = 1; a.cockpit.milestoneEffect = 0.8; });
+    var x = E.applyInitiatives(ckA, [TRADE_SHOW, TWO_AES]);
+    [['baseline', x.baseline], ['trade show and two AEs', x.scenario], ['hub planning case', E.evaluateAcceleration(ckA, E.templates.accelerateRevenue(ckA)).planning.scenario]]
+      .forEach(function (p) { var ch = E.runChecks(p[1]); t.ok('20 of 20 with the cockpit moved: ' + p[0], ch.length === 20 && ch.every(function (c) { return c.pass; }),
+        ch.filter(function (c) { return !c.pass; }).map(function (c) { return c.id + ' ' + c.reason; }).join('; ')); });
+    var edited = withA(function (a) { a.channelOrder.forEach(function (c) { a.channels[c].winRate *= 1.15; a.channels[c].salesCycleMonths += 1; });
+      a.churnRateMonthly *= 1.3; Object.keys(a.milestones).forEach(function (id) { var e = a.milestones[id].effects; Object.keys(e).forEach(function (k) { e[k] *= 0.8; }); }); });
+    t.eq('The simulation centers on the cockpit', JSON.stringify(E.simulate(ckA, TRADE_SHOW, { runs: 60 }).npv), JSON.stringify(E.simulate(edited, TRADE_SHOW, { runs: 60 }).npv));
+    var bad = withA(function (a) { a.cockpit.winRate = -0.1; });
+    rejected(t, 'A negative multiplier', function () { E.runModel(bad, []); }, 'cockpit.winRate');
+    bad = withA(function (a) { a.cockpit.salesCycleShift = 0.5; });
+    rejected(t, 'Half a month of sales cycle shift', function () { E.runModel(bad, []); }, 'cockpit.salesCycleShift');
+  });
+
   function run() {
     var results = [];
     tests.forEach(function (tc) {
@@ -5455,6 +5990,10 @@ window.TestSuite = (function () {
   // Labels and units for the Assumptions panel
   // ------------------------------------------------------------------
   var LABELS = {
+    'cockpit.winRate': 'Win rate multiplier', 'cockpit.acv': 'ACV multiplier', 'cockpit.leadToMqlRate': 'Lead to MQL rate multiplier',
+    'cockpit.mqlToOppRate': 'MQL to opportunity rate multiplier', 'cockpit.costPerLead': 'Cost per lead multiplier', 'cockpit.salesCycleShift': 'Sales cycle shift',
+    'cockpit.milestoneEffect': 'Milestone effect multiplier', 'cockpit.churnRateMonthly': 'Churn multiplier', 'cockpit.expansionRateMonthly': 'Expansion multiplier',
+    seed: 'Random seed', runs: 'Simulation runs',
     engineerRampMonths: 'Ramp of an added engineer', contractorRampMonths: 'Ramp of a contractor', addedPersonEfficiency: 'Output of an added person vs a team member',
     maxCompression: 'Most of the remaining schedule a pull-in can cut', contractorMonthlyRate: 'Contract engineer per month',
     engineerRecruitingEach: 'Recruiting per engineer hired', slipSensitivity: 'How fast the on-time chance falls with compression',
@@ -5535,6 +6074,7 @@ window.TestSuite = (function () {
     if (/^plannedHires\[\d+\]\.role$/.test(path)) return { type: 'enum', options: Object.keys(state.A.roles).map(function (r) { return [r, humanize(r)]; }) };
     if (/^templates\.[^.]+\.channel$/.test(path)) return { type: 'enum', options: state.A.channelOrder.map(function (c) { return [c, state.A.channels[c].name]; }) };
     if (/^templates\.[^.]+\.milestone$/.test(path)) return { type: 'enum', options: Object.keys(state.A.milestones).map(function (id) { return [id, state.A.milestones[id].name]; }) };
+    if (/^cockpit\./.test(path)) return k === 'salesCycleShift' ? { type: 'num', unit: 'months' } : { type: 'num', unit: 'multiple' };
     if (/\.effectTiming\.[^.]+\.rampMonths$/.test(path)) return { type: 'num', unit: 'months', nullable: true, nullText: 'same as the milestone' };
     if (ENUMS[k]) return { type: 'enum', options: ENUMS[k] };
     if (typeof v === 'boolean') return { type: 'bool' };
@@ -5594,11 +6134,13 @@ window.TestSuite = (function () {
       state.error = String(err && err.message || err);
     }
     renderAll();
+    if (!state.error) scheduleSims();
   }
   var timer = null;
   function recalcSoon() { clearTimeout(timer); timer = setTimeout(recalc, 120); }
 
   function renderAll() {
+    renderCockpit();
     renderBadge();
     renderInputError();
     renderChangeCount();
@@ -6033,7 +6575,8 @@ window.TestSuite = (function () {
     ['Product roadmap', ['milestones.'], 'A milestone has no effect in the month it ships, then ramps in over its ramp months. Each effect can start later and ramp at its own pace.'],
     ['Product acceleration', ['acceleration.'], 'How added people and tools pull a milestone in, and how likely the new date is to hold.'],
     ['Objective, guardrails and discount rate', ['objective.', 'guardrails.', 'discountRateAnnual']],
-    ['Uncertainty ranges', ['uncertainty.', 'simulation.'], 'Used by the simulation in a later step. They do not change the numbers on this page yet.'],
+    ['Scenario cockpit', ['cockpit.'], 'What-if multipliers applied to every run. The same sliders are at the top of the page.'],
+    ['Uncertainty ranges', ['uncertainty.', 'simulation.'], 'Used by the simulation on each initiative card. A range is low, most likely and high; the plan uses none of them.'],
     ['Initiative template defaults', ['templates.'], 'Starting values for the Add initiative form. Changing them does not change initiatives you already added.']
   ];
   var SUBTITLES = { tradeShow: 'Trade show or event', hireSdrs: 'Hire SDRs', hireAes: 'Hire AEs', paidCampaign: 'Paid campaign', partnerProgram: 'Partner program',
@@ -6735,6 +7278,232 @@ window.TestSuite = (function () {
     if (note) li.appendChild(el('span', { class: 't-note' }, note));
     return li;
   }
+  // ------------------------------------------------------------------
+  // Scenario cockpit (SPEC.md 10.4). Sliders edit state.A.cockpit; the engine applies it to every run.
+  // ------------------------------------------------------------------
+  var COCKPIT_UI = [
+    ['winRate', 'Win rate', 'x', 0.5, 1.5, 0.01], ['acv', 'ACV of new deals', 'x', 0.5, 1.5, 0.01],
+    ['leadToMqlRate', 'Lead to MQL rate', 'x', 0.5, 1.5, 0.01], ['mqlToOppRate', 'MQL to opportunity rate', 'x', 0.5, 1.5, 0.01],
+    ['costPerLead', 'Cost per lead', 'x', 0.5, 2, 0.01], ['salesCycleShift', 'Sales cycle', 'months', -2, 4, 1],
+    ['milestoneEffect', 'Size of product milestone effects', 'x', 0, 2, 0.01], ['churnRateMonthly', 'Churn', 'x', 0.5, 2, 0.01],
+    ['expansionRateMonthly', 'Expansion', 'x', 0.5, 1.5, 0.01]];
+  function cockpitValueText(k, v) {
+    if (k === 'salesCycleShift') return v === 0 ? 'As planned' : (v > 0 ? '+' : '-') + Math.abs(v) + (Math.abs(v) === 1 ? ' month' : ' months');
+    return Math.abs(v - 1) < 1e-9 ? 'As planned' : v.toFixed(2) + 'x';
+  }
+  function cockpitRangeHint(k) {
+    var U = state.A.uncertainty;
+    if (k === 'salesCycleShift') {
+      var sh = U.salesCycleShift.map(function (x) { return x.shift; });
+      return 'Simulated from ' + Math.min.apply(null, sh) + ' to +' + Math.max.apply(null, sh) + ' months';
+    }
+    var t = U[k];
+    return t ? 'Simulated from ' + plain(t.low) + 'x to ' + plain(t.high) + 'x' : 'Not simulated';
+  }
+  function buildCockpit() {
+    var grid = clear($('cockpit-grid'));
+    COCKPIT_UI.forEach(function (c) {
+      var k = c[0], id = 'ck-' + k, item = el('div', { class: 'ck-item', 'data-cockpit': k });
+      var top = el('div', { class: 'ck-top' });
+      top.appendChild(el('label', { for: id }, c[1]));
+      top.appendChild(el('span', { class: 'ck-value', 'data-ck-value': k }));
+      item.appendChild(top);
+      var input = el('input', { type: 'range', id: id, min: c[3], max: c[4], step: c[5], 'data-ck-input': k, 'aria-describedby': id + '-hint' });
+      input.addEventListener('input', function () {
+        state.A.cockpit[k] = Number(input.value);
+        renderCockpit();
+        var f = document.querySelector('[data-path="cockpit.' + k + '"]');
+        if (f) f.value = plain(state.A.cockpit[k]);
+        recalcSoon();
+      });
+      item.appendChild(input);
+      item.appendChild(el('div', { class: 'ck-hint', id: id + '-hint' }));
+      grid.appendChild(item);
+    });
+    renderCockpit();
+  }
+  function renderCockpit() {
+    var ck = state.A.cockpit || E.neutralCockpit(), moved = 0;
+    COCKPIT_UI.forEach(function (c) {
+      var k = c[0], v = ck[k], input = document.querySelector('[data-ck-input="' + k + '"]');
+      if (!input) return;
+      if (isNum(v) && Number(input.value) !== v) input.value = String(v);
+      document.querySelector('[data-ck-value="' + k + '"]').textContent = isNum(v) ? cockpitValueText(k, v) : 'Not a number';
+      document.querySelector('[data-cockpit="' + k + '"]').classList.toggle('moved', isNum(v) && v !== E.neutralCockpit()[k]);
+      document.querySelector('#ck-' + k + '-hint').textContent = cockpitRangeHint(k);
+      if (isNum(v) && v !== E.neutralCockpit()[k]) moved++;
+    });
+    $('cockpit-sub').textContent = moved ? moved + (moved === 1 ? ' driver moved' : ' drivers moved') + ' from the plan. Every number on both views includes it.'
+      : 'What-if sliders for the drivers that matter most. Everything recalculates as you move them.';
+    $('cockpit').classList.toggle('active', moved > 0);
+    $('cockpit-reset').disabled = moved === 0;
+  }
+
+  // ------------------------------------------------------------------
+  // Uncertainty on each decision card (SPEC.md 10.1 to 10.3). The simulation runs in chunks
+  // after each recalculation so the page stays responsive; results are cached until an input changes.
+  // ------------------------------------------------------------------
+  var SIM_CHUNK = 50, simCache = {}, simGen = 0, simTimer = null;
+  var DRIVER_NAMES = { costPerLead: 'Cost per lead', leadToMqlRate: 'Lead to MQL rate', mqlToOppRate: 'MQL to opportunity rate', winRate: 'Win rate',
+    acv: 'ACV', salesCycleShift: 'Sales cycle', directLeads: 'Badge scans or direct leads', milestoneEffect: 'Size of product milestone effects',
+    plannedShipSlip: 'Planned ship dates slip', accelerationSlip: 'Pulled-in date slips' };
+  function driverEnd(d, v) {
+    if (d.key === 'accelerationSlip') return v === 0 ? 'on target' : '+' + v + ' months';
+    if (d.unit === 'months') return v === 0 ? 'as planned' : (v > 0 ? '+' : '-') + Math.abs(v) + (Math.abs(v) === 1 ? ' month' : ' months');
+    return plain(v) + 'x';
+  }
+  function simKey(it) { return JSON.stringify([state.A, it.template, it.params]); }
+  function scheduleSims() {
+    var gen = ++simGen;
+    clearTimeout(simTimer);
+    var live = {};
+    state.initiatives.forEach(function (it) {
+      live[it.uid] = 1;
+      var key = simKey(it), c = simCache[it.uid];
+      if (!c || c.key !== key) simCache[it.uid] = { key: key, records: [], done: false, total: null, error: null, setup: null };
+    });
+    Object.keys(simCache).forEach(function (uid) { if (!live[uid]) delete simCache[uid]; });
+    function step() {
+      if (gen !== simGen) return;
+      var it = state.initiatives.filter(function (x) { var c = simCache[x.uid]; return c && !c.done && !c.error; })[0];
+      if (!it) return;
+      var c = simCache[it.uid];
+      try {
+        if (!c.setup) { c.setup = E.simulationSetup(state.A, buildInit(it)); c.total = c.setup.runs; }
+        var to = Math.min(c.total, c.records.length + SIM_CHUNK);
+        c.records = c.records.concat(E.simulationRuns(c.setup, c.records.length, to));
+        if (c.records.length >= c.total) {
+          c.summary = E.summarizeSimulation(c.setup, c.records);
+          c.sens = E.sensitivity(state.A, buildInit(it));
+          c.done = true; c.records = null; c.setup = null;
+        }
+      } catch (err) { c.error = String(err && err.message || err); }
+      fillUncertainty(it.uid);
+      simTimer = setTimeout(step, 0);
+    }
+    simTimer = setTimeout(step, 30);
+  }
+  function paybackCell(m, H) { return m === Infinity || m == null ? 'After ' + monthName(H) : 'Month ' + m; }
+  function npvChart(box, s) {
+    var width = Math.max(260, box.clientWidth || 420), height = 170, m = { l: 8, r: 8, t: 22, b: 30 }, pw = width - m.l - m.r, ph = height - m.t - m.b;
+    var bins = s.histogram, max = Math.max.apply(null, bins.map(function (b) { return b.count; })), lo = bins[0].from, hi = bins[bins.length - 1].to;
+    function X(v) { return hi > lo ? m.l + (v - lo) / (hi - lo) * pw : m.l + pw / 2; }
+    var svgEl = svg('svg', { viewBox: '0 0 ' + width + ' ' + height, width: width, height: height, role: 'img', 'aria-label': 'Spread of NPV across ' + s.runs + ' runs' });
+    svgEl.appendChild(svg('line', { class: 'baseline', x1: m.l, x2: width - m.r, y1: m.t + ph, y2: m.t + ph }));
+    bins.forEach(function (b, i) {
+      var h = max > 0 ? b.count / max * ph : 0, x = X(b.from), w = Math.max(1, X(b.to) - x - 1);
+      var r = svg('rect', { x: x, y: m.t + ph - h, width: w, height: h, fill: b.to <= 0 ? 'var(--critical)' : b.from >= 0 ? 'var(--accent)' : 'var(--plan-line)', 'data-bin': i });
+      r.appendChild(svg('title', null, compact(b.from) + ' to ' + compact(b.to) + ': ' + b.count + ' runs'));
+      svgEl.appendChild(r);
+    });
+    [['p10', 'P10', s.npv.p10], ['p50', 'P50', s.npv.p50], ['p90', 'P90', s.npv.p90], ['plan', 'Plan', s.deterministic.npv]].forEach(function (q, i) {
+      var x = X(q[2]);
+      svgEl.appendChild(svg('line', { x1: x, x2: x, y1: m.t - (q[0] === 'plan' ? 0 : 4), y2: m.t + ph, stroke: q[0] === 'plan' ? 'var(--series-2)' : 'var(--ink)',
+        'stroke-width': 1.5, 'stroke-dasharray': q[0] === 'plan' ? '4 3' : '', 'data-marker': q[0] }));
+      svgEl.appendChild(svg('text', { x: x, y: q[0] === 'plan' ? height - 3 : m.t - 8, 'text-anchor': 'middle', class: q[0] === 'plan' ? '' : 'lbl' }, q[1]));
+    });
+    svgEl.appendChild(svg('text', { x: m.l, y: height - 16, 'text-anchor': 'start' }, compact(lo)));
+    svgEl.appendChild(svg('text', { x: width - m.r, y: height - 16, 'text-anchor': 'end' }, compact(hi)));
+    box.appendChild(svgEl);
+  }
+  // Tornado: each driver's NPV at the low and the high end of its range, around the plan's NPV.
+  function tornado(box, sens) {
+    var rows = sens.drivers, width = Math.max(260, box.clientWidth || 420), rowH = 38, m = { l: 8, r: 8, t: 4, b: 20 }, pw = width - m.l - m.r;
+    var vals = [sens.base]; rows.forEach(function (d) { vals.push(d.npvLow, d.npvHigh); });
+    var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), pad = (hi - lo) * 0.04 || 1;
+    lo -= pad; hi += pad;
+    function X(v) { return m.l + (v - lo) / (hi - lo) * pw; }
+    var height = m.t + rows.length * rowH + m.b;
+    var s = svg('svg', { viewBox: '0 0 ' + width + ' ' + height, width: width, height: height, role: 'img', 'aria-label': 'Which drivers move NPV the most' });
+    rows.forEach(function (d, i) {
+      var y = m.t + i * rowH, g = svg('g', { 'data-tornado': d.key });
+      g.appendChild(svg('text', { x: m.l, y: y + 12, class: 'lbl' }, DRIVER_NAMES[d.key] || d.key));
+      [[d.npvLow, 'var(--series-2)', d.low], [d.npvHigh, 'var(--accent)', d.high]].forEach(function (end) {
+        var x0 = X(Math.min(sens.base, end[0])), x1 = X(Math.max(sens.base, end[0]));
+        var r = svg('rect', { x: x0, y: y + 18, width: Math.max(1, x1 - x0), height: 12, rx: 2, fill: end[1] });
+        r.appendChild(svg('title', null, DRIVER_NAMES[d.key] + ' at ' + driverEnd(d, end[2]) + ': NPV ' + dollars(end[0])));
+        g.appendChild(r);
+      });
+      s.appendChild(g);
+    });
+    var xb = X(sens.base);
+    s.appendChild(svg('line', { x1: xb, x2: xb, y1: m.t, y2: height - m.b, stroke: 'var(--ink)', 'stroke-width': 1 }));
+    s.appendChild(svg('text', { x: xb, y: height - 6, 'text-anchor': 'middle' }, 'Plan ' + compact(sens.base)));
+    box.appendChild(s);
+  }
+  function fillUncertainty(uid) {
+    var box = document.querySelector('[data-uncertainty="' + uid + '"]'), c = simCache[uid];
+    if (!box) return;
+    clear(box);
+    box.removeAttribute('data-sim-done');
+    var A = state.A, n = A.simulation.runs;
+    box.appendChild(el('h4', null, 'How sure is this? ' + Number(n).toLocaleString('en-US') + ' simulated runs'));
+    if (!c || c.error) {
+      box.appendChild(el('p', { class: 'pill fail' }, 'The simulation cannot run: ' + (c ? c.error : 'not started') + '.'));
+      return;
+    }
+    if (!c.done) {
+      var done = c.records ? c.records.length : 0;
+      var p = el('p', { class: 'd-note', 'data-sim-progress': '' }, 'Simulating: ' + done.toLocaleString('en-US') + ' of ' + Number(c.total || n).toLocaleString('en-US') + ' runs.');
+      box.appendChild(p);
+      var bar = el('div', { class: 'progress' }); var fill = el('span'); fill.style.width = (c.total ? 100 * done / c.total : 0) + '%'; bar.appendChild(fill); box.appendChild(bar);
+      return;
+    }
+    var s = c.summary, d = s.deterministic, H = s.horizon;
+    box.setAttribute('data-sim-done', '');
+    box.appendChild(el('p', { class: 'd-note' }, 'Each run draws the funnel rates, win rate, ACV, sales cycle, milestone effect size and ship-date slips from the ranges in the assumptions, ' +
+      'then measures the initiative against a plan that gets the same draws. Seed ' + s.seed + ', so the same inputs give the same results. P10 means 1 run in 10 is worse.'));
+    var tiles = el('ul', { class: 'tiles' });
+    tiles.appendChild(tile('Pays back within 24 months', pct(s.probabilityPaybackWithin24, 0), 'Share of runs with cash payback by ' + monthName(Math.min(24, H)), 'pPayback24'));
+    tiles.appendChild(tile('Breaks the ' + compact(s.cashFloor) + ' cash floor', pct(s.probabilityFloorBreach, 1), 'The plan alone: ' + pct(s.probabilityBaselineFloorBreach, 1) + ' of runs', 'pFloor'));
+    tiles.appendChild(tile('NPV above zero', pct(s.probabilityNpvPositive, 0), 'Share of runs', 'pNpv'));
+    box.appendChild(tiles);
+    var t = el('table', { class: 'kpi-table', 'data-sim-table': '' }), hr = el('tr');
+    ['Measure', 'P10', 'P50', 'P90', 'Plan (no draws)'].forEach(function (h) { hr.appendChild(el('th', { scope: 'col' }, h)); });
+    var th = el('thead'); th.appendChild(hr); t.appendChild(th);
+    var tb = el('tbody');
+    [['newArr', 'New ARR, ' + H + ' months', function (x) { return compact(x); }, d.newArr],
+      ['payback', 'Cash payback', function (x) { return paybackCell(x, H); }, d.paybackMonth],
+      ['cashLow', 'Cash low point', function (x) { return compact(x); }, d.cashLow],
+      ['npv', 'NPV', function (x) { return compact(x); }, d.npv]].forEach(function (row) {
+      var q = s[row[0]], tr = el('tr', { 'data-sim-row': row[0] });
+      tr.appendChild(el('td', null, row[1]));
+      // payback: P10 is the earliest tenth of runs, so for months the order is the same as for money
+      [q.p10, q.p50, q.p90, row[3]].forEach(function (v) { tr.appendChild(el('td', null, row[2](v))); });
+      tb.appendChild(tr);
+    });
+    t.appendChild(tb);
+    var g = el('div', { class: 'd-grid d-section' }), c1 = el('div'), c2 = el('div');
+    c1.appendChild(t);
+    c1.appendChild(el('p', { class: 'd-note' }, 'For payback, P10 is the earliest tenth of runs and P90 the latest. "Plan" is the deterministic case' +
+      (d.paybackStatus && TEMPLATE_UI[state.initiatives.filter(function (x) { return x.uid === uid; })[0].template].accel ? ': the expected case over the ship dates.' : '.')));
+    var nc = el('div', { class: 'chart', 'data-chart': 'npv-spread' });
+    c1.appendChild(el('h4', null, 'Spread of NPV')); c1.appendChild(nc);
+    c2.appendChild(el('h4', null, 'What moves NPV the most'));
+    var leg = el('ul', { class: 'legend' });
+    [['var(--series-2)', 'Low end of the range'], ['var(--accent)', 'High end of the range']].forEach(function (x) {
+      var li = el('li'); li.appendChild(el('span', { class: 'key-box', style: 'background:' + x[0] })); li.appendChild(document.createTextNode(x[1])); leg.appendChild(li);
+    });
+    c2.appendChild(leg);
+    var tc = el('div', { class: 'chart', 'data-chart': 'tornado' }); c2.appendChild(tc);
+    var sd = el('details', { class: 'more' }); sd.appendChild(el('summary', null, 'Sensitivity numbers'));
+    var st = el('table', { class: 'kpi-table', 'data-sens': '' }), sh = el('tr');
+    ['Driver', 'Low end', 'NPV', 'High end', 'NPV', 'Swing'].forEach(function (h) { sh.appendChild(el('th', { scope: 'col' }, h)); });
+    var sth = el('thead'); sth.appendChild(sh); st.appendChild(sth);
+    var stb = el('tbody');
+    c.sens.drivers.forEach(function (x) {
+      var tr = el('tr', { 'data-sens-row': x.key });
+      [DRIVER_NAMES[x.key] || x.key, driverEnd(x, x.low), compact(x.npvLow), driverEnd(x, x.high), compact(x.npvHigh), x.swing < 0.5 ? 'None' : compact(x.swing)].forEach(function (v) { tr.appendChild(el('td', null, v)); });
+      stb.appendChild(tr);
+    });
+    st.appendChild(stb); sd.appendChild(st);
+    sd.appendChild(el('p', { class: 'd-note' }, 'Each driver is moved to the ends of its simulation range on every channel or milestone at once, with everything else as planned.'));
+    c2.appendChild(sd);
+    g.appendChild(c1); g.appendChild(c2); box.appendChild(g);
+    npvChart(nc, s);
+    tornado(tc, c.sens);
+  }
+
   // --- Product acceleration card (SPEC.md 9.8). Every number is from Engine.accelerationView. ---
   var LINE_UI = [['contractors', 'Contractors', 'var(--accent)'], ['employees', 'Engineer pay', 'var(--series-2)'], ['recruiting', 'Recruiting', 'var(--serious-ink)'],
     ['tooling', 'Tooling', 'var(--total)'], ['extraCloud', 'Extra cloud', 'var(--good)']];
@@ -7113,10 +7882,12 @@ window.TestSuite = (function () {
     cap.appendChild(el('p', { class: 'd-note' }, 'Work left is the team of ' + av.milestone.teamSize + ' times the ' + s.R + ' planned months from ' + monthName(s.a) + ' to ' +
       monthName(av.milestone.plannedShipMonth) + '. It ships in the first month the cumulative capacity covers it, but no sooner than the compression limit allows.'));
     card.appendChild(det); card.appendChild(cap);
+    card.appendChild(el('section', { class: 'd-section uncertainty', 'data-uncertainty': it.uid }));
 
     var last = Math.min(av.H, Math.max(12, (av.cost.span.last || 0) + 2));
     var lastBenefit = av.H;
     return { card: card, draw: function () {
+      fillUncertainty(it.uid);
       datesChart(dc, av);
       monthBars(cc, av, av.rows[which], LINE_UI, { lastMonth: last, aria: 'Added cost by month', empty: 'No cost.' });
       oddsChart(oc, av);
@@ -7201,8 +7972,9 @@ window.TestSuite = (function () {
     tw.appendChild(monthTable(v, r.payback.status === 'paid_back' ? r.payback.month : null));
     det.appendChild(tw);
     card.appendChild(det);
+    card.appendChild(el('section', { class: 'd-section uncertainty', 'data-uncertainty': it.uid }));
     if (state.showSources) card.appendChild(sourcesPanel(v, it));
-    return { card: card, draw: function () { costChart(v, cc); cumChart(v, r.payback, cm); } };
+    return { card: card, draw: function () { costChart(v, cc); cumChart(v, r.payback, cm); fillUncertainty(it.uid); } };
   }
 
   function renderTogether() {
@@ -7256,6 +8028,8 @@ window.TestSuite = (function () {
   // Wiring
   // ------------------------------------------------------------------
   function wire() {
+    buildCockpit();
+    $('cockpit-reset').addEventListener('click', function () { state.A.cockpit = E.neutralCockpit(); renderCockpit(); buildPanel(); recalc(); });
     $('asof').addEventListener('change', function (e) { state.asOf = Number(e.target.value); renderKpis(); });
     $('bridge-period').addEventListener('change', function (e) { state.bridge = e.target.value; renderBridge(); });
     $('cash13-start').addEventListener('change', function (e) { state.t0 = Number(e.target.value); renderCash13(); });
