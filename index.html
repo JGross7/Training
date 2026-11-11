@@ -1,0 +1,2271 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Capital Allocation Copilot</title>
+</head>
+<body>
+<header>
+  <h1>Capital Allocation Copilot: Tallwater Software, Inc.</h1>
+  <p><strong>Fictional company, for demonstration.</strong> All numbers are made up.</p>
+  <div id="badge">Integrity: not run</div>
+  <div id="check-failures"></div>
+</header>
+<main id="app"></main>
+<pre id="test-output" hidden></pre>
+
+<!-- ===================================================================== -->
+<!-- ENGINE: pure functions only. Implements SPEC.md. No DOM access here.  -->
+<!-- ===================================================================== -->
+<script id="engine">
+(function (global) {
+  'use strict';
+
+  var CHECK_COUNT = 16;
+  var TOL_DOLLAR = 0.01;
+  var TOL_COUNT = 1e-6;
+  var MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  var PL_LINES = ['cogs', 'rd', 'sm', 'ga'];
+  var RATE_DRIVERS = { leadToMqlRate: 1, mqlToOppRate: 1, winRate: 1, churnRateMonthly: 1, expansionRateMonthly: 1, contractionRateMonthly: 1 };
+  var CHANNEL_DRIVERS = { costPerLead: 1, leadToMqlRate: 1, mqlToOppRate: 1, winRate: 1, acv: 1 };
+  var GLOBAL_DRIVERS = { churnRateMonthly: 1, expansionRateMonthly: 1, contractionRateMonthly: 1, hostingCostPerCustomerPerMonth: 1 };
+
+  // ---------------------------------------------------------------------
+  // Default assumptions (SPEC.md section 1). One object holds every input.
+  // ---------------------------------------------------------------------
+  function defaultAssumptions() {
+    var weights = [];
+    for (var i = 0; i < 12; i++) weights.push((89 + 2 * i) / 1200);
+    function role(department, plLine, openingCount, loadedCostAnnual) {
+      return { department: department, plLine: plLine, openingCount: openingCount, loadedCostAnnual: loadedCostAnnual };
+    }
+    function hire(month, r) { return { month: month, role: r }; }
+    return {
+      companyName: 'Tallwater Software, Inc. (fictional)',
+      startYear: 2027,
+      startMonth: 1,
+      horizonMonths: 36,
+      currency: 'USD',
+
+      openingArr: 24000000,
+      openingCustomers: 600,
+      churnRateMonthly: 0.0060,
+      contractionRateMonthly: 0.0027,
+      expansionRateMonthly: 0.0167,
+
+      channelOrder: ['outbound', 'paid', 'events', 'partners'],
+      channels: {
+        outbound: { name: 'Outbound (SDR to AE)', leadSource: 'sdr', aeSelfSourced: true, programSpendMonthly: 28000, costPerLead: null,
+          leadToMqlRate: 0.20, mqlToOppRate: 0.30, winRate: 0.24, salesCycleMonths: 4, acv: 45000, openingPipelineOppsPerMonth: 13.5 },
+        paid: { name: 'Paid digital', leadSource: 'spend', aeSelfSourced: false, programSpendMonthly: 60000, costPerLead: 240,
+          leadToMqlRate: 0.20, mqlToOppRate: 0.15, winRate: 0.18, salesCycleMonths: 2, acv: 30000, openingPipelineOppsPerMonth: 7.5 },
+        events: { name: 'Events and trade shows', leadSource: 'spend', aeSelfSourced: false, programSpendMonthly: 28000, costPerLead: 350,
+          leadToMqlRate: 0.25, mqlToOppRate: 0.20, winRate: 0.25, salesCycleMonths: 5, acv: 52000, openingPipelineOppsPerMonth: 4.0 },
+        partners: { name: 'Partners and referrals', leadSource: 'spend', aeSelfSourced: false, programSpendMonthly: 24000, costPerLead: 600,
+          leadToMqlRate: 0.45, mqlToOppRate: 0.25, winRate: 0.30, salesCycleMonths: 3, acv: 38000, openingPipelineOppsPerMonth: 4.5 }
+      },
+
+      leadsPerSdrPerMonth: 25,
+      selfSourcedOppsPerAePerMonth: 1.5,
+      oppCapacityPerAePerMonth: 7,
+      aeRampMonths: 4,
+      sdrRampMonths: 2,
+      commissionRate: 0.10,
+
+      roles: {
+        engineer: role('R&D', 'rd', 41, 215000),
+        product_design: role('R&D', 'rd', 9, 200000),
+        rd_leader: role('R&D', 'rd', 4, 300000),
+        ae: role('Sales', 'sm', 6, 150000),
+        sdr: role('Sales', 'sm', 3, 95000),
+        sales_engineer: role('Sales', 'sm', 3, 190000),
+        sales_leader_ops: role('Sales', 'sm', 4, 230000),
+        marketer: role('Marketing', 'sm', 11, 165000),
+        support_agent: role('Customer Success', 'cogs', 16, 90000),
+        onboarding_specialist: role('Customer Success', 'cogs', 7, 115000),
+        csm: role('Customer Success', 'sm', 15, 140000),
+        ga_staff: role('G&A', 'ga', 17, 165000),
+        executive: role('G&A', 'ga', 4, 380000)
+      },
+      plannedHires: [
+        hire(3, 'support_agent'), hire(4, 'engineer'), hire(6, 'onboarding_specialist'), hire(7, 'sdr'),
+        hire(8, 'csm'), hire(9, 'support_agent'), hire(10, 'engineer'), hire(11, 'ga_staff'),
+        hire(13, 'ae'), hire(13, 'engineer'), hire(14, 'support_agent'), hire(15, 'engineer'),
+        hire(16, 'marketer'), hire(17, 'csm'), hire(18, 'support_agent'), hire(19, 'onboarding_specialist'),
+        hire(20, 'engineer'), hire(21, 'product_design'), hire(22, 'support_agent'), hire(23, 'ga_staff'),
+        hire(25, 'ae'), hire(25, 'engineer'), hire(26, 'support_agent'), hire(27, 'engineer'),
+        hire(28, 'sdr'), hire(29, 'csm'), hire(30, 'support_agent'), hire(31, 'onboarding_specialist'),
+        hire(32, 'engineer'), hire(33, 'marketer'), hire(34, 'support_agent'), hire(35, 'ga_staff')
+      ],
+
+      hostingCostPerCustomerPerMonth: 360,
+      hostingCostGrowthAnnual: 0.05,
+      thirdPartyPctOfRevenue: 0.04,
+
+      nonHeadcountMonthly: { rd: 170000, sm: 130000, ga: 300000 },
+      costInflationAnnual: 0.03,
+      meritIncreaseAnnual: 0.03,
+      programSpendGrowthAnnual: 0.05,
+
+      annualBillingShare: 0.60,
+      openingInvoiceWeights: weights,
+      dsoDays: 45,
+      dpoDays: 30,
+      openingMonthlyBillings: 2120000,
+      openingMonthlyVendorSpend: 1040000,
+
+      capexMonthly: 40000,
+      usefulLifeMonths: 36,
+      openingPpeRemainingLifeMonths: 24,
+
+      debtInterestRateAnnual: 0.11,
+      debtAmortStartMonth: 43,
+      debtAmortMonths: 18,
+      minCashCovenant: 12000000,
+      cashFloor: 15000000,
+      cashYieldAnnual: 0.04,
+
+      taxRate: 0.25,
+      openingNol: 70000000,
+
+      opening: {
+        cash: 38000000,
+        accountsReceivable: 3180000,
+        prepaidAndOther: 850000,
+        ppeNet: 1080000,
+        accountsPayable: 1040000,
+        accruedLiabilities: 1300000,
+        ventureDebt: 10000000,
+        paidInCapital: 96000000
+      },
+
+      milestones: {
+        hosting_optimization: { name: 'Hosting cost optimization', owner: 'VP Infrastructure', shipMonth: 9, teamSize: 5, rampMonths: 3,
+          effects: { hostingCostReduction: 0.20 }, enabled: true },
+        integrations_hub: { name: 'Enterprise integrations hub', owner: 'VP Product', shipMonth: 12, teamSize: 8, rampMonths: 6,
+          effects: { winRateLift: 0.08, acvLift: 0.05 }, enabled: true },
+        offline_mobile: { name: 'Offline mobile crew app', owner: 'VP Engineering', shipMonth: 18, teamSize: 6, rampMonths: 6,
+          effects: { churnReduction: 0.15 }, enabled: true }
+      },
+
+      discountRateAnnual: 0.12,
+      objective: { arrTarget: 31200000, month: 12 },
+      guardrails: {
+        cashFloor: 15000000,
+        minRunwayMonths: 18,
+        maxBlendedCacPaybackMonths: 24,
+        maxBurnMultiple: 2.0,
+        minGrossMargin: 0.72
+      },
+
+      uncertainty: {
+        costPerLead: { low: 0.85, mode: 1.00, high: 1.30, drawn: 'channel' },
+        leadToMqlRate: { low: 0.80, mode: 1.00, high: 1.20, drawn: 'channel' },
+        mqlToOppRate: { low: 0.80, mode: 1.00, high: 1.20, drawn: 'channel' },
+        winRate: { low: 0.75, mode: 1.00, high: 1.25, drawn: 'channel' },
+        acv: { low: 0.85, mode: 1.00, high: 1.15, drawn: 'channel' },
+        directLeads: { low: 0.70, mode: 1.00, high: 1.20, drawn: 'initiative' },
+        milestoneEffect: { low: 0.50, mode: 1.00, high: 1.25, drawn: 'milestone' },
+        salesCycleShift: [{ shift: -1, p: 0.15 }, { shift: 0, p: 0.55 }, { shift: 1, p: 0.20 }, { shift: 2, p: 0.10 }]
+      },
+      simulation: { seed: 2027, runs: 1000 },
+
+      templates: {
+        tradeShow: { month: 4, booth: 48000, travel: 12000, staffDays: 20, dayCost: 800, expectedLeads: 200, channel: 'events' },
+        hireSdrs: { count: 2, startMonth: 2, loadedCostAnnual: 95000, rampMonths: 2, recruitingEach: 8000, toolsPerSdrMonthly: 1500 },
+        hireAes: { count: 2, startMonth: 2, loadedCostAnnual: 150000, rampMonths: 4, recruitingEach: 15000 },
+        paidCampaign: { channel: 'paid', budget: 90000, months: 3, startMonth: 2, cplMultiplier: 1.20 },
+        partnerProgram: { setup: 40000, setupMonth: 2, coMarketingMonthly: 10000, months: 12, startMonth: 3 }
+      }
+    };
+  }
+
+  // Which inputs are fictional opening facts ("Actual"). Everything else is an "Assumption".
+  var ACTUAL_PATTERNS = [
+    /^companyName$/, /^startYear$/, /^startMonth$/, /^currency$/, /^openingArr$/, /^openingCustomers$/,
+    /^channels\.[^.]+\.openingPipelineOppsPerMonth$/, /^roles\./, /^openingInvoiceWeights/, /^openingMonthlyBillings$/,
+    /^openingMonthlyVendorSpend$/, /^openingPpeRemainingLifeMonths$/, /^opening\./, /^debtInterestRateAnnual$/,
+    /^debtAmortStartMonth$/, /^debtAmortMonths$/, /^minCashCovenant$/, /^openingNol$/
+  ];
+  function assumptionType(path) {
+    for (var i = 0; i < ACTUAL_PATTERNS.length; i++) if (ACTUAL_PATTERNS[i].test(path)) return 'Actual';
+    return 'Assumption';
+  }
+
+  // ---------------------------------------------------------------------
+  // Notation helpers (SPEC.md section 0)
+  // ---------------------------------------------------------------------
+  function yearIndex(m) { return Math.floor((m - 1) / 12); }
+  function step(g, m) { return Math.pow(1 + g, yearIndex(m)); }
+  function ramp(k, R) {
+    if (R === 0) return k >= 0 ? 1 : 0;
+    return Math.min(1, Math.max(0, k / R));
+  }
+  function clamp(x, lo, hi) { return Math.min(hi, Math.max(lo, x)); }
+  function clone(x) { return x === undefined ? undefined : JSON.parse(JSON.stringify(x)); }
+  function zeros(n) { var a = new Array(n); for (var i = 0; i < n; i++) a[i] = 0; return a; }
+  function monthLabel(A, m) {
+    var idx = (A.startMonth - 1) + (m - 1);
+    var year = A.startYear + Math.floor(idx / 12);
+    var mi = ((idx % 12) + 12) % 12;
+    return MONTH_NAMES[mi] + ' ' + year;
+  }
+  function daysInMonth(A, m) {
+    var idx = (A.startMonth - 1) + (m - 1);
+    var year = A.startYear + Math.floor(idx / 12);
+    var mi = ((idx % 12) + 12) % 12;
+    return new Date(Date.UTC(year, mi + 1, 0)).getUTCDate();
+  }
+
+  // Tax on one month (SPEC.md 2.10)
+  function computeTax(preTaxIncome, nolOpening, taxRate) {
+    if (preTaxIncome <= 0) return { tax: 0, nol: nolOpening - preTaxIncome };
+    var used = Math.min(preTaxIncome, nolOpening);
+    return { tax: taxRate * (preTaxIncome - used), nol: nolOpening - used };
+  }
+
+  // ---------------------------------------------------------------------
+  // Initiative effects -> driver inputs (SPEC.md 2.16)
+  // ---------------------------------------------------------------------
+  function eachMonth(byMonth, H, fn) {
+    if (!byMonth) return;
+    Object.keys(byMonth).forEach(function (k) {
+      var m = Number(k);
+      var v = Number(byMonth[k]);
+      if (m >= 1 && m <= H && Math.floor(m) === m && isFinite(v)) fn(m, v);
+    });
+  }
+
+  function collectEffects(A, initiatives, H) {
+    var fx = {
+      progSpend: {}, progSpendLeadBasis: {}, directLeads: {},
+      hires: [], vendor: {}, allocated: zeros(H + 1), capex: zeros(H + 1), drivers: []
+    };
+    A.channelOrder.forEach(function (c) {
+      fx.progSpend[c] = zeros(H + 1);
+      fx.progSpendLeadBasis[c] = zeros(H + 1);
+      fx.directLeads[c] = zeros(H + 1);
+    });
+    PL_LINES.forEach(function (l) { fx.vendor[l] = zeros(H + 1); });
+
+    (initiatives || []).forEach(function (init) {
+      (init.effects || []).forEach(function (e) {
+        switch (e.kind) {
+          case 'program_spend': {
+            if (!fx.progSpend[e.channel]) throw new Error('program_spend: unknown channel ' + e.channel);
+            var mult = e.cplMultiplier == null ? 1 : e.cplMultiplier;
+            eachMonth(e.byMonth, H, function (m, v) {
+              fx.progSpend[e.channel][m] += v;
+              if (e.leads === 'from_cpl' && mult > 0) fx.progSpendLeadBasis[e.channel][m] += v / mult;
+            });
+            break;
+          }
+          case 'direct_leads':
+            if (!fx.directLeads[e.channel]) throw new Error('direct_leads: unknown channel ' + e.channel);
+            eachMonth(e.byMonth, H, function (m, v) { fx.directLeads[e.channel][m] += v; });
+            break;
+          case 'headcount': {
+            var r = A.roles[e.role];
+            if (!r) throw new Error('headcount: unknown role ' + e.role);
+            fx.hires.push({
+              role: e.role,
+              count: e.count || 0,
+              start: e.startMonth,
+              end: e.endMonth == null ? H : e.endMonth,
+              cost: e.loadedCostAnnual == null ? r.loadedCostAnnual : e.loadedCostAnnual,
+              initiativeId: init.id
+            });
+            break;
+          }
+          case 'vendor_cost':
+            if (!fx.vendor[e.line]) throw new Error('vendor_cost: unknown line ' + e.line);
+            eachMonth(e.byMonth, H, function (m, v) { fx.vendor[e.line][m] += v; });
+            break;
+          case 'allocated_cost':
+            eachMonth(e.byMonth, H, function (m, v) { fx.allocated[m] += v; });
+            break;
+          case 'capex':
+            eachMonth(e.byMonth, H, function (m, v) { fx.capex[m] += v; });
+            break;
+          case 'driver_change':
+            if (!CHANNEL_DRIVERS[e.driver] && !GLOBAL_DRIVERS[e.driver]) throw new Error('driver_change: unknown driver ' + e.driver);
+            fx.drivers.push({
+              driver: e.driver,
+              channel: e.channel == null ? null : e.channel,
+              fromMonth: e.fromMonth == null ? 1 : e.fromMonth,
+              toMonth: e.toMonth == null ? H : e.toMonth,
+              mode: e.mode === 'add' ? 'add' : 'multiply',
+              value: Number(e.value)
+            });
+            break;
+          case 'milestone_shift':
+            break; // reserved: defined with product acceleration in a later phase
+          default:
+            throw new Error('Unknown effect kind: ' + e.kind);
+        }
+      });
+    });
+    return fx;
+  }
+
+  // value = base x (product of multipliers) + (sum of adds), then clamped (SPEC.md 2.16 rule 1)
+  function driverValue(base, driver, channel, m, changes) {
+    if (base == null) return null;
+    var mult = 1, add = 0;
+    for (var i = 0; i < changes.length; i++) {
+      var d = changes[i];
+      if (d.driver !== driver) continue;
+      if (CHANNEL_DRIVERS[driver] && d.channel != null && d.channel !== channel) continue;
+      if (m < d.fromMonth || m > d.toMonth) continue;
+      if (d.mode === 'add') add += d.value; else mult *= d.value;
+    }
+    var v = base * mult + add;
+    return RATE_DRIVERS[driver] ? clamp(v, 0, 1) : Math.max(0, v);
+  }
+
+  function milestoneShares(A, m) {
+    var out = { winRateLift: 0, acvLift: 0, churnReduction: 0, hostingCostReduction: 0 };
+    Object.keys(A.milestones || {}).forEach(function (id) {
+      var ms = A.milestones[id];
+      if (!ms.enabled) return;
+      var s = ramp(m - ms.shipMonth, ms.rampMonths);
+      var e = ms.effects || {};
+      out.winRateLift += (e.winRateLift || 0) * s;
+      out.acvLift += (e.acvLift || 0) * s;
+      out.churnReduction += (e.churnReduction || 0) * s;
+      out.hostingCostReduction += (e.hostingCostReduction || 0) * s;
+    });
+    return out;
+  }
+
+  // ---------------------------------------------------------------------
+  // The monthly model (SPEC.md 2.1 to 2.13)
+  // ---------------------------------------------------------------------
+  function runModel(assumptionsIn, initiativesIn) {
+    var A = clone(assumptionsIn);
+    var inits = clone(initiativesIn || []);
+    var H = A.horizonMonths;
+    var N = H + 1;
+    var fx = collectEffects(A, inits, H);
+    var chs = A.channelOrder;
+    var roleIds = Object.keys(A.roles);
+    var m, c, r, j;
+
+    // --- 2.2 Headcount and payroll ---
+    var allHires = A.plannedHires.map(function (h) {
+      return { role: h.role, count: 1, start: h.month, end: H, cost: A.roles[h.role].loadedCostAnnual, planned: true };
+    }).concat(fx.hires.map(function (h) { h.planned = false; return h; }));
+    function active(h, mm) { return h.start <= mm && mm <= h.end; }
+
+    var headcount = { byRole: {}, byDepartment: {}, total: zeros(N) };
+    var payroll = { byRole: {}, byLine: {}, total: zeros(N), initiative: zeros(N) };
+    PL_LINES.forEach(function (l) { payroll.byLine[l] = zeros(N); });
+    roleIds.forEach(function (rid) {
+      var dept = A.roles[rid].department;
+      if (!headcount.byDepartment[dept]) headcount.byDepartment[dept] = zeros(N);
+    });
+    roleIds.forEach(function (rid) {
+      var R0 = A.roles[rid];
+      headcount.byRole[rid] = zeros(N);
+      payroll.byRole[rid] = zeros(N);
+      for (var mm = 0; mm <= H; mm++) {
+        var count = R0.openingCount;
+        var annual = R0.openingCount * R0.loadedCostAnnual;
+        var initAnnual = 0;
+        allHires.forEach(function (h) {
+          if (h.role !== rid || !active(h, mm)) return;
+          count += h.count;
+          if (h.planned) annual += h.count * R0.loadedCostAnnual;
+          else initAnnual += h.count * h.cost;
+        });
+        headcount.byRole[rid][mm] = count;
+        headcount.byDepartment[R0.department][mm] += count;
+        headcount.total[mm] += count;
+        if (mm >= 1) {
+          var st = step(A.meritIncreaseAnnual, mm);
+          var p = (annual + initAnnual) / 12 * st;
+          payroll.byRole[rid][mm] = p;
+          payroll.byLine[R0.plLine][mm] += p;
+          payroll.total[mm] += p;
+          payroll.initiative[mm] += initAnnual / 12 * st;
+        }
+      }
+    });
+
+    var rampedAE = zeros(N), rampedSDR = zeros(N);
+    for (m = 1; m <= H; m++) {
+      var ae = A.roles.ae ? A.roles.ae.openingCount : 0;
+      var sdr = A.roles.sdr ? A.roles.sdr.openingCount : 0;
+      allHires.forEach(function (h) {
+        if (!active(h, m)) return;
+        if (h.role === 'ae') ae += h.count * ramp(m - h.start, A.aeRampMonths);
+        if (h.role === 'sdr') sdr += h.count * ramp(m - h.start, A.sdrRampMonths);
+      });
+      rampedAE[m] = ae;
+      rampedSDR[m] = sdr;
+    }
+
+    // --- 2.3 Funnel, capacity and timing ---
+    var funnel = {};
+    chs.forEach(function (cid) {
+      funnel[cid] = {
+        baseSpend: zeros(N), spend: zeros(N), costPerLead: zeros(N), leads: zeros(N), mql: zeros(N),
+        sourcedOpps: zeros(N), aeOpps: zeros(N), oppsCreated: zeros(N), oppsWorked: zeros(N),
+        winRate: zeros(N), acv: zeros(N), deals: zeros(N), newArr: zeros(N)
+      };
+    });
+    var capacity = { rampedAE: rampedAE, rampedSDR: rampedSDR, capacity: zeros(N), totalCreated: zeros(N), workShare: zeros(N), utilization: zeros(N) };
+
+    for (m = 1; m <= H; m++) {
+      var totalCreated = 0;
+      chs.forEach(function (cid) {
+        var ch = A.channels[cid], F = funnel[cid];
+        var base = ch.programSpendMonthly * step(A.programSpendGrowthAnnual, m);
+        F.baseSpend[m] = base;
+        F.spend[m] = base + fx.progSpend[cid][m];
+        var leads;
+        if (ch.leadSource === 'sdr') {
+          F.costPerLead[m] = null;
+          leads = rampedSDR[m] * A.leadsPerSdrPerMonth + fx.directLeads[cid][m];
+        } else {
+          var cpl = driverValue(ch.costPerLead, 'costPerLead', cid, m, fx.drivers);
+          F.costPerLead[m] = cpl;
+          leads = (cpl > 0 ? base / cpl + fx.progSpendLeadBasis[cid][m] / cpl : 0) + fx.directLeads[cid][m];
+        }
+        F.leads[m] = leads;
+        F.mql[m] = leads * driverValue(ch.leadToMqlRate, 'leadToMqlRate', cid, m, fx.drivers);
+        F.sourcedOpps[m] = F.mql[m] * driverValue(ch.mqlToOppRate, 'mqlToOppRate', cid, m, fx.drivers);
+        F.aeOpps[m] = ch.aeSelfSourced ? rampedAE[m] * A.selfSourcedOppsPerAePerMonth : 0;
+        F.oppsCreated[m] = F.sourcedOpps[m] + F.aeOpps[m];
+        totalCreated += F.oppsCreated[m];
+      });
+      var cap = rampedAE[m] * A.oppCapacityPerAePerMonth;
+      var share = totalCreated <= cap ? 1 : cap / totalCreated;
+      capacity.capacity[m] = cap;
+      capacity.totalCreated[m] = totalCreated;
+      capacity.workShare[m] = share;
+      capacity.utilization[m] = cap > 0 ? totalCreated / cap : null;
+      chs.forEach(function (cid) { funnel[cid].oppsWorked[m] = funnel[cid].oppsCreated[m] * share; });
+    }
+
+    var newArr = zeros(N), dealsTotal = zeros(N);
+    for (m = 1; m <= H; m++) {
+      var ms = milestoneShares(A, m);
+      chs.forEach(function (cid) {
+        var ch = A.channels[cid], F = funnel[cid];
+        var src = m - ch.salesCycleMonths;
+        var worked = src <= 0 ? ch.openingPipelineOppsPerMonth : F.oppsWorked[src];
+        var wr = clamp(driverValue(ch.winRate, 'winRate', cid, m, fx.drivers) * (1 + ms.winRateLift), 0, 1);
+        var acv = driverValue(ch.acv, 'acv', cid, m, fx.drivers) * (1 + ms.acvLift);
+        F.winRate[m] = wr;
+        F.acv[m] = acv;
+        F.deals[m] = worked * wr;
+        F.newArr[m] = F.deals[m] * acv;
+        newArr[m] += F.newArr[m];
+        dealsTotal[m] += F.deals[m];
+      });
+    }
+
+    // --- 2.4 ARR rollforward and customers ---
+    var arr = {
+      arr: zeros(N), newArr: newArr, expansion: zeros(N), contraction: zeros(N), churn: zeros(N),
+      churnRate: zeros(N), contractionRate: zeros(N), expansionRate: zeros(N),
+      customers: zeros(N), deals: dealsTotal, lostCustomers: zeros(N)
+    };
+    arr.arr[0] = A.openingArr;
+    arr.customers[0] = A.openingCustomers;
+    for (m = 1; m <= H; m++) {
+      var msA = milestoneShares(A, m);
+      var cr = driverValue(A.churnRateMonthly, 'churnRateMonthly', null, m, fx.drivers) * Math.max(0, 1 - msA.churnReduction);
+      var kr = driverValue(A.contractionRateMonthly, 'contractionRateMonthly', null, m, fx.drivers);
+      var er = driverValue(A.expansionRateMonthly, 'expansionRateMonthly', null, m, fx.drivers);
+      arr.churnRate[m] = cr;
+      arr.contractionRate[m] = kr;
+      arr.expansionRate[m] = er;
+      arr.churn[m] = arr.arr[m - 1] * cr;
+      arr.contraction[m] = arr.arr[m - 1] * kr;
+      arr.expansion[m] = arr.arr[m - 1] * er;
+      arr.arr[m] = arr.arr[m - 1] + newArr[m] + arr.expansion[m] - arr.contraction[m] - arr.churn[m];
+      arr.lostCustomers[m] = arr.customers[m - 1] * cr;
+      arr.customers[m] = arr.customers[m - 1] + dealsTotal[m] - arr.lostCustomers[m];
+    }
+
+    // --- 2.5 Revenue ---
+    var revenue = zeros(N);
+    for (m = 1; m <= H; m++) revenue[m] = (arr.arr[m - 1] + arr.arr[m]) / 24;
+
+    // --- 2.6 Billing, deferred revenue and receivables ---
+    var s = A.annualBillingShare;
+    var invoices = zeros(H + 12); // index m + 11, m = -11 .. H
+    for (j = 0; j < 12; j++) invoices[j] = s * A.openingArr * A.openingInvoiceWeights[j];
+    var billing = { invoiceOffset: 11, invoices: invoices, monthlyBilled: zeros(N), billings: zeros(N), collections: zeros(N) };
+    var dr = zeros(N), ar = zeros(N);
+    for (j = 0; j <= 11; j++) dr[0] += invoices[11 - j] * (23 - 2 * j) / 24;
+    for (m = 1; m <= H; m++) {
+      invoices[m + 11] = s * (newArr[m] + arr.expansion[m]) + invoices[m - 1] - s * (arr.churn[m] + arr.contraction[m]);
+      billing.monthlyBilled[m] = (1 - s) * revenue[m];
+      billing.billings[m] = invoices[m + 11] + billing.monthlyBilled[m];
+      dr[m] = dr[m - 1] + invoices[m + 11] - s * revenue[m];
+    }
+    function billingsAt(k) { return k <= 0 ? A.openingMonthlyBillings : billing.billings[k]; }
+    var L = A.dsoDays / 30, nL = Math.floor(L), fL = L - nL;
+    ar[0] = A.opening.accountsReceivable;
+    for (m = 1; m <= H; m++) {
+      var a = 0;
+      for (j = 0; j <= nL - 1; j++) a += billingsAt(m - j);
+      a += fL * billingsAt(m - nL);
+      ar[m] = a;
+      billing.collections[m] = ar[m - 1] + billing.billings[m] - ar[m];
+    }
+
+    // --- 2.7 P&L ---
+    var pl = {
+      revenue: revenue, hosting: zeros(N), thirdParty: zeros(N), cogsVendor: zeros(N), cogs: zeros(N),
+      grossProfit: zeros(N), grossMargin: zeros(N),
+      rdNonHc: zeros(N), rdVendor: zeros(N), rd: zeros(N),
+      programSpend: zeros(N), commissions: zeros(N), smNonHc: zeros(N), smVendor: zeros(N), sm: zeros(N),
+      gaNonHc: zeros(N), gaVendor: zeros(N), ga: zeros(N),
+      opex: zeros(N), ebitda: zeros(N), depreciation: zeros(N), ebit: zeros(N),
+      interestIncome: zeros(N), interestExpense: zeros(N), preTaxIncome: zeros(N), tax: zeros(N), netIncome: zeros(N)
+    };
+    for (m = 1; m <= H; m++) {
+      var msC = milestoneShares(A, m);
+      var hostBase = driverValue(A.hostingCostPerCustomerPerMonth, 'hostingCostPerCustomerPerMonth', null, m, fx.drivers);
+      pl.hosting[m] = (arr.customers[m - 1] + arr.customers[m]) / 2 * hostBase * step(A.hostingCostGrowthAnnual, m) *
+        Math.max(0, 1 - msC.hostingCostReduction);
+      pl.thirdParty[m] = revenue[m] * A.thirdPartyPctOfRevenue;
+      pl.cogsVendor[m] = fx.vendor.cogs[m];
+      pl.cogs[m] = pl.hosting[m] + pl.thirdParty[m] + payroll.byLine.cogs[m] + pl.cogsVendor[m];
+      pl.grossProfit[m] = revenue[m] - pl.cogs[m];
+      pl.grossMargin[m] = revenue[m] !== 0 ? pl.grossProfit[m] / revenue[m] : null;
+
+      var infl = step(A.costInflationAnnual, m);
+      pl.rdNonHc[m] = A.nonHeadcountMonthly.rd * infl;
+      pl.smNonHc[m] = A.nonHeadcountMonthly.sm * infl;
+      pl.gaNonHc[m] = A.nonHeadcountMonthly.ga * infl;
+      pl.rdVendor[m] = fx.vendor.rd[m];
+      pl.smVendor[m] = fx.vendor.sm[m];
+      pl.gaVendor[m] = fx.vendor.ga[m];
+      var ps = 0;
+      chs.forEach(function (cid) { ps += funnel[cid].spend[m]; });
+      pl.programSpend[m] = ps;
+      pl.commissions[m] = A.commissionRate * newArr[m];
+      pl.rd[m] = payroll.byLine.rd[m] + pl.rdNonHc[m] + pl.rdVendor[m];
+      pl.sm[m] = payroll.byLine.sm[m] + pl.programSpend[m] + pl.commissions[m] + pl.smNonHc[m] + pl.smVendor[m];
+      pl.ga[m] = payroll.byLine.ga[m] + pl.gaNonHc[m] + pl.gaVendor[m];
+      pl.opex[m] = pl.rd[m] + pl.sm[m] + pl.ga[m];
+      pl.ebitda[m] = pl.grossProfit[m] - pl.opex[m];
+    }
+
+    // --- 2.8 Vendor spend and payables ---
+    var vendor = { spend: zeros(N), paid: zeros(N) };
+    var ap = zeros(N);
+    for (m = 1; m <= H; m++) {
+      vendor.spend[m] = pl.hosting[m] + pl.thirdParty[m] + pl.programSpend[m] + pl.rdNonHc[m] + pl.smNonHc[m] + pl.gaNonHc[m] +
+        fx.vendor.cogs[m] + fx.vendor.rd[m] + fx.vendor.sm[m] + fx.vendor.ga[m];
+    }
+    function vendorAt(k) { return k <= 0 ? A.openingMonthlyVendorSpend : vendor.spend[k]; }
+    var Lp = A.dpoDays / 30, nP = Math.floor(Lp), fP = Lp - nP;
+    ap[0] = A.opening.accountsPayable;
+    for (m = 1; m <= H; m++) {
+      var b = 0;
+      for (j = 0; j <= nP - 1; j++) b += vendorAt(m - j);
+      b += fP * vendorAt(m - nP);
+      ap[m] = b;
+      vendor.paid[m] = ap[m - 1] + vendor.spend[m] - ap[m];
+    }
+
+    // --- 2.9 Capex and depreciation ---
+    var capexArr = zeros(N), ppe = zeros(N);
+    ppe[0] = A.opening.ppeNet;
+    for (m = 1; m <= H; m++) capexArr[m] = A.capexMonthly + fx.capex[m];
+    for (m = 1; m <= H; m++) {
+      var dep = m <= A.openingPpeRemainingLifeMonths ? A.opening.ppeNet / A.openingPpeRemainingLifeMonths : 0;
+      for (j = Math.max(1, m - A.usefulLifeMonths); j <= m - 1; j++) dep += capexArr[j] / A.usefulLifeMonths;
+      pl.depreciation[m] = dep;
+      ppe[m] = ppe[m - 1] + capexArr[m] - dep;
+    }
+
+    // --- 2.10, 2.11 Debt, interest, tax, net income and cash (month by month) ---
+    var debt = zeros(N), principal = zeros(N), nol = zeros(N), cash = zeros(N);
+    debt[0] = A.opening.ventureDebt;
+    nol[0] = A.openingNol;
+    cash[0] = A.opening.cash;
+    for (m = 1; m <= H; m++) {
+      var inAmort = A.debtAmortStartMonth <= m && m < A.debtAmortStartMonth + A.debtAmortMonths;
+      principal[m] = inAmort ? Math.min(debt[m - 1], A.opening.ventureDebt / A.debtAmortMonths) : 0;
+      debt[m] = debt[m - 1] - principal[m];
+      pl.interestIncome[m] = Math.max(0, cash[m - 1]) * A.cashYieldAnnual / 12;
+      pl.interestExpense[m] = debt[m - 1] * A.debtInterestRateAnnual / 12;
+      pl.ebit[m] = pl.ebitda[m] - pl.depreciation[m];
+      pl.preTaxIncome[m] = pl.ebit[m] + pl.interestIncome[m] - pl.interestExpense[m];
+      var t = computeTax(pl.preTaxIncome[m], nol[m - 1], A.taxRate);
+      pl.tax[m] = t.tax;
+      nol[m] = t.nol;
+      pl.netIncome[m] = pl.preTaxIncome[m] - pl.tax[m];
+      cash[m] = cash[m - 1]
+        + billing.collections[m]
+        - payroll.total[m] - pl.commissions[m]
+        - vendor.paid[m]
+        - capexArr[m]
+        + pl.interestIncome[m] - pl.interestExpense[m]
+        - pl.tax[m]
+        - principal[m];
+    }
+
+    // --- 2.12 Balance sheet ---
+    var bs = {
+      cash: cash, accountsReceivable: ar, prepaidAndOther: zeros(N), ppe: ppe, totalAssets: zeros(N),
+      accountsPayable: ap, accruedLiabilities: zeros(N), deferredRevenue: dr, debt: debt, totalLiabilities: zeros(N),
+      paidInCapital: zeros(N), retainedEarnings: zeros(N), totalEquity: zeros(N), totalLiabilitiesAndEquity: zeros(N)
+    };
+    for (m = 0; m <= H; m++) {
+      bs.prepaidAndOther[m] = A.opening.prepaidAndOther;
+      bs.accruedLiabilities[m] = A.opening.accruedLiabilities;
+      bs.paidInCapital[m] = A.opening.paidInCapital;
+      bs.totalAssets[m] = cash[m] + ar[m] + bs.prepaidAndOther[m] + ppe[m];
+      bs.totalLiabilities[m] = ap[m] + bs.accruedLiabilities[m] + dr[m] + debt[m];
+    }
+    bs.retainedEarnings[0] = bs.totalAssets[0] - bs.totalLiabilities[0] - A.opening.paidInCapital;
+    for (m = 1; m <= H; m++) bs.retainedEarnings[m] = bs.retainedEarnings[m - 1] + pl.netIncome[m];
+    for (m = 0; m <= H; m++) {
+      bs.totalEquity[m] = bs.paidInCapital[m] + bs.retainedEarnings[m];
+      bs.totalLiabilitiesAndEquity[m] = bs.totalLiabilities[m] + bs.totalEquity[m];
+    }
+
+    // --- 2.13 Cash flow statement (indirect, computed separately from the direct cash above) ---
+    var cf = { changeAr: zeros(N), changeAp: zeros(N), changeDr: zeros(N), cfo: zeros(N), cfi: zeros(N), cff: zeros(N),
+      netChange: zeros(N), netBurn: zeros(N), fcf: zeros(N) };
+    for (m = 1; m <= H; m++) {
+      cf.changeAr[m] = ar[m] - ar[m - 1];
+      cf.changeAp[m] = ap[m] - ap[m - 1];
+      cf.changeDr[m] = dr[m] - dr[m - 1];
+      cf.cfo[m] = pl.netIncome[m] + pl.depreciation[m] - cf.changeAr[m] + cf.changeAp[m] + cf.changeDr[m];
+      cf.cfi[m] = -capexArr[m];
+      cf.cff[m] = -principal[m];
+      cf.netChange[m] = cf.cfo[m] + cf.cfi[m] + cf.cff[m];
+      cf.netBurn[m] = -(cf.cfo[m] + cf.cfi[m]);
+      cf.fcf[m] = cf.cfo[m] + cf.cfi[m] - pl.interestIncome[m] + pl.interestExpense[m];
+    }
+
+    // --- Initiative cost components (SPEC.md 2.17) ---
+    var ic = { programSpend: zeros(N), payroll: payroll.initiative, vendor: zeros(N), capex: fx.capex, allocated: fx.allocated, investment: zeros(N) };
+    for (m = 1; m <= H; m++) {
+      chs.forEach(function (cid) { ic.programSpend[m] += fx.progSpend[cid][m]; });
+      PL_LINES.forEach(function (l) { ic.vendor[m] += fx.vendor[l][m]; });
+      ic.investment[m] = ic.programSpend[m] + ic.payroll[m] + ic.vendor[m] + ic.capex[m] + ic.allocated[m];
+    }
+
+    var months = [];
+    for (m = 0; m <= H; m++) months.push(m === 0 ? 'Opening' : monthLabel(A, m));
+
+    var result = {
+      inputs: { assumptions: A, initiatives: inits },
+      H: H, months: months,
+      headcount: headcount, payroll: payroll, capacity: capacity, funnel: funnel,
+      arr: arr, billing: billing, pl: pl, vendor: vendor,
+      capex: { capex: capexArr }, debt: { principal: principal }, tax: { nol: nol },
+      bs: bs, cf: cf, initiativeCost: ic
+    };
+    result.kpis = computeKpis(result);
+    result.cash13 = cash13Week(result, 1);
+    result.cashTests = cashTests(result);
+    result.guardrails = guardrails(result);
+    return result;
+  }
+
+  // ---------------------------------------------------------------------
+  // KPIs (SPEC.md 2.15)
+  // ---------------------------------------------------------------------
+  function computeKpis(R) {
+    var A = R.inputs.assumptions, H = R.H, N = H + 1;
+    var K = {
+      grossMarginTrailing: zeros(N), ebitdaMargin: zeros(N), arrGrowth: zeros(N), revenueGrowth: zeros(N), revenueGrowthBasis: [],
+      avgBurn: zeros(N), runway: zeros(N), burnMultiple: zeros(N), blendedCacPayback: zeros(N),
+      acquisitionSm: zeros(N), newLogoCacPayback: zeros(N), cac: zeros(N), ltv: zeros(N), ltvToCac: zeros(N),
+      utilization: zeros(N), channelProgramCostPerDeal: {}
+    };
+    A.channelOrder.forEach(function (c) { K.channelProgramCostPerDeal[c] = zeros(N); });
+    K.revenueGrowthBasis.push(null);
+    var csm = R.payroll.byRole.csm || zeros(N);
+    [K.grossMarginTrailing, K.ebitdaMargin, K.arrGrowth, K.revenueGrowth, K.avgBurn, K.runway, K.burnMultiple,
+      K.blendedCacPayback, K.acquisitionSm, K.newLogoCacPayback, K.cac, K.ltv, K.ltvToCac, K.utilization].forEach(function (a) { a[0] = null; });
+    A.channelOrder.forEach(function (c) { K.channelProgramCostPerDeal[c][0] = null; });
+
+    for (var m = 1; m <= H; m++) K.acquisitionSm[m] = R.pl.sm[m] - csm[m];
+
+    for (m = 1; m <= H; m++) {
+      var W = Math.min(12, m), from = m - W + 1;
+      var sGP = 0, sRev = 0, sBurn = 0, sSM = 0, sNew = 0, sExp = 0, sAcq = 0, sDeals = 0;
+      for (var k = from; k <= m; k++) {
+        sGP += R.pl.grossProfit[k]; sRev += R.pl.revenue[k]; sBurn += R.cf.netBurn[k]; sSM += R.pl.sm[k];
+        sNew += R.arr.newArr[k]; sExp += R.arr.expansion[k]; sAcq += K.acquisitionSm[k]; sDeals += R.arr.deals[k];
+      }
+      var gmt = sRev !== 0 ? sGP / sRev : null;
+      K.grossMarginTrailing[m] = gmt;
+      K.ebitdaMargin[m] = R.pl.revenue[m] !== 0 ? R.pl.ebitda[m] / R.pl.revenue[m] : null;
+
+      var arrM = R.arr.arr[m];
+      if (m >= 12) K.arrGrowth[m] = R.arr.arr[m - 12] > 0 ? arrM / R.arr.arr[m - 12] - 1 : null;
+      else K.arrGrowth[m] = (R.arr.arr[0] > 0 && arrM >= 0) ? Math.pow(arrM / R.arr.arr[0], 12 / m) - 1 : null;
+      if (m >= 13) {
+        K.revenueGrowth[m] = R.pl.revenue[m - 12] !== 0 ? R.pl.revenue[m] / R.pl.revenue[m - 12] - 1 : null;
+        K.revenueGrowthBasis.push('revenue');
+      } else {
+        K.revenueGrowth[m] = K.arrGrowth[m];
+        K.revenueGrowthBasis.push('arr');
+      }
+
+      var b0 = Math.max(1, m - 2), sb = 0;
+      for (k = b0; k <= m; k++) sb += R.cf.netBurn[k];
+      var avgBurn = sb / (m - b0 + 1);
+      K.avgBurn[m] = avgBurn;
+      K.runway[m] = avgBurn <= 0 ? Infinity : Math.max(0, R.bs.cash[m]) / avgBurn;
+
+      var den = arrM - R.arr.arr[m - W];
+      K.burnMultiple[m] = den > 0 ? sBurn / den : null;
+
+      var bd = (sNew + sExp) * gmt;
+      K.blendedCacPayback[m] = (gmt != null && bd > 0) ? 12 * sSM / bd : null;
+      var nd = sNew * gmt;
+      K.newLogoCacPayback[m] = (gmt != null && nd > 0) ? 12 * sAcq / nd : null;
+      K.cac[m] = sDeals > 0 ? sAcq / sDeals : null;
+      var custM = R.arr.customers[m];
+      var lossRate = R.arr.churnRate[m] + R.arr.contractionRate[m];
+      K.ltv[m] = (custM > 0 && lossRate > 0 && gmt != null) ? (arrM / custM) * gmt / (12 * lossRate) : null;
+      K.ltvToCac[m] = (K.ltv[m] != null && K.cac[m] != null && K.cac[m] > 0) ? K.ltv[m] / K.cac[m] : null;
+      K.utilization[m] = R.capacity.utilization[m];
+      A.channelOrder.forEach(function (c) {
+        var d = R.funnel[c].oppsWorked[m] * A.channels[c].winRate;
+        K.channelProgramCostPerDeal[c][m] = d > 0 ? R.funnel[c].spend[m] / d : null;
+      });
+    }
+    return K;
+  }
+
+  // ---------------------------------------------------------------------
+  // 13-week cash forecast (SPEC.md 2.14)
+  // ---------------------------------------------------------------------
+  function cash13Week(R, t0) {
+    var A = R.inputs.assumptions, H = R.H;
+    t0 = t0 == null ? 1 : t0;
+    var dailyCash = [R.bs.cash[t0 - 1]];
+    var days = [null];
+    var d = 0;
+    for (var m = t0; m <= H && d < 91; m++) {
+      var D = daysInMonth(A, m);
+      for (var dd = 1; dd <= D && d < 91; dd++) {
+        d++;
+        var last = dd === D;
+        var receipts = R.billing.collections[m] / D + (last ? R.pl.interestIncome[m] : 0);
+        var pay = (dd === 15 ? R.payroll.total[m] / 2 : 0) + (last ? R.payroll.total[m] / 2 + R.pl.commissions[m] : 0);
+        var vend = (R.vendor.paid[m] + R.capex.capex[m]) / D;
+        var debtSvc = last ? R.pl.interestExpense[m] + R.debt.principal[m] : 0;
+        var tax = last ? R.pl.tax[m] : 0;
+        var net = receipts - pay - vend - debtSvc - tax;
+        days.push({ day: d, month: m, dayOfMonth: dd, isMonthEnd: last, receipts: receipts, payrollAndCommissions: pay,
+          vendorsAndCapex: vend, debtService: debtSvc, tax: tax, net: net });
+        dailyCash.push(dailyCash[d - 1] + net);
+      }
+    }
+    var weeks = [];
+    var nWeeks = Math.floor(d / 7);
+    for (var w = 1; w <= nWeeks; w++) {
+      var wk = { week: w, startDay: 7 * w - 6, endDay: 7 * w, receipts: 0, payrollAndCommissions: 0, vendorsAndCapex: 0, debtService: 0, tax: 0, net: 0 };
+      for (var x = wk.startDay; x <= wk.endDay; x++) {
+        wk.receipts += days[x].receipts; wk.payrollAndCommissions += days[x].payrollAndCommissions;
+        wk.vendorsAndCapex += days[x].vendorsAndCapex; wk.debtService += days[x].debtService;
+        wk.tax += days[x].tax; wk.net += days[x].net;
+      }
+      wk.endCash = dailyCash[wk.endDay];
+      wk.label = MONTH_NAMES[(days[wk.startDay].month - 1 + A.startMonth - 1) % 12] + ' ' + days[wk.startDay].dayOfMonth + ' to ' +
+        MONTH_NAMES[(days[wk.endDay].month - 1 + A.startMonth - 1) % 12] + ' ' + days[wk.endDay].dayOfMonth;
+      wk.belowFloor = wk.endCash < A.cashFloor;
+      wk.belowCovenant = wk.endCash < A.minCashCovenant;
+      weeks.push(wk);
+    }
+    var lowestWeek = null;
+    weeks.forEach(function (wk) { if (lowestWeek === null || wk.endCash < lowestWeek.endCash) lowestWeek = wk; });
+    var lowDay = 0;
+    for (var y = 1; y < dailyCash.length; y++) if (dailyCash[y] < dailyCash[lowDay]) lowDay = y;
+    return {
+      t0: t0, startCash: dailyCash[0], dailyCash: dailyCash, days: days, weeks: weeks,
+      lowestWeek: lowestWeek ? lowestWeek.week : null, lowestWeekCash: lowestWeek ? lowestWeek.endCash : null,
+      lowestDay: lowDay, lowestDayCash: dailyCash[lowDay],
+      anyWeekBelowFloor: weeks.some(function (wk) { return wk.belowFloor; }),
+      anyWeekBelowCovenant: weeks.some(function (wk) { return wk.belowCovenant; })
+    };
+  }
+
+  // ---------------------------------------------------------------------
+  // Cash floor and covenant reporting (business warnings, also checked by C10)
+  // ---------------------------------------------------------------------
+  function cashTests(R) {
+    var A = R.inputs.assumptions, H = R.H;
+    var out = { floor: [null], covenant: [null], lowPoint: null, lowPointMonth: null, floorBreachMonths: [], covenantBreachMonths: [] };
+    for (var m = 1; m <= H; m++) {
+      var c = R.bs.cash[m];
+      out.floor.push({ month: m, cash: c, threshold: A.cashFloor, breached: c < A.cashFloor });
+      out.covenant.push({ month: m, cash: c, threshold: A.minCashCovenant, breached: c < A.minCashCovenant });
+      if (c < A.cashFloor) out.floorBreachMonths.push(m);
+      if (c < A.minCashCovenant) out.covenantBreachMonths.push(m);
+      if (out.lowPoint === null || c < out.lowPoint) { out.lowPoint = c; out.lowPointMonth = m; }
+    }
+    return out;
+  }
+
+  // ---------------------------------------------------------------------
+  // Objective and guardrails as reported (SPEC.md 2.18)
+  // ---------------------------------------------------------------------
+  function guardrails(R) {
+    var A = R.inputs.assumptions, G = A.guardrails, K = R.kpis, H = R.H;
+    var gm = Math.min(12, H);
+    var om = Math.min(A.objective.month, H);
+    var arrAt = R.arr.arr[om];
+    var low = null, lowM = null;
+    for (var m = 1; m <= H; m++) if (low === null || R.bs.cash[m] < low) { low = R.bs.cash[m]; lowM = m; }
+    var minRw = null, minRwM = null;
+    for (m = 1; m <= gm; m++) if (minRw === null || K.runway[m] < minRw) { minRw = K.runway[m]; minRwM = m; }
+    var burnSum = 0;
+    for (m = Math.max(1, gm - 11); m <= gm; m++) burnSum += R.cf.netBurn[m];
+    var bm = K.burnMultiple[gm];
+    var cac = K.blendedCacPayback[gm];
+    var gmt = K.grossMarginTrailing[gm];
+    var items = {
+      objective: { label: 'ARR target', value: arrAt, month: om, target: A.objective.arrTarget, gap: A.objective.arrTarget - arrAt, pass: arrAt >= A.objective.arrTarget },
+      cashFloor: { label: 'Cash floor', value: low, month: lowM, target: G.cashFloor, pass: low >= G.cashFloor },
+      covenant: { label: 'Covenant', value: low, month: lowM, target: A.minCashCovenant, pass: low >= A.minCashCovenant },
+      runway: { label: 'Runway', value: minRw, month: minRwM, target: G.minRunwayMonths, pass: minRw >= G.minRunwayMonths },
+      cacPayback: { label: 'Blended CAC payback', value: cac, month: gm, target: G.maxBlendedCacPaybackMonths, pass: cac != null && cac <= G.maxBlendedCacPaybackMonths },
+      burnMultiple: { label: 'Burn multiple', value: bm, month: gm, target: G.maxBurnMultiple, pass: bm != null ? bm <= G.maxBurnMultiple : burnSum <= 0 },
+      grossMargin: { label: 'Gross margin', value: gmt, month: gm, target: G.minGrossMargin, pass: gmt != null && gmt >= G.minGrossMargin }
+    };
+    var guardKeys = ['cashFloor', 'runway', 'cacPayback', 'burnMultiple', 'grossMargin'];
+    return {
+      items: items,
+      objectiveMet: items.objective.pass,
+      guardrailsPassed: guardKeys.filter(function (k) { return items[k].pass; }).length,
+      guardrailsTotal: guardKeys.length,
+      allGuardrailsPass: guardKeys.every(function (k) { return items[k].pass; })
+    };
+  }
+
+  // ---------------------------------------------------------------------
+  // Series comparison helpers (used by C7, deltas and tests)
+  // ---------------------------------------------------------------------
+  var SKIP_KEYS = { inputs: 1 };
+  function isNum(x) { return typeof x === 'number'; }
+
+  // Largest absolute difference between two results, and where it is.
+  function maxSeriesDiff(a, b, path) {
+    path = path || '';
+    var worst = { diff: 0, path: null };
+    function visit(x, y, p) {
+      if (isNum(x) || isNum(y) || x === null || y === null) {
+        if (isNum(x) && isNum(y) && isFinite(x) && isFinite(y)) {
+          var d = Math.abs(x - y);
+          if (d > worst.diff) { worst.diff = d; worst.path = p; }
+        } else if (!(x === y || (Number.isNaN(x) && Number.isNaN(y)))) {
+          worst.diff = Infinity; worst.path = p;
+        }
+        return;
+      }
+      if (typeof x !== 'object' || typeof y !== 'object') {
+        if (x !== y && worst.diff !== Infinity) { worst.diff = Infinity; worst.path = p; }
+        return;
+      }
+      if (x === undefined || y === undefined) { worst.diff = Infinity; worst.path = p; return; }
+      var keys = {};
+      Object.keys(x).forEach(function (k) { keys[k] = 1; });
+      Object.keys(y).forEach(function (k) { keys[k] = 1; });
+      Object.keys(keys).forEach(function (k) {
+        if (p === '' && SKIP_KEYS[k]) return;
+        if (!(k in x) || !(k in y)) { worst.diff = Infinity; worst.path = p + '.' + k; return; }
+        visit(x[k], y[k], p + '.' + k);
+      });
+    }
+    visit(a, b, path);
+    return worst;
+  }
+
+  // Scenario minus baseline for every numeric series.
+  function deltaSeries(s, b) {
+    function visit(x, y, top) {
+      if (Array.isArray(x) && Array.isArray(y)) {
+        return x.map(function (v, i) {
+          var w = y[i];
+          if (isNum(v) && isNum(w)) return (isFinite(v) && isFinite(w)) ? v - w : null;
+          if (v && typeof v === 'object') return visit(v, w, false);
+          return null;
+        });
+      }
+      if (x && y && typeof x === 'object' && typeof y === 'object') {
+        var o = {};
+        Object.keys(x).forEach(function (k) {
+          if (top && (SKIP_KEYS[k] || k === 'months' || k === 'guardrails' || k === 'cashTests')) return;
+          if (isNum(x[k]) && isNum(y[k])) o[k] = (isFinite(x[k]) && isFinite(y[k])) ? x[k] - y[k] : null;
+          else if (x[k] && typeof x[k] === 'object') o[k] = visit(x[k], y[k], false);
+        });
+        return o;
+      }
+      return null;
+    }
+    return visit(s, b, true);
+  }
+
+  // ---------------------------------------------------------------------
+  // Initiatives against the baseline, and returns (SPEC.md 2.16, 2.17)
+  // ---------------------------------------------------------------------
+  var EPS = 1e-6;
+  function paybackMonth(flows, effect, H) {
+    var cum = 0, wentNeg = false, firstEffect = null;
+    for (var m = 1; m <= H; m++) {
+      cum += flows[m];
+      if (firstEffect === null && (Math.abs(flows[m]) > EPS || (effect && Math.abs(effect[m]) > EPS))) firstEffect = m;
+      if (!wentNeg) { if (cum < -EPS) wentNeg = true; }
+      else if (cum >= -EPS) return { month: m, status: 'paid_back' };
+    }
+    if (wentNeg) return { month: null, status: 'not_within_horizon' };
+    if (firstEffect === null) return { month: null, status: 'no_effect' };
+    return { month: firstEffect, status: 'never_negative' };
+  }
+
+  function computeReturns(baseline, scenario) {
+    var A = scenario.inputs.assumptions, H = scenario.H;
+    var ic = scenario.initiativeCost;
+    var r = Math.pow(1 + A.discountRateAnnual, 1 / 12) - 1;
+    var NF = zeros(H + 1), cumNF = zeros(H + 1), earn = zeros(H + 1);
+    var dFcf = zeros(H + 1), dEbitda = zeros(H + 1);
+    var total = 0, npv = 0, sumNew = 0, sumDeals = 0, sumRev = 0, sumGP = 0, sumEbitda = 0;
+    for (var m = 1; m <= H; m++) {
+      dFcf[m] = scenario.cf.fcf[m] - baseline.cf.fcf[m];
+      dEbitda[m] = scenario.pl.ebitda[m] - baseline.pl.ebitda[m];
+      NF[m] = dFcf[m] - ic.allocated[m];
+      cumNF[m] = cumNF[m - 1] + NF[m];
+      earn[m] = dEbitda[m] - ic.allocated[m];
+      total += ic.investment[m];
+      npv += NF[m] / Math.pow(1 + r, m);
+      sumNew += scenario.arr.newArr[m] - baseline.arr.newArr[m];
+      sumDeals += scenario.arr.deals[m] - baseline.arr.deals[m];
+      sumRev += scenario.pl.revenue[m] - baseline.pl.revenue[m];
+      sumGP += scenario.pl.grossProfit[m] - baseline.pl.grossProfit[m];
+      sumEbitda += dEbitda[m];
+    }
+    var maxU = null, maxUM = null;
+    for (m = 1; m <= H; m++) {
+      var u = scenario.capacity.utilization[m];
+      if (u != null && (maxU === null || u > maxU)) { maxU = u; maxUM = m; }
+    }
+    var gm = Math.min(12, H);
+    function minRunway(R) { var v = null; for (var k = 1; k <= gm; k++) if (v === null || R.kpis.runway[k] < v) v = R.kpis.runway[k]; return v; }
+    return {
+      monthlyDiscountRate: r,
+      netFlow: NF, cumNetFlow: cumNF, earningsFlow: earn, deltaFcf: dFcf, deltaEbitda: dEbitda,
+      investment: ic.investment,
+      totalInvestment: total,
+      npv: npv,
+      roi: total > EPS ? cumNF[H] / total : null,
+      newArrPerDollar: total > EPS ? sumNew / total : null,
+      payback: paybackMonth(NF, ic.investment, H),
+      earningsPayback: paybackMonth(earn, ic.investment, H),
+      extraDeals: sumDeals, extraNewArr: sumNew,
+      sumDeltaRevenue: sumRev, sumDeltaGrossProfit: sumGP, sumDeltaEbitda: sumEbitda,
+      cashLowPoint: { scenario: scenario.cashTests.lowPoint, scenarioMonth: scenario.cashTests.lowPointMonth,
+        baseline: baseline.cashTests.lowPoint, baselineMonth: baseline.cashTests.lowPointMonth,
+        change: scenario.cashTests.lowPoint - baseline.cashTests.lowPoint },
+      highestUtilization: maxU, highestUtilizationMonth: maxUM,
+      burnMultiple12: { scenario: scenario.kpis.burnMultiple[gm], baseline: baseline.kpis.burnMultiple[gm] },
+      blendedCacPayback12: { scenario: scenario.kpis.blendedCacPayback[gm], baseline: baseline.kpis.blendedCacPayback[gm] },
+      lowestRunway12: { scenario: minRunway(scenario), baseline: minRunway(baseline) }
+    };
+  }
+
+  function applyInitiatives(assumptions, initiatives) {
+    var baseline = runModel(assumptions, []);
+    var scenario = runModel(assumptions, initiatives || []);
+    return { baseline: baseline, scenario: scenario, delta: deltaSeries(scenario, baseline), returns: computeReturns(baseline, scenario) };
+  }
+
+  // ---------------------------------------------------------------------
+  // Initiative templates (SPEC.md 1.17)
+  // ---------------------------------------------------------------------
+  function byMonthRange(from, to, amount) { var o = {}; for (var m = from; m <= to; m++) o[m] = amount; return o; }
+  function single(m, amount) { var o = {}; o[m] = amount; return o; }
+  function withDefaults(defaults, opts) { var o = clone(defaults); Object.keys(opts || {}).forEach(function (k) { o[k] = opts[k]; }); return o; }
+
+  var templates = {
+    tradeShow: function (A, opts) {
+      var p = withDefaults(A.templates.tradeShow, opts);
+      return { id: p.id || 'trade_show', name: p.name || 'Trade show', template: 'tradeShow', params: p, effects: [
+        { kind: 'program_spend', channel: p.channel, byMonth: single(p.month, p.booth + p.travel), leads: 'none' },
+        { kind: 'direct_leads', channel: p.channel, byMonth: single(p.month, p.expectedLeads) },
+        { kind: 'allocated_cost', byMonth: single(p.month, p.staffDays * p.dayCost) }
+      ] };
+    },
+    hireSdrs: function (A, opts) {
+      var p = withDefaults(A.templates.hireSdrs, opts);
+      return { id: p.id || 'hire_sdrs', name: p.name || 'Hire SDRs', template: 'hireSdrs', params: p, effects: [
+        { kind: 'headcount', role: 'sdr', count: p.count, startMonth: p.startMonth, loadedCostAnnual: p.loadedCostAnnual },
+        { kind: 'vendor_cost', line: 'sm', byMonth: single(p.startMonth, p.recruitingEach * p.count) },
+        { kind: 'program_spend', channel: 'outbound', byMonth: byMonthRange(p.startMonth, A.horizonMonths, p.toolsPerSdrMonthly * p.count), leads: 'none' }
+      ] };
+    },
+    hireAes: function (A, opts) {
+      var p = withDefaults(A.templates.hireAes, opts);
+      return { id: p.id || 'hire_aes', name: p.name || 'Hire AEs', template: 'hireAes', params: p, effects: [
+        { kind: 'headcount', role: 'ae', count: p.count, startMonth: p.startMonth, loadedCostAnnual: p.loadedCostAnnual },
+        { kind: 'vendor_cost', line: 'sm', byMonth: single(p.startMonth, p.recruitingEach * p.count) }
+      ] };
+    },
+    paidCampaign: function (A, opts) {
+      var p = withDefaults(A.templates.paidCampaign, opts);
+      return { id: p.id || 'paid_campaign', name: p.name || 'Paid campaign', template: 'paidCampaign', params: p, effects: [
+        { kind: 'program_spend', channel: p.channel, byMonth: byMonthRange(p.startMonth, p.startMonth + p.months - 1, p.budget / p.months),
+          leads: 'from_cpl', cplMultiplier: p.cplMultiplier }
+      ] };
+    },
+    partnerProgram: function (A, opts) {
+      var p = withDefaults(A.templates.partnerProgram, opts);
+      return { id: p.id || 'partner_program', name: p.name || 'Partner program', template: 'partnerProgram', params: p, effects: [
+        { kind: 'vendor_cost', line: 'sm', byMonth: single(p.setupMonth, p.setup) },
+        { kind: 'program_spend', channel: 'partners', byMonth: byMonthRange(p.startMonth, p.startMonth + p.months - 1, p.coMarketingMonthly), leads: 'from_cpl' }
+      ] };
+    }
+  };
+
+  // One of each effect kind, all amounts zero (check C7, test T42).
+  function nullInitiative() {
+    return { id: 'null', name: 'Null initiative', template: 'none', effects: [
+      { kind: 'program_spend', channel: 'paid', byMonth: { 3: 0 }, leads: 'from_cpl', cplMultiplier: 1 },
+      { kind: 'direct_leads', channel: 'events', byMonth: { 4: 0 } },
+      { kind: 'headcount', role: 'ae', count: 0, startMonth: 5 },
+      { kind: 'vendor_cost', line: 'sm', byMonth: { 2: 0 } },
+      { kind: 'allocated_cost', byMonth: { 2: 0 } },
+      { kind: 'capex', byMonth: { 2: 0 } },
+      { kind: 'driver_change', driver: 'winRate', channel: 'paid', fromMonth: 1, toMonth: 36, mode: 'add', value: 0 }
+    ] };
+  }
+
+  // ---------------------------------------------------------------------
+  // Integrity checks (SPEC.md section 3). Every total is recomputed from
+  // its parts or from the inputs; stored totals are never trusted.
+  // ---------------------------------------------------------------------
+  function Recorder(id, name, R) {
+    this.id = id; this.name = name; this.pass = true; this.firstMonth = null; this.diff = 0; this.reason = '';
+    this._R = R;
+  }
+  Recorder.prototype.fail = function (m, diff, reason) {
+    if (!this.pass) return;
+    this.pass = false; this.firstMonth = m; this.diff = diff;
+    var lbl = (m == null) ? '' : (' in ' + (this._R && this._R.months && this._R.months[m] ? this._R.months[m] + ' (m=' + m + ')' : 'm=' + m));
+    this.reason = reason + lbl;
+  };
+  Recorder.prototype.eq = function (m, a, b, tol, label) {
+    var d = a - b;
+    if (!(Math.abs(d) <= tol)) this.fail(m, d, label + ': ' + fmtNum(a) + ' vs ' + fmtNum(b) + ' (difference ' + fmtNum(d) + ')');
+  };
+  Recorder.prototype.ge = function (m, a, b, tol, label) {
+    if (!(a >= b - tol)) this.fail(m, a - b, label + ': ' + fmtNum(a) + ' is below ' + fmtNum(b));
+  };
+  Recorder.prototype.ok = function (m, cond, reason) { if (!cond) this.fail(m, null, reason); };
+  Recorder.prototype.out = function () {
+    return { id: this.id, name: this.name, pass: this.pass, firstMonth: this.firstMonth, diff: this.diff, reason: this.pass ? '' : this.reason };
+  };
+  function fmtNum(x) {
+    if (typeof x !== 'number') return String(x);
+    if (!isFinite(x)) return String(x);
+    return (Math.round(x * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function at(arr, i) { return arr ? arr[i] : undefined; }
+
+  function runChecks(R, opts) {
+    opts = opts || {};
+    var A = R.inputs.assumptions, H = R.H, D = TOL_DOLLAR, Cn = TOL_COUNT;
+    var chs = A.channelOrder;
+    var out = [];
+    var m, c, j, ck;
+
+    // C1 Balance sheet balances, m = 0..H
+    ck = new Recorder('C1', 'Balance sheet balances', R);
+    for (m = 0; m <= H; m++) {
+      var assets = R.bs.cash[m] + R.bs.accountsReceivable[m] + R.bs.prepaidAndOther[m] + R.bs.ppe[m];
+      var liab = R.bs.accountsPayable[m] + R.bs.accruedLiabilities[m] + R.bs.deferredRevenue[m] + R.bs.debt[m];
+      var eq = R.bs.paidInCapital[m] + R.bs.retainedEarnings[m];
+      ck.eq(m, assets, liab + eq, D, 'Assets vs liabilities plus equity');
+    }
+    out.push(ck.out());
+
+    // C2 Cash flow ties to the balance sheet
+    ck = new Recorder('C2', 'Cash flow ties to the balance sheet', R);
+    for (m = 1; m <= H; m++) {
+      ck.eq(m, R.bs.cash[m], R.bs.cash[m - 1] + R.cf.cfo[m] + R.cf.cfi[m] + R.cf.cff[m], D, 'Direct cash vs opening cash plus CFO, CFI and CFF');
+      var cfo = R.pl.netIncome[m] + R.pl.depreciation[m] - (R.bs.accountsReceivable[m] - R.bs.accountsReceivable[m - 1]) +
+        (R.bs.accountsPayable[m] - R.bs.accountsPayable[m - 1]) + (R.bs.deferredRevenue[m] - R.bs.deferredRevenue[m - 1]);
+      ck.eq(m, R.cf.cfo[m], cfo, D, 'CFO vs net income plus depreciation and working capital changes');
+      ck.eq(m, R.cf.cfi[m], -R.capex.capex[m], D, 'CFI vs capex');
+      ck.eq(m, R.cf.cff[m], -R.debt.principal[m], D, 'CFF vs principal');
+    }
+    out.push(ck.out());
+
+    // C3 Net income rolls into retained earnings
+    ck = new Recorder('C3', 'Net income rolls into retained earnings', R);
+    for (m = 1; m <= H; m++) ck.eq(m, R.bs.retainedEarnings[m], R.bs.retainedEarnings[m - 1] + R.pl.netIncome[m], D, 'Retained earnings roll');
+    out.push(ck.out());
+
+    // C4 ARR rollforward ties
+    ck = new Recorder('C4', 'ARR rollforward ties', R);
+    for (m = 1; m <= H; m++) {
+      ck.eq(m, R.arr.arr[m], R.arr.arr[m - 1] + R.arr.newArr[m] + R.arr.expansion[m] - R.arr.contraction[m] - R.arr.churn[m], D, 'ARR rollforward');
+      var sumNew = 0;
+      chs.forEach(function (cid) { sumNew += R.funnel[cid].newArr[m]; });
+      ck.eq(m, R.arr.newArr[m], sumNew, D, 'New ARR vs sum of channels');
+    }
+    for (m = 0; m <= H; m++) ck.ge(m, R.arr.arr[m], 0, D, 'ARR');
+    out.push(ck.out());
+
+    // C5 Funnel shape
+    ck = new Recorder('C5', 'Funnel shape', R);
+    for (m = 1; m <= H; m++) {
+      var worked = 0;
+      chs.forEach(function (cid) {
+        var F = R.funnel[cid], ch = A.channels[cid];
+        ck.ge(m, F.leads[m], F.mql[m], Cn, cid + ' leads vs MQLs');
+        ck.ge(m, F.mql[m], F.sourcedOpps[m], Cn, cid + ' MQLs vs sourced opportunities');
+        ck.ge(m, F.sourcedOpps[m], 0, Cn, cid + ' sourced opportunities');
+        ck.ge(m, F.oppsCreated[m], F.oppsWorked[m], Cn, cid + ' created vs worked opportunities');
+        ck.ge(m, F.oppsWorked[m], 0, Cn, cid + ' worked opportunities');
+        var src = m - ch.salesCycleMonths;
+        var w = src <= 0 ? ch.openingPipelineOppsPerMonth : F.oppsWorked[src];
+        ck.ge(m, w, F.deals[m], Cn, cid + ' worked opportunities vs deals');
+        worked += F.oppsWorked[m];
+      });
+      if (R.capacity.workShare[m] < 1) ck.ge(m, R.capacity.capacity[m], worked, Cn, 'Capacity vs opportunities worked');
+    }
+    out.push(ck.out());
+
+    // C6 Channel spend equals P&L program spend
+    ck = new Recorder('C6', 'Channel spend equals P&L program spend', R);
+    var fromInputs = zeros(H + 1);
+    for (m = 1; m <= H; m++) chs.forEach(function (cid) { fromInputs[m] += A.channels[cid].programSpendMonthly * step(A.programSpendGrowthAnnual, m); });
+    (R.inputs.initiatives || []).forEach(function (init) {
+      (init.effects || []).forEach(function (e) {
+        if (e.kind === 'program_spend') eachMonth(e.byMonth, H, function (mm, v) { fromInputs[mm] += v; });
+      });
+    });
+    for (m = 1; m <= H; m++) {
+      var fs = 0;
+      chs.forEach(function (cid) { fs += R.funnel[cid].spend[m]; });
+      ck.eq(m, fs, R.pl.programSpend[m], D, 'Funnel spend vs P&L program spend');
+      ck.eq(m, R.pl.programSpend[m], fromInputs[m], D, 'P&L program spend vs inputs');
+    }
+    out.push(ck.out());
+
+    // C7 A zero initiative changes nothing
+    ck = new Recorder('C7', 'A zero initiative changes nothing', R);
+    try {
+      var nullInit = opts.nullInitiative || nullInitiative();
+      var rerun = runModel(A, (R.inputs.initiatives || []).concat([nullInit]));
+      var md = maxSeriesDiff(rerun, R);
+      if (!(md.diff <= 1e-6)) ck.fail(null, md.diff, 'Null initiative changed ' + md.path + ' by ' + fmtNum(md.diff));
+    } catch (err) {
+      ck.fail(null, null, 'Null initiative run failed: ' + err.message);
+    }
+    out.push(ck.out());
+
+    // C8 Revenue equals what ARR implies
+    ck = new Recorder('C8', 'Revenue equals what ARR implies', R);
+    for (m = 1; m <= H; m++) ck.eq(m, R.pl.revenue[m] * 24, R.arr.arr[m - 1] + R.arr.arr[m], D, 'Revenue x 24 vs opening plus closing ARR');
+    out.push(ck.out());
+
+    // C9 Deferred revenue rolls forward
+    ck = new Recorder('C9', 'Deferred revenue rolls forward', R);
+    var s = A.annualBillingShare, off = R.billing.invoiceOffset, I = R.billing.invoices;
+    for (m = 0; m <= H; m++) {
+      if (m >= 1) ck.eq(m, R.bs.deferredRevenue[m], R.bs.deferredRevenue[m - 1] + I[m + off] - s * R.pl.revenue[m], D, 'Deferred revenue roll');
+      var sched = 0, last12 = 0;
+      for (j = 0; j <= 11; j++) { sched += I[m - j + off] * (23 - 2 * j) / 24; last12 += I[m - j + off]; }
+      ck.eq(m, R.bs.deferredRevenue[m], sched, D, 'Deferred revenue vs invoice schedule');
+      ck.eq(m, last12, s * R.arr.arr[m], D, 'Last 12 annual invoices vs annual-billed ARR');
+      ck.ge(m, I[m + off], 0, D, 'Annual invoices');
+    }
+    out.push(ck.out());
+
+    // C10 Covenant and cash floor are reported
+    ck = new Recorder('C10', 'Covenant and cash floor are reported', R);
+    var CT = R.cashTests;
+    if (!CT) ck.fail(null, null, 'No cash floor or covenant report');
+    else {
+      var low = null, lowM = null, fb = [], cb = [];
+      for (m = 1; m <= H; m++) {
+        var cash = R.bs.cash[m];
+        if (low === null || cash < low) { low = cash; lowM = m; }
+        if (cash < A.cashFloor) fb.push(m);
+        if (cash < A.minCashCovenant) cb.push(m);
+        var f = at(CT.floor, m), v = at(CT.covenant, m);
+        ck.ok(m, !!f && f.month === m && f.breached === (cash < A.cashFloor), 'Cash floor result missing or wrong');
+        ck.ok(m, !!v && v.month === m && v.breached === (cash < A.minCashCovenant), 'Covenant result missing or wrong');
+      }
+      ck.eq(lowM, CT.lowPoint, low, D, 'Reported low point vs balance sheet cash');
+      ck.ok(null, CT.lowPointMonth === lowM, 'Reported low point month ' + CT.lowPointMonth + ' vs ' + lowM);
+      ck.ok(null, JSON.stringify(CT.floorBreachMonths) === JSON.stringify(fb), 'Reported floor breach months do not match balance sheet cash');
+      ck.ok(null, JSON.stringify(CT.covenantBreachMonths) === JSON.stringify(cb), 'Reported covenant breach months do not match balance sheet cash');
+    }
+    out.push(ck.out());
+
+    // C11 Receivables and payables roll forward
+    ck = new Recorder('C11', 'Receivables and payables roll forward', R);
+    for (m = 1; m <= H; m++) {
+      ck.eq(m, R.bs.accountsReceivable[m], R.bs.accountsReceivable[m - 1] + R.billing.billings[m] - R.billing.collections[m], D, 'Receivables roll');
+      ck.eq(m, R.bs.accountsPayable[m], R.bs.accountsPayable[m - 1] + R.vendor.spend[m] - R.vendor.paid[m], D, 'Payables roll');
+      ck.ge(m, R.billing.collections[m], 0, D, 'Collections');
+      ck.ge(m, R.vendor.paid[m], 0, D, 'Vendor payments');
+    }
+    for (m = 0; m <= H; m++) {
+      ck.ge(m, R.bs.accountsReceivable[m], 0, D, 'Receivables');
+      ck.ge(m, R.bs.accountsPayable[m], 0, D, 'Payables');
+      ck.ge(m, R.bs.deferredRevenue[m], 0, D, 'Deferred revenue');
+    }
+    out.push(ck.out());
+
+    // C12 Payroll ties to headcount (recomputed from the roster, planned hires and initiative hires)
+    ck = new Recorder('C12', 'Payroll ties to headcount', R);
+    var hires = A.plannedHires.map(function (h) { return { role: h.role, count: 1, start: h.month, end: H, cost: A.roles[h.role].loadedCostAnnual }; });
+    (R.inputs.initiatives || []).forEach(function (init) {
+      (init.effects || []).forEach(function (e) {
+        if (e.kind === 'headcount') hires.push({ role: e.role, count: e.count || 0, start: e.startMonth, end: e.endMonth == null ? H : e.endMonth,
+          cost: e.loadedCostAnnual == null ? A.roles[e.role].loadedCostAnnual : e.loadedCostAnnual });
+      });
+    });
+    for (m = 1; m <= H; m++) {
+      var byLines = 0;
+      PL_LINES.forEach(function (l) { byLines += R.payroll.byLine[l][m]; });
+      var formula = 0, hcSum = 0, hcRoles = 0;
+      Object.keys(A.roles).forEach(function (rid) {
+        var R0 = A.roles[rid], cnt = R0.openingCount, ann = R0.openingCount * R0.loadedCostAnnual;
+        hires.forEach(function (h) { if (h.role === rid && h.start <= m && m <= h.end) { cnt += h.count; ann += h.count * h.cost; } });
+        formula += ann / 12 * step(A.meritIncreaseAnnual, m);
+        hcSum += cnt;
+        hcRoles += R.headcount.byRole[rid][m];
+        ck.eq(m, R.headcount.byRole[rid][m], cnt, Cn, 'Headcount of ' + rid);
+      });
+      ck.eq(m, byLines, formula, D, 'Payroll by P&L line vs payroll by role formula');
+      ck.eq(m, R.payroll.total[m], byLines, D, 'Total payroll vs sum of lines');
+      ck.eq(m, R.headcount.total[m], hcRoles, Cn, 'Total headcount vs sum by role');
+      ck.eq(m, hcRoles, hcSum, Cn, 'Headcount by role vs inputs');
+    }
+    out.push(ck.out());
+
+    // C13 P&L foots
+    ck = new Recorder('C13', 'P&L foots', R);
+    for (m = 1; m <= H; m++) {
+      var P = R.pl, PB = R.payroll.byLine;
+      var cogs = P.hosting[m] + P.thirdParty[m] + PB.cogs[m] + P.cogsVendor[m];
+      var rd = PB.rd[m] + P.rdNonHc[m] + P.rdVendor[m];
+      var sm = PB.sm[m] + P.programSpend[m] + P.commissions[m] + P.smNonHc[m] + P.smVendor[m];
+      var ga = PB.ga[m] + P.gaNonHc[m] + P.gaVendor[m];
+      ck.eq(m, P.cogs[m], cogs, D, 'COGS vs its lines');
+      ck.eq(m, P.grossProfit[m], P.revenue[m] - P.cogs[m], D, 'Gross profit vs revenue minus COGS');
+      ck.eq(m, P.rd[m], rd, D, 'R&D vs its lines');
+      ck.eq(m, P.sm[m], sm, D, 'S&M vs its lines');
+      ck.eq(m, P.ga[m], ga, D, 'G&A vs its lines');
+      ck.eq(m, P.opex[m], rd + sm + ga, D, 'Operating expenses vs R&D plus S&M plus G&A');
+      ck.eq(m, P.ebitda[m], P.grossProfit[m] - (rd + sm + ga), D, 'EBITDA vs gross profit minus operating expenses');
+      ck.eq(m, P.netIncome[m], P.ebitda[m] - P.depreciation[m] + P.interestIncome[m] - P.interestExpense[m] - P.tax[m], D, 'Net income vs EBITDA less depreciation, interest and tax');
+    }
+    out.push(ck.out());
+
+    // C14 PP&E and debt roll forward
+    ck = new Recorder('C14', 'PP&E and debt roll forward', R);
+    for (m = 1; m <= H; m++) {
+      ck.eq(m, R.bs.ppe[m], R.bs.ppe[m - 1] + R.capex.capex[m] - R.pl.depreciation[m], D, 'PP&E roll');
+      ck.eq(m, R.bs.debt[m], R.bs.debt[m - 1] - R.debt.principal[m], D, 'Debt roll');
+      ck.eq(m, R.pl.interestExpense[m], R.bs.debt[m - 1] * A.debtInterestRateAnnual / 12, D, 'Interest expense vs opening debt');
+    }
+    for (m = 0; m <= H; m++) { ck.ge(m, R.bs.ppe[m], 0, D, 'PP&E'); ck.ge(m, R.bs.debt[m], 0, D, 'Debt'); }
+    out.push(ck.out());
+
+    // C15 13-week forecast ties to the monthly model
+    ck = new Recorder('C15', '13-week forecast ties to the monthly model', R);
+    var F13 = R.cash13;
+    if (!F13 || !F13.dailyCash) ck.fail(null, null, 'No 13-week forecast');
+    else {
+      ck.eq(F13.t0 - 1, F13.dailyCash[0], R.bs.cash[F13.t0 - 1], D, '13-week opening cash vs monthly cash');
+      // month-ends from the calendar, independent of the stored day records
+      var dayNo = 0, nDays = F13.dailyCash.length - 1;
+      for (m = F13.t0; m <= H && dayNo < nDays; m++) {
+        dayNo += daysInMonth(A, m);
+        if (dayNo <= nDays) ck.eq(m, F13.dailyCash[dayNo], R.bs.cash[m], D, 'Daily cash on day ' + dayNo + ' vs month-end cash');
+      }
+      var wkSum = 0;
+      F13.weeks.forEach(function (wk) { wkSum += wk.net; });
+      var lastDay = F13.weeks.length * 7;
+      ck.eq(null, wkSum, F13.dailyCash[lastDay] - F13.dailyCash[0], D, 'Sum of weekly net cash vs change in daily cash');
+    }
+    out.push(ck.out());
+
+    // C16 Customers roll forward and all numbers are finite
+    ck = new Recorder('C16', 'Customers roll forward and all numbers are finite', R);
+    for (m = 1; m <= H; m++) {
+      ck.eq(m, R.arr.customers[m], R.arr.customers[m - 1] + R.arr.deals[m] - R.arr.lostCustomers[m], Cn, 'Customers roll');
+    }
+    for (m = 0; m <= H; m++) ck.ge(m, R.arr.customers[m], 0, Cn, 'Customers');
+    (function scan(x, p) {
+      if (!ck.pass) return;
+      if (typeof x === 'number') {
+        if (Number.isNaN(x) || (!isFinite(x) && p.indexOf('.kpis.runway') !== 0)) ck.fail(null, null, 'Not a finite number at ' + p);
+        return;
+      }
+      if (x && typeof x === 'object') Object.keys(x).forEach(function (k) {
+        if (p === '' && k === 'inputs') return;
+        scan(x[k], p + '.' + k);
+      });
+    })(R, '');
+    out.push(ck.out());
+
+    return out;
+  }
+
+  function checkSummary(checks) {
+    var passed = checks.filter(function (c) { return c.pass; }).length;
+    return { passed: passed, total: checks.length, label: 'Integrity ' + passed + '/' + checks.length, failures: checks.filter(function (c) { return !c.pass; }) };
+  }
+
+  // Everything the UI needs for one recalculation.
+  function evaluate(assumptions, initiatives) {
+    var res = applyInitiatives(assumptions, initiatives || []);
+    res.checks = { baseline: runChecks(res.baseline), scenario: runChecks(res.scenario) };
+    return res;
+  }
+
+  global.Engine = {
+    CHECK_COUNT: CHECK_COUNT, TOL_DOLLAR: TOL_DOLLAR, TOL_COUNT: TOL_COUNT,
+    defaultAssumptions: defaultAssumptions, assumptionType: assumptionType,
+    yearIndex: yearIndex, step: step, ramp: ramp, clamp: clamp, computeTax: computeTax,
+    monthLabel: monthLabel, daysInMonth: daysInMonth,
+    runModel: runModel, computeKpis: computeKpis, cash13Week: cash13Week, cashTests: cashTests, guardrails: guardrails,
+    runChecks: runChecks, checkSummary: checkSummary,
+    applyInitiatives: applyInitiatives, computeReturns: computeReturns, paybackMonth: paybackMonth,
+    deltaSeries: deltaSeries, maxSeriesDiff: maxSeriesDiff,
+    templates: templates, nullInitiative: nullInitiative, evaluate: evaluate
+  };
+})(window);
+</script>
+
+<!-- Reference tables copied verbatim from SPEC.md (tests/run.js confirms they still match). -->
+<script id="spec-tables">
+window.SPEC_TABLES = {"openingInvoices":{"header":["Month of 2026","m","Invoice","Share still unearned at Dec 31, 2026","Unearned amount"],"rows":[["Jan","−11","1,068,000","1/24","44,500"],["Feb","−10","1,092,000","3/24","136,500"],["Mar","−9","1,116,000","5/24","232,500"],["Apr","−8","1,140,000","7/24","332,500"],["May","−7","1,164,000","9/24","436,500"],["Jun","−6","1,188,000","11/24","544,500"],["Jul","−5","1,212,000","13/24","656,500"],["Aug","−4","1,236,000","15/24","772,500"],["Sep","−3","1,260,000","17/24","892,500"],["Oct","−2","1,284,000","19/24","1,016,500"],["Nov","−1","1,308,000","21/24","1,144,500"],["Dec","0","1,332,000","23/24","1,276,500"],["Total","","14,400,000","","7,486,000"]]},"janPl":{"header":["Line","Calculation","Amount"],"rows":[["Revenue","above","2,020,066.67"],["Hosting","(600 + 603.34) / 2 × 360","216,601.20"],["Third-party software","4% × 2,020,066.67","80,802.67"],["Support and onboarding staff","2,245,000 / 12","187,083.33"],["COGS","","484,487.20"],["Gross profit","76.02% of revenue","1,535,579.47"],["R&D payroll","11,815,000 / 12","984,583.33"],["R&D non-headcount","","170,000.00"],["R&D","","1,154,583.33"],["S&M payroll","6,590,000 / 12","549,166.67"],["Program spend","28,000 + 60,000 + 28,000 + 24,000","140,000.00"],["Commissions","10% × 289,600","28,960.00"],["S&M non-headcount","","130,000.00"],["S&M","","848,126.67"],["G&A payroll","4,325,000 / 12","360,416.67"],["G&A non-headcount","","300,000.00"],["G&A","","660,416.67"],["Operating expenses","","2,663,126.67"],["EBITDA","1,535,579.47 − 2,663,126.67","−1,127,547.20"],["Depreciation","1,080,000 / 24","45,000.00"],["EBIT","","−1,172,547.20"],["Interest income","38,000,000 × 4% / 12","126,666.67"],["Interest expense","10,000,000 × 11% / 12","91,666.67"],["Pre-tax income","","−1,137,547.20"],["Tax","loss, so none","0.00"],["Net income","","−1,137,547.20"]]},"tradeShowMonthly":{"header":["m","Month","Δ New ARR","Δ ARR","Δ Revenue","Δ Gross profit","Δ EBITDA","Δ Collections","Δ Vendor paid","Net flow NF","Cumulative NF","Δ Cash balance"],"rows":[["4","Apr 2027","0.00","0.00","0.00","0.00","−60,000.00","0.00","−0.00","−16,000.00","−16,000.00","0.00"],["5","May 2027","0.00","0.00","0.00","0.00","0.00","0.00","60,000.00","−60,000.00","−76,000.00","−60,000.00"],["6","Jun 2027","0.00","0.00","0.00","0.00","0.00","0.00","0.00","0.00","−76,000.00","−60,200.00"],["7","Jul 2027","0.00","0.00","0.00","0.00","0.00","0.00","0.00","0.00","−76,000.00","−60,400.67"],["8","Aug 2027","0.00","0.00","0.00","0.00","0.00","0.00","0.00","−0.00","−76,000.00","−60,602.00"],["9","Sep 2027","130,000.00","130,000.00","5,416.67","4,750.00","−8,250.00","−0.00","0.00","−13,000.00","−89,000.00","−73,804.01"],["10","Oct 2027","0.00","131,040.00","10,876.67","9,604.12","9,604.12","40,083.33","666.67","39,416.67","−49,583.33","−34,633.36"],["11","Nov 2027","0.00","132,088.32","10,963.68","9,752.14","9,752.14","42,570.67","1,272.55","41,298.12","−8,285.21","6,549.32"],["12","Dec 2027","0.00","133,145.03","11,051.39","9,900.08","9,900.08","4,994.57","1,211.54","3,783.02","−4,502.19","10,354.18"],["13","Jan 2028","0.00","134,210.19","11,139.80","9,953.96","9,953.96","5,034.52","1,151.31","3,883.21","−618.97","14,271.90"],["14","Feb 2028","0.00","135,283.87","11,228.92","10,043.96","10,043.96","5,074.80","1,185.84","3,888.96","3,269.99","18,208.44"],["21","Sep 2028","0.00","143,171.78","11,881.00","10,699.83","10,699.83","5,385.78","1,181.22","4,204.57","31,695.19","47,344.38"],["22","Oct 2028","0.00","144,403.06","11,982.29","10,800.93","10,800.93","44,443.16","1,181.17","43,261.99","74,957.18","90,764.18"],["23","Nov 2028","0.00","145,666.59","12,086.24","10,904.46","10,904.46","44,813.94","1,181.36","43,632.58","118,589.76","134,699.31"],["24","Dec 2028","0.00","146,963.02","12,192.90","11,010.47","11,010.47","6,188.64","1,181.78","5,006.87","123,596.63","140,155.18"],["36","Dec 2029","0.00","163,450.23","13,560.77","12,332.31","12,332.31","7,581.39","1,227.20","6,354.19","266,954.41","290,779.49"]]},"aeMonthly":{"header":["m","Month","Ramped AEs added","Δ Opps","Δ Deals","Δ New ARR","Δ ARR","Δ Revenue","Δ EBITDA","Δ Collections","Net flow NF","Cumulative NF","Δ Cash balance"],"rows":[["2","Feb 2027","0.00","0.000","0.0000","0.00","0.00","0.00","−55,000.00","0.00","−25,000.00","−25,000.00","−25,000.00"],["3","Mar 2027","0.50","0.750","0.0000","0.00","0.00","0.00","−25,000.00","0.00","−55,000.00","−80,000.00","−80,083.33"],["4","Apr 2027","1.00","1.500","0.0000","0.00","0.00","0.00","−25,000.00","0.00","−25,000.00","−105,000.00","−105,350.28"],["5","May 2027","1.50","2.250","0.0000","0.00","0.00","0.00","−25,000.00","0.00","−25,000.00","−130,000.00","−130,701.45"],["6","Jun 2027","2.00","3.000","0.0000","0.00","0.00","0.00","−25,000.00","0.00","−25,000.00","−155,000.00","−156,137.12"],["7","Jul 2027","2.00","3.000","0.1800","8,100.00","8,100.00","337.50","−25,518.40","0.00","−25,810.00","−180,810.00","−182,467.57"],["8","Aug 2027","2.00","3.000","0.3600","16,200.00","24,364.80","1,352.70","−25,450.81","2,497.50","−24,168.40","−204,978.40","−207,244.20"],["9","Sep 2027","2.00","3.000","0.5400","24,300.00","48,859.72","3,051.02","−24,791.65","7,647.48","−19,966.03","−224,944.43","−227,901.05"],["10","Oct 2027","2.00","3.000","0.7200","32,400.00","81,650.60","5,437.93","−23,500.89","13,108.66","−15,544.01","−240,488.44","−244,204.73"],["11","Nov 2027","2.00","3.000","0.7200","32,400.00","114,703.80","8,181.43","−21,054.71","18,883.53","−10,055.29","−250,543.74","−255,074.04"],["12","Dec 2027","2.00","3.000","0.7200","32,400.00","148,021.43","10,946.88","−18,552.08","22,477.10","−6,759.05","−257,302.78","−262,683.33"],["13","Jan 2028","2.00","3.000","0.7296","33,105.60","182,311.20","13,763.86","−16,923.40","23,736.91","−6,582.61","−263,885.39","−270,141.55"],["14","Feb 2028","2.00","3.000","0.7392","33,818.40","217,588.09","16,662.47","−14,427.64","25,224.37","−5,534.17","−269,419.57","−276,576.20"],["18","Jun 2028","2.00","3.000","0.7776","36,741.60","368,870.59","29,098.48","−3,659.89","32,401.82","−5.04","−277,917.52","−288,846.31"],["24","Dec 2028","2.00","3.000","0.7776","36,741.60","613,444.75","49,377.52","14,487.16","62,130.49","27,597.03","−190,656.57","−207,001.75"],["29","May 2029","2.00","3.000","0.7776","36,741.60","828,240.53","67,198.22","29,518.51","72,670.00","35,358.97","−32,242.92","−51,061.56"],["30","Jun 2029","2.00","3.000","0.7776","36,741.60","872,353.48","70,858.08","32,809.53","74,960.09","37,280.38","5,037.46","−13,951.39"],["36","Dec 2029","2.00","3.000","0.7776","36,741.60","1,145,399.22","93,511.53","53,245.77","107,092.71","67,197.07","324,125.37","307,182.01"]]},"monthly":{"header":["m","Month","New ARR","Closing ARR","Customers","Revenue","Gross profit","EBITDA","Net income","Net burn","Ending cash","Deferred revenue"],"rows":[["1","Jan 2027","289,600.00","24,481,600.00","603.3400","2,020,066.67","1,535,579.47","−1,127,547.20","−1,137,547.20","1,035,210.00","36,964,790.00","7,630,920.00"],["2","Feb 2027","289,600.00","24,967,052.80","606.6600","2,060,360.53","1,573,062.79","−1,090,063.88","−1,104,625.69","1,013,571.23","35,951,218.77","7,777,975.36"],["3","Mar 2027","289,600.00","25,456,389.22","609.9600","2,100,976.75","1,603,362.75","−1,059,763.91","−1,078,815.40","983,552.40","34,967,666.36","7,926,991.16"],["4","Apr 2027","289,600.00","25,949,640.34","613.2402","2,141,917.90","1,641,481.81","−1,039,561.53","−1,063,002.64","965,060.88","34,002,605.48","8,077,791.09"],["5","May 2027","289,600.00","26,446,837.46","616.5008","2,183,186.57","1,679,922.39","−1,001,120.94","−1,028,890.03","928,448.88","33,074,156.59","8,230,197.42"],["6","Jun 2027","289,600.00","26,948,012.16","619.7418","2,224,785.40","1,709,103.65","−971,939.68","−1,003,914.72","901,154.96","32,173,001.63","8,384,031.00"],["7","Jul 2027","289,600.00","27,453,196.26","622.9633","2,266,717.02","1,748,194.75","−940,765.25","−976,855.25","871,959.14","31,301,042.50","8,539,111.25"],["8","Aug 2027","289,600.00","27,962,421.83","626.1656","2,308,984.09","1,787,614.85","−913,011.81","−953,119.45","846,270.67","30,454,771.82","8,695,256.14"],["9","Sep 2027","289,600.00","28,475,721.20","629.3486","2,351,589.29","1,819,866.51","−880,760.16","−924,799.81","816,183.54","29,638,588.28","8,852,282.19"],["10","Oct 2027","289,600.00","28,993,126.97","632.5125","2,394,535.34","1,875,094.60","−843,448.73","−891,320.10","796,265.33","28,842,322.95","9,010,004.44"],["11","Nov 2027","289,600.00","29,514,671.99","635.6574","2,437,824.96","1,930,810.79","−801,482.54","−853,119.24","756,823.19","28,085,499.76","9,168,236.48"],["12","Dec 2027","297,700.00","30,048,489.36","638.9635","2,481,798.39","1,987,314.38","−745,788.95","−801,059.51","704,008.54","27,381,491.22","9,331,447.87"],["13","Jan 2028","312,459.64","30,601,336.92","642.5270","2,527,076.10","2,014,215.03","−835,593.44","−894,321.80","745,504.11","26,635,987.11","9,503,870.75"],["14","Feb 2028","319,187.24","31,165,334.86","646.1665","2,573,611.32","2,050,074.74","−800,406.48","−862,730.97","741,692.96","25,894,294.15","9,681,374.40"],["15","Mar 2028","328,141.45","31,742,798.99","649.9517","2,621,172.24","2,094,610.61","−775,220.20","−841,128.11","713,412.77","25,180,881.38","9,864,751.38"],["16","Apr 2028","337,842.27","32,334,583.65","653.8835","2,669,890.94","2,140,213.75","−744,749.65","−814,146.71","681,423.32","24,499,458.06","10,053,838.28"],["17","May 2028","344,877.78","32,938,138.10","657.8909","2,719,696.74","2,186,826.91","−710,856.70","−783,636.29","645,599.08","23,853,858.98","10,246,471.18"],["18","Jun 2028","359,523.36","33,561,166.56","662.1246","2,770,804.36","2,226,919.18","−672,228.99","−748,271.68","606,243.06","23,247,615.92","10,446,510.46"],["19","Jul 2028","364,116.06","34,198,806.13","666.5293","2,823,332.20","2,266,168.94","−633,438.50","−712,613.11","565,951.43","22,681,664.49","10,650,205.35"],["20","Aug 2028","368,708.76","34,851,364.98","671.1055","2,877,090.46","2,316,418.96","−602,101.92","−684,274.15","532,809.89","22,148,854.60","10,857,021.72"],["21","Sep 2028","373,301.46","35,519,160.48","675.8535","2,932,105.23","2,367,823.32","−568,323.49","−653,382.87","499,188.51","21,649,666.09","11,066,415.51"],["22","Oct 2028","373,301.46","36,197,926.72","680.6765","2,988,211.97","2,412,513.66","−523,633.15","−611,467.60","454,951.91","21,194,714.18","11,275,191.53"],["23","Nov 2028","373,301.46","36,887,960.04","685.5755","3,045,245.28","2,465,795.67","−484,513.64","−574,975.71","417,781.74","20,776,932.44","11,482,991.36"],["24","Dec 2028","373,301.46","37,589,564.34","690.5517","3,103,230.18","2,519,968.04","−430,341.27","−523,307.05","367,152.60","20,409,779.84","11,694,306.26"],["25","Jan 2029","373,301.46","38,297,412.92","695.5025","3,161,957.39","2,556,834.76","−516,072.97","−566,373.71","417,650.71","19,992,129.13","11,910,509.52"],["26","Feb 2029","373,301.46","39,011,561.36","700.4280","3,221,207.26","2,604,189.92","−468,717.81","−521,521.82","404,660.48","19,587,468.65","12,127,944.66"],["27","Mar 2029","375,712.63","39,734,476.88","705.4050","3,281,084.93","2,660,100.36","−432,056.28","−487,320.27","367,147.56","19,220,321.09","12,349,123.35"],["28","Apr 2029","378,766.77","40,466,880.50","710.4331","3,341,723.22","2,716,724.72","−384,136.12","−441,735.05","318,991.33","18,901,329.76","12,574,553.05"],["29","May 2029","378,766.77","41,205,802.51","715.4356","3,403,028.46","2,773,985.29","−339,252.73","−399,026.07","272,190.48","18,629,139.28","12,800,540.13"],["30","Jun 2029","386,455.29","41,958,989.44","720.5664","3,465,199.66","2,824,104.12","−289,902.74","−351,694.50","222,492.09","18,406,647.19","13,035,854.39"],["31","Jul 2029","391,047.99","42,723,472.44","725.7683","3,528,435.91","2,873,003.53","−241,462.60","−305,107.11","171,275.08","18,235,372.11","13,275,176.84"],["32","Aug 2029","395,640.69","43,499,352.04","731.0409","3,592,617.69","2,932,955.11","−200,978.09","−266,304.62","126,111.52","18,109,260.59","13,518,204.64"],["33","Sep 2029","409,418.79","44,295,915.07","736.5782","3,658,136.13","2,994,136.64","−155,761.74","−222,619.76","79,161.50","18,030,099.09","13,769,917.70"],["34","Oct 2029","418,604.19","45,108,752.90","742.2816","3,725,194.50","3,048,771.35","−102,045.57","−170,278.57","21,592.16","18,008,506.93","14,024,206.91"],["35","Nov 2029","418,604.19","45,928,825.00","747.9560","3,793,232.41","3,112,281.41","−53,122.89","−122,538.98","−31,200.69","18,039,707.62","14,275,257.72"],["36","Dec 2029","418,604.19","46,756,195.73","753.6014","3,861,875.86","3,176,381.99","10,977.70","−59,445.50","−93,993.86","18,133,701.48","14,527,807.65"]]},"annual":{"header":["Line","2027","2028","2029"],"rows":[["New ARR","3,483,300.00","4,228,062.41","4,718,224.44"],["Expansion ARR","5,354,832.79","6,680,786.02","8,347,010.79"],["Contraction ARR","865,751.41","1,080,127.08","1,349,516.71"],["Churned ARR","1,923,892.02","2,287,646.36","2,549,087.13"],["Net new ARR","6,048,489.36","7,541,074.98","9,166,631.39"],["Closing ARR","30,048,489.36","37,589,564.34","46,756,195.73"],["ARR growth","25.20%","25.10%","24.39%"],["New customers (deals)","83.460","97.041","107.022"],["Closing customers","638.9635","690.5517","753.6014"],["Revenue","26,972,742.91","33,651,467.02","42,033,693.42"],["COGS","6,081,334.17","6,589,918.22","7,760,224.23"],["Gross profit","20,891,408.74","27,061,548.80","34,273,469.20"],["Gross margin","77.45%","80.42%","81.54%"],["R&D","14,070,000.00","15,280,479.17","16,564,627.38"],["Sales and marketing","10,284,163.33","11,201,452.07","12,094,469.40"],["G&A","7,952,500.00","8,361,025.00","8,786,904.25"],["EBITDA","−11,415,254.59","−7,781,407.44","−3,172,531.83"],["Depreciation","613,333.33","773,333.33","393,333.33"],["Interest income","1,311,518.88","950,484.73","751,899.20"],["Interest expense","1,100,000.00","1,100,000.00","1,100,000.00"],["Net income","−11,817,069.04","−8,704,256.04","−3,913,965.96"],["Cash from operations","−10,138,508.78","−6,491,711.38","−1,796,078.36"],["Capex","480,000.00","480,000.00","480,000.00"],["Net burn","10,618,508.78","6,971,711.38","2,276,078.36"],["Ending cash","27,381,491.22","20,409,779.84","18,133,701.48"],["Ending headcount","148","160","172"]]},"balanceSheets":{"header":["Line","Opening (Dec 31, 2026)","Jan 2027 (m=1)","Dec 2027 (m=12)","Dec 2028 (m=24)","Dec 2029 (m=36)"],"rows":[["Cash","38,000,000.00","36,964,790.00","27,381,491.22","20,409,779.84","18,133,701.48"],["Accounts receivable","3,180,000.00","3,224,986.67","3,943,038.28","4,941,067.64","6,136,567.41"],["Prepaid and other","850,000.00","850,000.00","850,000.00","850,000.00","850,000.00"],["PP&E, net","1,080,000.00","1,075,000.00","946,666.67","653,333.33","740,000.00"],["Total assets","43,110,000.00","42,114,776.67","33,121,196.17","26,854,180.81","25,860,268.89"],["Accounts payable","1,040,000.00","1,037,403.87","1,022,817.34","1,097,199.64","1,183,752.29"],["Accrued liabilities","1,300,000.00","1,300,000.00","1,300,000.00","1,300,000.00","1,300,000.00"],["Deferred revenue","7,486,000.00","7,630,920.00","9,331,447.87","11,694,306.26","14,527,807.65"],["Venture debt","10,000,000.00","10,000,000.00","10,000,000.00","10,000,000.00","10,000,000.00"],["Total liabilities","19,826,000.00","19,968,323.87","21,654,265.21","24,091,505.90","27,011,559.93"],["Paid-in capital","96,000,000.00","96,000,000.00","96,000,000.00","96,000,000.00","96,000,000.00"],["Retained earnings (accumulated deficit)","−72,716,000.00","−73,853,547.20","−84,533,069.04","−93,237,325.09","−97,151,291.05"],["Total equity","23,284,000.00","22,146,452.80","11,466,930.96","2,762,674.91","−1,151,291.05"],["Liabilities plus equity","43,110,000.00","42,114,776.67","33,121,196.17","26,854,180.81","25,860,268.89"],["Difference","0.00","0.00","0.00","0.00","0.00"]]},"kpis":{"header":["Metric","m=1","m=6","m=12","m=24","m=36"],"rows":[["Runway (months)","35.71","34.54","36.39","49.38","not burning"],["Burn multiple","2.1495","1.9766","1.7556","0.9245","0.2483"],["Gross margin, trailing","76.02%","76.52%","77.45%","80.42%","81.54%"],["Blended CAC payback (months)","19.39","18.71","18.03","15.32","13.62"],["New-logo CAC payback (months)","36.69","36.45","36.14","31.05","29.54"],["CAC per new customer","96,992","96,992","97,362","90,664","88,492"],["LTV","295,450","318,723","348,890","467,675","540,483"],["LTV to CAC","3.05","3.29","3.58","5.16","6.11"],["Capacity utilization","70.24%","70.24%","73.81%","67.96%","66.32%"],["EBITDA margin (month)","−55.82%","−43.69%","−30.05%","−13.87%","0.28%"]]},"week13":{"header":["Week","Days","Receipts","Payroll and commissions","Vendors and capex","Debt service","Net cash flow","Ending cash"],"rows":[["1","Jan 1 to Jan 7","478,709.68","0.00","243,870.97","0.00","234,838.71","38,234,838.71"],["2","Jan 8 to Jan 14","478,709.68","0.00","243,870.97","0.00","234,838.71","38,469,677.42"],["3","Jan 15 to Jan 21","478,709.68","1,040,625.00","243,870.97","0.00","−805,786.29","37,663,891.13"],["4","Jan 22 to Jan 28","478,709.68","0.00","243,870.97","0.00","234,838.71","37,898,729.84"],["5","Jan 29 to Feb 4","637,898.43","1,069,585.00","258,430.97","91,666.67","−781,784.20","37,116,945.64"],["6","Feb 5 to Feb 11","535,623.33","0.00","269,350.97","0.00","266,272.37","37,383,218.00"],["7","Feb 12 to Feb 18","535,623.33","1,040,625.00","269,350.97","0.00","−774,352.63","36,608,865.37"],["8","Feb 19 to Feb 25","535,623.33","0.00","269,350.97","0.00","266,272.37","36,875,137.74"],["9","Feb 26 to Mar 4","634,859.31","1,069,585.00","254,818.63","91,666.67","−781,210.99","36,093,926.75"],["10","Mar 5 to Mar 11","493,658.35","0.00","243,919.38","0.00","249,738.97","36,343,665.72"],["11","Mar 12 to Mar 18","493,658.35","1,044,375.00","243,919.38","0.00","−794,636.03","35,549,029.69"],["12","Mar 19 to Mar 25","493,658.35","0.00","243,919.38","0.00","249,738.97","35,798,768.66"],["13","Mar 26 to Apr 1","617,263.27","1,073,335.00","245,174.78","91,666.67","−792,913.18","35,005,855.48"]]}};
+</script>
+
+<!-- ===================================================================== -->
+<!-- TESTS: the SPEC.md section 4 test plan. Run with index.html?test=1    -->
+<!-- or headless with: node tests/run.js                                   -->
+<!-- ===================================================================== -->
+<script id="tests">
+window.TestSuite = (function () {
+  'use strict';
+  var E = window.Engine;
+  var TAB = window.SPEC_TABLES;
+  var TOL_D = 0.01, TOL_R = 0.0001;
+
+  // ---------- assertion context ----------
+  function Ctx() { this.n = 0; this.failures = []; }
+  Ctx.prototype.fail = function (msg) { this.failures.push(msg); };
+  Ctx.prototype.ok = function (label, cond, detail) { this.n++; if (!cond) this.fail(label + (detail ? ': ' + detail : '')); };
+  Ctx.prototype.near = function (label, actual, expected, tol) {
+    this.n++;
+    if (expected === Infinity || expected === -Infinity) { if (actual !== expected) this.fail(label + ': got ' + actual + ', expected ' + expected); return; }
+    if (typeof actual !== 'number' || !(Math.abs(actual - expected) <= tol)) {
+      this.fail(label + ': got ' + show(actual) + ', expected ' + show(expected) + ' (tolerance ' + tol + ')');
+    }
+  };
+  Ctx.prototype.d = function (label, actual, expected) { this.near(label, actual, expected, TOL_D); };
+  Ctx.prototype.r = function (label, actual, expected) { this.near(label, actual, expected, TOL_R); };
+  // Two-decimal ratios (months, multiples) are printed in SPEC.md to 2 decimals.
+  Ctx.prototype.r2 = function (label, actual, expected) { this.near(label, actual, expected, 0.005 + 1e-9); };
+  Ctx.prototype.eq = function (label, actual, expected) {
+    this.n++;
+    if (actual !== expected) this.fail(label + ': got ' + JSON.stringify(actual) + ', expected ' + JSON.stringify(expected));
+  };
+  // Compare against a raw cell from a SPEC.md table. The tolerance is the spec
+  // tolerance (dollars 0.01, counts and ratios 0.0001) or half a unit of the last
+  // printed digit, whichever is larger.
+  Ctx.prototype.cell = function (label, actual, raw, kind) {
+    var p = parseCell(raw);
+    if (p.text != null) { this.fail(label + ': cell is not a number: ' + raw); return; }
+    var half = 0.5 * Math.pow(10, -p.decimals) + 1e-9;
+    var tol = Math.max(kind === 'dollar' ? TOL_D : TOL_R, half);
+    this.near(label, actual, p.value, tol);
+  };
+  function show(x) { return typeof x === 'number' ? (isFinite(x) ? x.toFixed(6) : String(x)) : JSON.stringify(x); }
+
+  function parseCell(raw) {
+    var s = String(raw).trim().replace(/−/g, '-').replace(/,/g, '');
+    if (s === 'not burning') return { value: Infinity, decimals: 0 };
+    var pct = false;
+    if (/%$/.test(s)) { pct = true; s = s.slice(0, -1); }
+    if (!/^[-+]?\d+(\.\d+)?$/.test(s)) return { text: raw };
+    var dec = (s.split('.')[1] || '').length;
+    var v = Number(s);
+    if (pct) { v = v / 100; dec += 2; }
+    return { value: v, decimals: dec };
+  }
+  function colIndex(table, name) {
+    var i = table.header.indexOf(name);
+    if (i < 0) throw new Error('Column not found in SPEC table: ' + name);
+    return i;
+  }
+
+  // ---------- shared runs ----------
+  var A0 = E.defaultAssumptions();
+  var cache = {};
+  function withA(fn) { var a = E.defaultAssumptions(); if (fn) fn(a); return a; }
+  function evaluateNamed(key, assumptions, initiatives) {
+    if (!cache[key]) cache[key] = E.applyInitiatives(assumptions, initiatives);
+    return cache[key];
+  }
+  function base() { return evaluateNamed('base', A0, []).baseline; }
+  function sum(arr, from, to) { var s = 0; for (var m = from; m <= to; m++) s += arr[m]; return s; }
+
+  var TRADE_SHOW = { id: 'trade_show', name: 'Trade show, April 2027', template: 'tradeShow', effects: [
+    { kind: 'program_spend', channel: 'events', byMonth: { 4: 60000 }, leads: 'none' },
+    { kind: 'direct_leads', channel: 'events', byMonth: { 4: 200 } },
+    { kind: 'allocated_cost', byMonth: { 4: 16000 } }
+  ] };
+  var TWO_AES = { id: 'two_aes', name: 'Two AEs from February 2027', template: 'hireAes', effects: [
+    { kind: 'headcount', role: 'ae', count: 2, startMonth: 2, loadedCostAnnual: 150000 },
+    { kind: 'vendor_cost', line: 'sm', byMonth: { 2: 30000 } }
+  ] };
+  var PAID_120K = { id: 'paid_120k', name: 'Paid 120,000 in April', effects: [
+    { kind: 'program_spend', channel: 'paid', byMonth: { 4: 120000 }, leads: 'from_cpl', cplMultiplier: 1 }
+  ] };
+
+  // Every scenario in SPEC.md 4.3 to 4.6 (used by T13 as well as the tests themselves).
+  var SCENARIOS = {
+    T40: function () { return [A0, [TRADE_SHOW]]; },
+    T41: function () { return [A0, [TWO_AES]]; },
+    T42: function () { return [A0, [E.nullInitiative()]]; },
+    T43: function () { return [A0, [TRADE_SHOW, TWO_AES]]; },
+    T44: function () { return [A0, [TRADE_SHOW, PAID_120K]]; },
+    T45: function () { return [A0, [PAID_120K]]; },
+    T46: function () { return [A0, [E.templates.hireSdrs(A0)]]; },
+    T47: function () { return [A0, [E.templates.paidCampaign(A0)]]; },
+    T48: function () { return [A0, [{ id: 'wr', name: 'Paid win rate x1.5', effects: [
+      { kind: 'driver_change', driver: 'winRate', channel: 'paid', fromMonth: 10, toMonth: 12, mode: 'multiply', value: 1.5 }] }]]; },
+    T49: function () { return [A0, [{ id: 'ae_end', name: 'One AE, months 2 to 7', effects: [
+      { kind: 'headcount', role: 'ae', count: 1, startMonth: 2, endMonth: 7 }] }]]; },
+    T50: function () { return [withA(function (a) { a.oppCapacityPerAePerMonth = 4; }), []]; },
+    T51: function () { return [withA(function (a) { a.channels.paid.programSpendMonthly = 0; }), []]; },
+    T52: function () { return [A0, [{ id: 'paid_10m', name: 'Paid 10,000,000 in January', effects: [
+      { kind: 'program_spend', channel: 'paid', byMonth: { 1: 10000000 }, leads: 'from_cpl' }] }]]; },
+    T53: function () { return [withA(function (a) { a.opening.cash = 5000000; }), []]; },
+    T54: function () { return [withA(function (a) { a.dsoDays = 30; }), []]; },
+    T55: function () { return [withA(function (a) { a.dsoDays = 60; }), []]; },
+    T56: function () { return [withA(function (a) { a.dsoDays = 0; }), []]; },
+    T57: function () { return [withA(function (a) { a.dpoDays = 45; }), []]; },
+    T58: function () { return [withA(function (a) { a.debtAmortStartMonth = 25; a.debtAmortMonths = 20; }), []]; },
+    T59: function () { return [withA(function (a) { a.milestones.integrations_hub.shipMonth = 40; }), []]; },
+    T60: function () { return [withA(function (a) { a.milestones.hosting_optimization.shipMonth = 1; }), []]; },
+    T61: function () { return [withA(function (a) { Object.keys(a.milestones).forEach(function (k) { a.milestones[k].enabled = false; }); }), []]; },
+    T62: function () { return [withA(function (a) { a.annualBillingShare = 0; }), []]; }
+  };
+  function sc(id) { var s = SCENARIOS[id](); return evaluateNamed(id, s[0], s[1]); }
+
+  // ---------- test registry ----------
+  var tests = [];
+  function test(id, name, fn) { tests.push({ id: id, name: name, fn: fn }); }
+
+  // ===== 4.1 Baseline =====
+  test('T01', 'Opening balance sheet', function (t) {
+    var R = base(), b = R.bs;
+    t.d('Cash', b.cash[0], 38000000); t.d('Accounts receivable', b.accountsReceivable[0], 3180000);
+    t.d('Prepaid and other', b.prepaidAndOther[0], 850000); t.d('PP&E', b.ppe[0], 1080000);
+    t.d('Total assets', b.totalAssets[0], 43110000);
+    t.d('Accounts payable', b.accountsPayable[0], 1040000); t.d('Accrued liabilities', b.accruedLiabilities[0], 1300000);
+    t.d('Deferred revenue', b.deferredRevenue[0], 7486000); t.d('Venture debt', b.debt[0], 10000000);
+    t.d('Total liabilities', b.totalLiabilities[0], 19826000);
+    t.d('Paid-in capital', b.paidInCapital[0], 96000000); t.d('Retained earnings', b.retainedEarnings[0], -72716000);
+    t.d('Total equity', b.totalEquity[0], 23284000); t.d('Total liabilities and equity', b.totalLiabilitiesAndEquity[0], 43110000);
+    t.d('Assets minus liabilities and equity', b.totalAssets[0] - b.totalLiabilitiesAndEquity[0], 0);
+  });
+
+  test('T02', 'Opening invoices', function (t) {
+    var R = base(), I = R.billing.invoices, off = R.billing.invoiceOffset, T = TAB.openingInvoices;
+    var iInv = colIndex(T, 'Invoice'), iUn = colIndex(T, 'Unearned amount'), iM = colIndex(T, 'm');
+    var total = 0, unearned = 0, rows = 0;
+    T.rows.forEach(function (row) {
+      if (row[0] === 'Total') { t.cell('Total invoices', total, row[iInv], 'dollar'); t.cell('Total unearned', unearned, row[iUn], 'dollar'); return; }
+      var m = parseCell(row[iM]).value, j = -m;
+      var inv = I[m + off];
+      t.cell('Invoice ' + row[0], inv, row[iInv], 'dollar');
+      t.cell('Unearned ' + row[0], inv * (23 - 2 * j) / 24, row[iUn], 'dollar');
+      total += inv; unearned += inv * (23 - 2 * j) / 24; rows++;
+    });
+    t.eq('Invoice rows', rows, 12);
+    t.d('Sum equals 60% of opening ARR', total, 0.6 * 24000000);
+    t.d('Unearned equals opening deferred revenue', unearned, R.bs.deferredRevenue[0]);
+  });
+
+  test('T03', 'January 2027 funnel', function (t) {
+    var R = base(), F = R.funnel, chs = ['outbound', 'paid', 'events', 'partners'];
+    var exp = {
+      leads: [75, 250, 80, 40], mql: [15, 50, 20, 18], sourcedOpps: [4.5, 7.5, 4.0, 4.5],
+      oppsCreated: [13.5, 7.5, 4.0, 4.5], deals: [3.24, 1.35, 1.00, 1.35], newArr: [145800, 40500, 52000, 51300]
+    };
+    Object.keys(exp).forEach(function (k) {
+      chs.forEach(function (c, i) { (k === 'newArr' ? t.d : t.r).call(t, c + ' ' + k, F[c][k][1], exp[k][i]); });
+    });
+    t.r('outbound AE opps', F.outbound.aeOpps[1], 9);
+    t.r('capacity', R.capacity.capacity[1], 42);
+    t.r('utilization', R.capacity.utilization[1], 0.7024);
+  });
+
+  test('T04', 'January 2027 ARR', function (t) {
+    var R = base();
+    t.d('New ARR', R.arr.newArr[1], 289600); t.d('Expansion', R.arr.expansion[1], 400800);
+    t.d('Contraction', R.arr.contraction[1], 64800); t.d('Churn', R.arr.churn[1], 144000);
+    t.d('Closing ARR', R.arr.arr[1], 24481600); t.r('Customers', R.arr.customers[1], 603.34);
+    t.d('Revenue', R.pl.revenue[1], 2020066.67);
+  });
+
+  test('T05', 'January 2027 P&L (every line of section 6.3)', function (t) {
+    var R = base(), P = R.pl, PB = R.payroll.byLine;
+    var map = {
+      'Revenue': P.revenue[1], 'Hosting': P.hosting[1], 'Third-party software': P.thirdParty[1],
+      'Support and onboarding staff': PB.cogs[1], 'COGS': P.cogs[1], 'Gross profit': P.grossProfit[1],
+      'R&D payroll': PB.rd[1], 'R&D non-headcount': P.rdNonHc[1], 'R&D': P.rd[1],
+      'S&M payroll': PB.sm[1], 'Program spend': P.programSpend[1], 'Commissions': P.commissions[1],
+      'S&M non-headcount': P.smNonHc[1], 'S&M': P.sm[1],
+      'G&A payroll': PB.ga[1], 'G&A non-headcount': P.gaNonHc[1], 'G&A': P.ga[1],
+      'Operating expenses': P.opex[1], 'EBITDA': P.ebitda[1], 'Depreciation': P.depreciation[1], 'EBIT': P.ebit[1],
+      'Interest income': P.interestIncome[1], 'Interest expense': P.interestExpense[1], 'Pre-tax income': P.preTaxIncome[1],
+      'Tax': P.tax[1], 'Net income': P.netIncome[1]
+    };
+    var iAmt = colIndex(TAB.janPl, 'Amount');
+    TAB.janPl.rows.forEach(function (row) {
+      if (!(row[0] in map)) { t.fail('Unmapped P&L line in SPEC table: ' + row[0]); return; }
+      t.cell(row[0], map[row[0]], row[iAmt], 'dollar');
+    });
+    t.eq('P&L lines tested', TAB.janPl.rows.length, Object.keys(map).length);
+    t.r('Gross margin', P.grossMargin[1], 0.7602);
+  });
+
+  test('T06', 'January 2027 cash and balance sheet (sections 6.4 to 6.6)', function (t) {
+    var R = base(), off = R.billing.invoiceOffset;
+    t.d('Annual invoices I_1', R.billing.invoices[1 + off], 1356960.00);
+    t.d('Monthly billed', R.billing.monthlyBilled[1], 808026.67);
+    t.d('Billings', R.billing.billings[1], 2164986.67);
+    t.d('Deferred revenue', R.bs.deferredRevenue[1], 7630920.00);
+    t.d('Receivables', R.bs.accountsReceivable[1], 3224986.67);
+    t.d('Collections', R.billing.collections[1], 2120000.00);
+    t.d('Vendor spend', R.vendor.spend[1], 1037403.87);
+    t.d('Payables', R.bs.accountsPayable[1], 1037403.87);
+    t.d('Vendor paid', R.vendor.paid[1], 1040000.00);
+    t.d('PP&E', R.bs.ppe[1], 1075000.00);
+    t.d('Payroll paid', R.payroll.total[1], 2081250.00);
+    t.d('Capex', R.capex.capex[1], 40000);
+    t.d('Ending cash', R.bs.cash[1], 36964790.00);
+    t.d('Change in receivables', R.cf.changeAr[1], 44986.67);
+    t.d('Change in payables', R.cf.changeAp[1], -2596.13);
+    t.d('Change in deferred revenue', R.cf.changeDr[1], 144920.00);
+    t.d('Cash from operations', R.cf.cfo[1], -995210.00);
+    t.d('Cash from investing', R.cf.cfi[1], -40000);
+    t.d('Cash from financing', R.cf.cff[1], 0);
+    t.d('Net change in cash', R.cf.netChange[1], -1035210.00);
+    t.d('Net burn', R.cf.netBurn[1], 1035210.00);
+    t.d('Free cash flow before interest', R.cf.fcf[1], -1070210.00);
+    t.d('Total assets', R.bs.totalAssets[1], 42114776.67);
+    t.d('Total liabilities', R.bs.totalLiabilities[1], 19968323.87);
+    t.d('Retained earnings', R.bs.retainedEarnings[1], -73853547.20);
+    t.d('Total equity', R.bs.totalEquity[1], 22146452.80);
+    t.d('Liabilities plus equity', R.bs.totalLiabilitiesAndEquity[1], 42114776.67);
+  });
+
+  test('T07', 'All 36 months (every cell of section 8.1)', function (t) {
+    var R = base(), T = TAB.monthly;
+    var cols = {
+      'New ARR': [R.arr.newArr, 'dollar'], 'Closing ARR': [R.arr.arr, 'dollar'], 'Customers': [R.arr.customers, 'count'],
+      'Revenue': [R.pl.revenue, 'dollar'], 'Gross profit': [R.pl.grossProfit, 'dollar'], 'EBITDA': [R.pl.ebitda, 'dollar'],
+      'Net income': [R.pl.netIncome, 'dollar'], 'Net burn': [R.cf.netBurn, 'dollar'], 'Ending cash': [R.bs.cash, 'dollar'],
+      'Deferred revenue': [R.bs.deferredRevenue, 'dollar']
+    };
+    t.eq('Rows', T.rows.length, 36);
+    T.rows.forEach(function (row) {
+      var m = Number(row[0]);
+      t.eq('Month label m=' + m, R.months[m], row[colIndex(T, 'Month')]);
+      Object.keys(cols).forEach(function (name) { t.cell(name + ' m=' + m, cols[name][0][m], row[colIndex(T, name)], cols[name][1]); });
+    });
+  });
+
+  test('T08', 'Annual totals (every cell of section 8.2)', function (t) {
+    var R = base(), T = TAB.annual;
+    function yr(y) { return [12 * y + 1, 12 * y + 12]; }
+    function S(arr) { return function (y) { var r = yr(y); return sum(arr, r[0], r[1]); }; }
+    function End(arr) { return function (y) { return arr[12 * y + 12]; }; }
+    var rows = {
+      'New ARR': [S(R.arr.newArr), 'dollar'], 'Expansion ARR': [S(R.arr.expansion), 'dollar'],
+      'Contraction ARR': [S(R.arr.contraction), 'dollar'], 'Churned ARR': [S(R.arr.churn), 'dollar'],
+      'Net new ARR': [function (y) { return R.arr.arr[12 * y + 12] - R.arr.arr[12 * y]; }, 'dollar'],
+      'Closing ARR': [End(R.arr.arr), 'dollar'],
+      'ARR growth': [function (y) { return R.arr.arr[12 * y + 12] / R.arr.arr[12 * y] - 1; }, 'ratio'],
+      'New customers (deals)': [S(R.arr.deals), 'count'], 'Closing customers': [End(R.arr.customers), 'count'],
+      'Revenue': [S(R.pl.revenue), 'dollar'], 'COGS': [S(R.pl.cogs), 'dollar'], 'Gross profit': [S(R.pl.grossProfit), 'dollar'],
+      'Gross margin': [function (y) { return S(R.pl.grossProfit)(y) / S(R.pl.revenue)(y); }, 'ratio'],
+      'R&D': [S(R.pl.rd), 'dollar'], 'Sales and marketing': [S(R.pl.sm), 'dollar'], 'G&A': [S(R.pl.ga), 'dollar'],
+      'EBITDA': [S(R.pl.ebitda), 'dollar'], 'Depreciation': [S(R.pl.depreciation), 'dollar'],
+      'Interest income': [S(R.pl.interestIncome), 'dollar'], 'Interest expense': [S(R.pl.interestExpense), 'dollar'],
+      'Net income': [S(R.pl.netIncome), 'dollar'], 'Cash from operations': [S(R.cf.cfo), 'dollar'],
+      'Capex': [S(R.capex.capex), 'dollar'], 'Net burn': [S(R.cf.netBurn), 'dollar'], 'Ending cash': [End(R.bs.cash), 'dollar'],
+      'Ending headcount': [End(R.headcount.total), 'count']
+    };
+    T.rows.forEach(function (row) {
+      var def = rows[row[0]];
+      if (!def) { t.fail('Unmapped annual line in SPEC table: ' + row[0]); return; }
+      [0, 1, 2].forEach(function (y) { t.cell(row[0] + ' ' + (2027 + y), def[0](y), row[1 + y], def[1]); });
+    });
+    t.eq('Annual lines tested', T.rows.length, Object.keys(rows).length);
+  });
+
+  test('T09', 'Balance sheets (every cell of section 8.3)', function (t) {
+    var R = base(), b = R.bs, T = TAB.balanceSheets;
+    var months = T.header.slice(1).map(function (h) { var x = /m=(\d+)/.exec(h); return x ? Number(x[1]) : 0; });
+    var rows = {
+      'Cash': b.cash, 'Accounts receivable': b.accountsReceivable, 'Prepaid and other': b.prepaidAndOther, 'PP&E, net': b.ppe,
+      'Total assets': b.totalAssets, 'Accounts payable': b.accountsPayable, 'Accrued liabilities': b.accruedLiabilities,
+      'Deferred revenue': b.deferredRevenue, 'Venture debt': b.debt, 'Total liabilities': b.totalLiabilities,
+      'Paid-in capital': b.paidInCapital, 'Retained earnings (accumulated deficit)': b.retainedEarnings, 'Total equity': b.totalEquity,
+      'Liabilities plus equity': b.totalLiabilitiesAndEquity,
+      'Difference': b.totalAssets.map(function (x, i) { return x - b.totalLiabilitiesAndEquity[i]; })
+    };
+    T.rows.forEach(function (row) {
+      var arr = rows[row[0]];
+      if (!arr) { t.fail('Unmapped balance sheet line in SPEC table: ' + row[0]); return; }
+      months.forEach(function (m, i) { t.cell(row[0] + ' m=' + m, arr[m], row[1 + i], 'dollar'); });
+    });
+    t.eq('Balance sheet lines tested', T.rows.length, Object.keys(rows).length);
+  });
+
+  test('T10', 'KPIs (every cell of section 8.4)', function (t) {
+    var R = base(), K = R.kpis, T = TAB.kpis;
+    var months = T.header.slice(1).map(function (h) { return Number(/m=(\d+)/.exec(h)[1]); });
+    var rows = {
+      'Runway (months)': K.runway, 'Burn multiple': K.burnMultiple, 'Gross margin, trailing': K.grossMarginTrailing,
+      'Blended CAC payback (months)': K.blendedCacPayback, 'New-logo CAC payback (months)': K.newLogoCacPayback,
+      'CAC per new customer': K.cac, 'LTV': K.ltv, 'LTV to CAC': K.ltvToCac, 'Capacity utilization': K.utilization,
+      'EBITDA margin (month)': K.ebitdaMargin
+    };
+    T.rows.forEach(function (row) {
+      var arr = rows[row[0]];
+      if (!arr) { t.fail('Unmapped KPI in SPEC table: ' + row[0]); return; }
+      months.forEach(function (m, i) { t.cell(row[0] + ' m=' + m, arr[m], row[1 + i], 'ratio'); });
+    });
+    t.eq('KPI lines tested', T.rows.length, Object.keys(rows).length);
+  });
+
+  test('T11', '13-week forecast (every cell of section 8.5)', function (t) {
+    var R = base(), F = R.cash13, T = TAB.week13;
+    var cols = { 'Receipts': 'receipts', 'Payroll and commissions': 'payrollAndCommissions', 'Vendors and capex': 'vendorsAndCapex',
+      'Debt service': 'debtService', 'Net cash flow': 'net', 'Ending cash': 'endCash' };
+    t.eq('Weeks', F.weeks.length, 13);
+    T.rows.forEach(function (row) {
+      var w = F.weeks[Number(row[0]) - 1];
+      t.eq('Week ' + row[0] + ' days', w.label, row[colIndex(T, 'Days')]);
+      Object.keys(cols).forEach(function (name) { t.cell('Week ' + row[0] + ' ' + name, w[cols[name]], row[colIndex(T, name)], 'dollar'); });
+    });
+    t.d('Day 31', F.dailyCash[31], 36964790.00); t.d('Day 59', F.dailyCash[59], 35951218.77);
+    t.d('Day 90', F.dailyCash[90], 34967666.36); t.d('Day 91', F.dailyCash[91], 35005855.48);
+    t.eq('Lowest week', F.lowestWeek, 13);
+    t.eq('Any week below floor', F.anyWeekBelowFloor, false);
+    t.eq('Any week below covenant', F.anyWeekBelowCovenant, false);
+  });
+
+  test('T12', 'Objective and guardrails', function (t) {
+    var G = base().guardrails, I = G.items;
+    t.d('ARR at month 12', I.objective.value, 30048489.36); t.d('Gap', I.objective.gap, 1151510.64);
+    t.eq('Objective met', G.objectiveMet, false);
+    t.d('Cash low point', I.cashFloor.value, 18008506.93); t.eq('Cash low point month', I.cashFloor.month, 34);
+    t.r2('Lowest runway months 1 to 12', I.runway.value, 34.44); t.eq('Lowest runway month', I.runway.month, 4);
+    t.r2('Blended CAC payback', I.cacPayback.value, 18.03);
+    t.r2('Burn multiple', I.burnMultiple.value, 1.76);
+    t.r('Gross margin', I.grossMargin.value, 0.7745);
+    ['cashFloor', 'covenant', 'runway', 'cacPayback', 'burnMultiple', 'grossMargin'].forEach(function (k) { t.eq(k + ' passes', I[k].pass, true); });
+    t.eq('All five guardrails pass', G.allGuardrailsPass, true);
+    t.eq('Guardrails passed', G.guardrailsPassed, 5);
+  });
+
+  test('T13', 'Integrity: 16 of 16 on the baseline and on every scenario in 4.3 to 4.6', function (t) {
+    function all16(label, R) {
+      var ch = E.runChecks(R);
+      t.eq(label + ' check count', ch.length, 16);
+      ch.forEach(function (c) { t.ok(label + ' ' + c.id + ' ' + c.name, c.pass, c.reason); });
+    }
+    all16('Baseline', base());
+    Object.keys(SCENARIOS).forEach(function (id) {
+      var x = sc(id);
+      all16(id + ' baseline', x.baseline);
+      all16(id + ' scenario', x.scenario);
+    });
+  });
+
+  test('T14', 'Determinism and inputs left unchanged', function (t) {
+    var a = E.defaultAssumptions(), inits = [TRADE_SHOW, TWO_AES];
+    var aBefore = JSON.stringify(a), iBefore = JSON.stringify(inits);
+    var r1 = E.runModel(a, inits), r2 = E.runModel(a, inits);
+    var d = E.maxSeriesDiff(r1, r2);
+    t.eq('Largest difference between two runs', d.diff, 0);
+    E.runChecks(r1); E.applyInitiatives(a, inits);
+    t.eq('Assumptions unchanged', JSON.stringify(a), aBefore);
+    t.eq('Initiatives unchanged', JSON.stringify(inits), iBefore);
+  });
+
+  test('T15', 'Second month spot check', function (t) {
+    var R = base(), off = R.billing.invoiceOffset;
+    t.d('ARR', R.arr.arr[2], 24967052.80); t.d('Revenue', R.pl.revenue[2], 2060360.53);
+    t.d('EBITDA', R.pl.ebitda[2], -1090063.88); t.d('Depreciation', R.pl.depreciation[2], 46111.11);
+    t.d('Interest income', R.pl.interestIncome[2], 123215.97); t.d('Net income', R.pl.netIncome[2], -1104625.69);
+    t.d('Ending cash', R.bs.cash[2], 35951218.77); t.d('Annual invoices I_2', R.billing.invoices[2 + off], 1383271.68);
+  });
+
+  // ===== 4.2 Tamper tests =====
+  function tamper(t, mutate, expected, opts) {
+    var copy = structuredClone(base());
+    mutate(copy);
+    var checks = E.runChecks(copy, opts);
+    var byId = {};
+    checks.forEach(function (c) { byId[c.id] = c; });
+    Object.keys(expected).forEach(function (id) {
+      var c = byId[id];
+      t.ok(id + ' fails', c && !c.pass, c ? 'it passed' : 'missing');
+      if (c && !c.pass) {
+        t.ok(id + ' gives a reason', typeof c.reason === 'string' && c.reason.length > 0);
+        if (expected[id] !== null) t.eq(id + ' first failing month', c.firstMonth, expected[id]);
+      }
+    });
+    // The untouched baseline still passes the same checks.
+    var clean = E.runChecks(base());
+    Object.keys(expected).forEach(function (id) {
+      var c = clean.filter(function (x) { return x.id === id; })[0];
+      t.ok(id + ' passes on the untouched baseline', c && c.pass);
+    });
+  }
+  test('T20', 'Tamper: AR_5 + 1 fails C1 and C11', function (t) { tamper(t, function (R) { R.bs.accountsReceivable[5] += 1; }, { C1: 5, C11: 5 }); });
+  test('T21', 'Tamper: CFO_7 + 1 fails C2', function (t) { tamper(t, function (R) { R.cf.cfo[7] += 1; }, { C2: 7 }); });
+  test('T22', 'Tamper: RetainedEarnings_3 + 1 fails C3 and C1', function (t) { tamper(t, function (R) { R.bs.retainedEarnings[3] += 1; }, { C3: 3, C1: 3 }); });
+  test('T23', 'Tamper: ARR_9 + 1 fails C4, C8 and C9', function (t) { tamper(t, function (R) { R.arr.arr[9] += 1; }, { C4: 9, C8: 9, C9: 9 }); });
+  test('T24', 'Tamper: paid MQL above leads in month 2 fails C5', function (t) { tamper(t, function (R) { R.funnel.paid.mql[2] = R.funnel.paid.leads[2] + 1; }, { C5: 2 }); });
+  test('T25', 'Tamper: P&L program spend in month 4 + 1 fails C6', function (t) { tamper(t, function (R) { R.pl.programSpend[4] += 1; }, { C6: 4 }); });
+  test('T26', 'Tamper: Revenue_2 + 1 fails C8 and C13', function (t) { tamper(t, function (R) { R.pl.revenue[2] += 1; }, { C8: 2, C13: 2 }); });
+  test('T27', 'Tamper: DR_4 + 1 fails C9 and C1', function (t) { tamper(t, function (R) { R.bs.deferredRevenue[4] += 1; }, { C9: 4, C1: 4 }); });
+  test('T28', 'Tamper: remove the covenant result for month 10 fails C10', function (t) { tamper(t, function (R) { delete R.cashTests.covenant[10]; }, { C10: 10 }); });
+  test('T29', 'Tamper: Payroll_RD,6 + 1 fails C12', function (t) { tamper(t, function (R) { R.payroll.byLine.rd[6] += 1; }, { C12: 6 }); });
+  test('T30', 'Tamper: EBITDA_8 + 1 fails C13', function (t) { tamper(t, function (R) { R.pl.ebitda[8] += 1; }, { C13: 8 }); });
+  test('T31', 'Tamper: Debt_12 + 1 fails C14 and C1', function (t) { tamper(t, function (R) { R.bs.debt[12] += 1; }, { C14: 12, C1: 12 }); });
+  test('T32', 'Tamper: daily cash on day 31 + 1 fails C15', function (t) { tamper(t, function (R) { R.cash13.dailyCash[31] += 1; }, { C15: 1 }); });
+  test('T33', 'Tamper: Customers_5 = NaN fails C16', function (t) { tamper(t, function (R) { R.arr.customers[5] = NaN; }, { C16: 5 }); });
+  test('T34', 'Tamper: null initiative with 1.00 of paid spend in month 3 fails C7', function (t) {
+    var bad = E.nullInitiative();
+    bad.effects[0].byMonth = { 3: 1.00 };
+    tamper(t, function () {}, { C7: null }, { nullInitiative: bad });
+  });
+
+  // ===== 4.3 Trade show =====
+  function monthlyTable(t, T, x, cols, prefix) {
+    T.rows.forEach(function (row) {
+      var m = Number(row[0]);
+      t.eq(prefix + ' month label m=' + m, x.scenario.months[m], row[colIndex(T, 'Month')]);
+      Object.keys(cols).forEach(function (name) { t.cell(prefix + ' ' + name + ' m=' + m, cols[name][0](m), row[colIndex(T, name)], cols[name][1]); });
+    });
+  }
+  function dl(x, getter) { return function (m) { return getter(x.scenario)[m] - getter(x.baseline)[m]; }; }
+
+  test('T40', 'Trade show (section 4.3)', function (t) {
+    var x = sc('T40'), r = x.returns, S = x.scenario, B = x.baseline, off = S.billing.invoiceOffset;
+    // Funnel in month 4
+    t.r('Extra leads m4', S.funnel.events.leads[4] - B.funnel.events.leads[4], 200);
+    t.r('Extra MQLs m4', S.funnel.events.mql[4] - B.funnel.events.mql[4], 50);
+    t.r('Extra opps m4', S.funnel.events.oppsCreated[4] - B.funnel.events.oppsCreated[4], 10);
+    t.r('Created m4', S.capacity.totalCreated[4], 39.5);
+    t.r('WorkShare m4', S.capacity.workShare[4], 1);
+    t.r('Extra deals m9', S.arr.deals[9] - B.arr.deals[9], 2.5);
+    t.d('Extra new ARR m9', S.arr.newArr[9] - B.arr.newArr[9], 130000);
+    // Month 4, 5
+    t.d('Delta S&M m4', S.pl.sm[4] - B.pl.sm[4], 60000);
+    t.d('Delta AP m4', S.bs.accountsPayable[4] - B.bs.accountsPayable[4], 60000);
+    t.d('NF m4', r.netFlow[4], -16000); t.d('NF m5', r.netFlow[5], -60000); t.d('CumNF m5', r.cumNetFlow[5], -76000);
+    t.d('Delta vendor paid m5', S.vendor.paid[5] - B.vendor.paid[5], 60000);
+    // Month 9 detail
+    t.d('Delta customers m9', S.arr.customers[9] - B.arr.customers[9], 2.5);
+    t.d('Delta hosting m9', S.pl.hosting[9] - B.pl.hosting[9], 450.00);
+    t.d('Delta third-party m9', S.pl.thirdParty[9] - B.pl.thirdParty[9], 216.67);
+    t.d('Delta commissions m9', S.pl.commissions[9] - B.pl.commissions[9], 13000.00);
+    t.d('Delta I_9', S.billing.invoices[9 + off] - B.billing.invoices[9 + off], 78000.00);
+    t.d('Delta billings m9', S.billing.billings[9] - B.billing.billings[9], 80166.67);
+    t.d('Delta AR m9', S.bs.accountsReceivable[9] - B.bs.accountsReceivable[9], 80166.67);
+    t.d('Delta DR m9', S.bs.deferredRevenue[9] - B.bs.deferredRevenue[9], 74750.00);
+    t.d('Delta AP m9', S.bs.accountsPayable[9] - B.bs.accountsPayable[9], 666.67);
+    t.d('Delta FCF m9', r.deltaFcf[9], -13000.00);
+    // Month 10 detail
+    t.r('Delta customers m10', S.arr.customers[10] - B.arr.customers[10], 2.485);
+    t.d('Delta hosting m10', S.pl.hosting[10] - B.pl.hosting[10], 837.48);
+    t.d('Delta third-party m10', S.pl.thirdParty[10] - B.pl.thirdParty[10], 435.07);
+    t.d('Delta I_10', S.billing.invoices[10 + off] - B.billing.invoices[10 + off], 624.00);
+    t.d('Delta billings m10', S.billing.billings[10] - B.billing.billings[10], 4974.67);
+    // Months 11 to 14
+    t.d('NF m11', r.netFlow[11], 41298.12); t.d('CumNF m11', r.cumNetFlow[11], -8285.21);
+    t.d('NF m12', r.netFlow[12], 3783.02); t.d('NF m13', r.netFlow[13], 3883.21); t.d('NF m14', r.netFlow[14], 3888.96);
+    t.d('CumNF m14', r.cumNetFlow[14], 3269.99);
+    // Month by month table
+    monthlyTable(t, TAB.tradeShowMonthly, x, {
+      'Δ New ARR': [dl(x, function (R) { return R.arr.newArr; }), 'dollar'],
+      'Δ ARR': [dl(x, function (R) { return R.arr.arr; }), 'dollar'],
+      'Δ Revenue': [dl(x, function (R) { return R.pl.revenue; }), 'dollar'],
+      'Δ Gross profit': [dl(x, function (R) { return R.pl.grossProfit; }), 'dollar'],
+      'Δ EBITDA': [dl(x, function (R) { return R.pl.ebitda; }), 'dollar'],
+      'Δ Collections': [dl(x, function (R) { return R.billing.collections; }), 'dollar'],
+      'Δ Vendor paid': [dl(x, function (R) { return R.vendor.paid; }), 'dollar'],
+      'Net flow NF': [function (m) { return r.netFlow[m]; }, 'dollar'],
+      'Cumulative NF': [function (m) { return r.cumNetFlow[m]; }, 'dollar'],
+      'Δ Cash balance': [dl(x, function (R) { return R.bs.cash; }), 'dollar']
+    }, 'Trade show');
+    // T40 expected results
+    t.d('Total investment', r.totalInvestment, 76000.00);
+    t.d('Extra new ARR (sum)', r.extraNewArr, 130000.00);
+    t.r('Extra deals (sum)', r.extraDeals, 2.5);
+    t.d('Delta ARR m12', S.arr.arr[12] - B.arr.arr[12], 133145.03); t.d('Delta ARR m36', S.arr.arr[36] - B.arr.arr[36], 163450.23);
+    t.d('Sum delta revenue', r.sumDeltaRevenue, 333170.83); t.d('Sum delta gross profit', r.sumDeltaGrossProfit, 300005.32);
+    t.d('Sum delta EBITDA', r.sumDeltaEbitda, 227005.32);
+    t.d('Cumulative NF m36', r.cumNetFlow[36], 266954.41);
+    t.d('NPV', r.npv, 202196.90);
+    t.r('ROI', r.roi, 3.5126);
+    t.r('New ARR per dollar', r.newArrPerDollar, 1.7105);
+    t.eq('Payback month', r.payback.month, 14); t.eq('Earnings payback month', r.earningsPayback.month, 18);
+    t.d('Delta cash m12', S.bs.cash[12] - B.bs.cash[12], 10354.18); t.d('Delta cash m36', S.bs.cash[36] - B.bs.cash[36], 290779.49);
+    t.d('Cash low point', r.cashLowPoint.scenario, 18222595.30); t.eq('Cash low point month', r.cashLowPoint.scenarioMonth, 33);
+    t.d('Baseline low point', r.cashLowPoint.baseline, 18008506.93); t.eq('Baseline low point month', r.cashLowPoint.baselineMonth, 34);
+    t.d('Change in low point', r.cashLowPoint.change, 214088.37);
+    t.r('Burn multiple m12', r.burnMultiple12.scenario, 1.7161); t.r('Baseline burn multiple m12', r.burnMultiple12.baseline, 1.7556);
+    t.r2('Blended CAC payback m12', r.blendedCacPayback12.scenario, 17.88); t.r2('Baseline CAC payback m12', r.blendedCacPayback12.baseline, 18.03);
+    t.r2('Lowest runway m1 to 12', r.lowestRunway12.scenario, 33.72); t.r2('Baseline lowest runway', r.lowestRunway12.baseline, 34.44);
+    t.r('Highest utilization', r.highestUtilization, 0.9405); t.eq('Highest utilization month', r.highestUtilizationMonth, 4);
+  });
+
+  // ===== 4.4 Two AEs =====
+  test('T41', 'Two account executives (section 4.4)', function (t) {
+    var x = sc('T41'), r = x.returns, S = x.scenario, B = x.baseline;
+    var dPay = dl(x, function (R) { return R.payroll.total; });
+    t.d('Delta payroll m1', dPay(1), 0);
+    for (var m = 2; m <= 36; m++) t.d('Delta payroll m' + m, dPay(m), m <= 12 ? 25000 : (m <= 24 ? 25750 : 26522.50));
+    [[2, 0], [3, 0.5], [4, 1.0], [5, 1.5], [6, 2.0], [12, 2.0]].forEach(function (p) {
+      t.r('Ramped AEs added m' + p[0], S.capacity.rampedAE[p[0]] - B.capacity.rampedAE[p[0]], p[1]);
+      t.r('Extra capacity m' + p[0], S.capacity.capacity[p[0]] - B.capacity.capacity[p[0]], 7 * p[1]);
+      t.r('Extra opps m' + p[0], S.capacity.totalCreated[p[0]] - B.capacity.totalCreated[p[0]], 1.5 * p[1]);
+    });
+    for (m = 1; m <= 36; m++) t.r('WorkShare m' + m, S.capacity.workShare[m], 1);
+    [[7, 8100], [8, 16200], [9, 24300], [10, 32400], [11, 32400], [12, 32400]].forEach(function (p) {
+      t.d('Extra new ARR m' + p[0], S.arr.newArr[p[0]] - B.arr.newArr[p[0]], p[1]);
+    });
+    t.d('Extra new ARR 2027', sum(S.arr.newArr, 1, 12) - sum(B.arr.newArr, 1, 12), 145800);
+    t.r('Outbound win rate m13', S.funnel.outbound.winRate[13], 0.2432); t.d('Outbound ACV m13', S.funnel.outbound.acv[13], 45375);
+    t.d('Extra new ARR m13', S.arr.newArr[13] - B.arr.newArr[13], 33105.60);
+    t.r('Outbound win rate m18', S.funnel.outbound.winRate[18], 0.2592); t.d('Outbound ACV m18', S.funnel.outbound.acv[18], 47250);
+    t.r('Extra deals m18', S.arr.deals[18] - B.arr.deals[18], 0.7776); t.d('Extra new ARR m18', S.arr.newArr[18] - B.arr.newArr[18], 36741.60);
+    t.d('Delta EBITDA m2', S.pl.ebitda[2] - B.pl.ebitda[2], -55000); t.d('NF m2', r.netFlow[2], -25000);
+    t.d('NF m3', r.netFlow[3], -55000); t.d('CumNF m3', r.cumNetFlow[3], -80000); t.d('CumNF m6', r.cumNetFlow[6], -155000);
+    t.d('Delta hosting m7', S.pl.hosting[7] - B.pl.hosting[7], 32.40); t.d('Delta third-party m7', S.pl.thirdParty[7] - B.pl.thirdParty[7], 13.50);
+    t.d('Delta commissions m7', S.pl.commissions[7] - B.pl.commissions[7], 810.00);
+    t.d('Delta billings m7', S.billing.billings[7] - B.billing.billings[7], 4995.00);
+    t.r('Delta customers m8', S.arr.customers[8] - B.arr.customers[8], 0.53892);
+    t.d('Delta hosting m8', S.pl.hosting[8] - B.pl.hosting[8], 129.41); t.d('Delta third-party m8', S.pl.thirdParty[8] - B.pl.thirdParty[8], 54.11);
+    t.d('Delta collections m8', S.billing.collections[8] - B.billing.collections[8], 2497.50);
+    t.d('Delta vendor paid m8', S.vendor.paid[8] - B.vendor.paid[8], 45.90);
+    monthlyTable(t, TAB.aeMonthly, x, {
+      'Ramped AEs added': [dl(x, function (R) { return R.capacity.rampedAE; }), 'count'],
+      'Δ Opps': [dl(x, function (R) { return R.capacity.totalCreated; }), 'count'],
+      'Δ Deals': [dl(x, function (R) { return R.arr.deals; }), 'count'],
+      'Δ New ARR': [dl(x, function (R) { return R.arr.newArr; }), 'dollar'],
+      'Δ ARR': [dl(x, function (R) { return R.arr.arr; }), 'dollar'],
+      'Δ Revenue': [dl(x, function (R) { return R.pl.revenue; }), 'dollar'],
+      'Δ EBITDA': [dl(x, function (R) { return R.pl.ebitda; }), 'dollar'],
+      'Δ Collections': [dl(x, function (R) { return R.billing.collections; }), 'dollar'],
+      'Net flow NF': [function (m) { return r.netFlow[m]; }, 'dollar'],
+      'Cumulative NF': [function (m) { return r.cumNetFlow[m]; }, 'dollar'],
+      'Δ Cash balance': [dl(x, function (R) { return R.bs.cash; }), 'dollar']
+    }, 'Two AEs');
+    t.d('Total investment', r.totalInvestment, 932270.00);
+    t.r('Extra deals (sum)', r.extraDeals, 21.7584);
+    t.d('Extra new ARR (sum)', r.extraNewArr, 1016618.40);
+    t.d('Delta ARR m12', S.arr.arr[12] - B.arr.arr[12], 148021.43); t.d('Delta ARR m36', S.arr.arr[36] - B.arr.arr[36], 1145399.22);
+    t.d('Sum delta revenue', r.sumDeltaRevenue, 1276760.68); t.d('Sum delta gross profit', r.sumDeltaGrossProfit, 1134424.85);
+    t.d('Sum delta EBITDA', r.sumDeltaEbitda, 100493.01);
+    t.d('Cumulative NF m36', r.cumNetFlow[36], 324125.37);
+    t.d('NPV', r.npv, 191401.37);
+    t.r('ROI', r.roi, 0.3477);
+    t.r('New ARR per dollar', r.newArrPerDollar, 1.0905);
+    t.eq('Payback month', r.payback.month, 30); t.eq('Earnings payback month', r.earningsPayback.month, 35);
+    t.d('Delta cash m12', S.bs.cash[12] - B.bs.cash[12], -262683.33); t.d('Delta cash m36', S.bs.cash[36] - B.bs.cash[36], 307182.01);
+    t.d('Cash low point', r.cashLowPoint.scenario, 18148931.91); t.eq('Cash low point month', r.cashLowPoint.scenarioMonth, 33);
+    t.d('Change in low point', r.cashLowPoint.change, 140424.98);
+    t.r('Burn multiple m12', r.burnMultiple12.scenario, 1.7560); t.r('Baseline burn multiple m12', r.burnMultiple12.baseline, 1.7556);
+    t.r2('Blended CAC payback m12', r.blendedCacPayback12.scenario, 18.27); t.r2('Baseline CAC payback m12', r.blendedCacPayback12.baseline, 18.03);
+    t.r2('Lowest runway m1 to 12', r.lowestRunway12.scenario, 33.13); t.r2('Baseline lowest runway', r.lowestRunway12.baseline, 34.44);
+    t.r('Capacity m6', S.capacity.capacity[6], 56); t.r('Baseline capacity m6', B.capacity.capacity[6], 42);
+  });
+
+  // ===== 4.5 More initiative cases =====
+  test('T42', 'Null initiative changes nothing', function (t) {
+    var x = sc('T42'), r = x.returns;
+    var d = E.maxSeriesDiff(x.scenario, x.baseline);
+    t.ok('Largest difference within 1e-6', d.diff <= 1e-6, 'difference ' + d.diff + ' at ' + d.path);
+    t.d('NPV', r.npv, 0); t.d('Total investment', r.totalInvestment, 0);
+    t.eq('Payback', r.payback.status, 'no_effect'); t.eq('Payback month', r.payback.month, null);
+    t.eq('Earnings payback', r.earningsPayback.status, 'no_effect');
+    var kinds = E.nullInitiative().effects.map(function (e) { return e.kind; }).sort().join(',');
+    t.eq('Null initiative has one of each effect kind',
+      kinds, ['allocated_cost', 'capex', 'direct_leads', 'driver_change', 'headcount', 'program_spend', 'vendor_cost'].join(','));
+  });
+
+  test('T43', 'Trade show and two AEs together', function (t) {
+    var x = sc('T43'), S = x.scenario, B = x.baseline;
+    for (var m = 1; m <= 36; m++) t.r('WorkShare m' + m, S.capacity.workShare[m], 1);
+    t.d('NPV', x.returns.npv, 393598.27);
+    t.d('NPV adds up', x.returns.npv, sc('T40').returns.npv + sc('T41').returns.npv);
+    t.d('Delta ARR m12', S.arr.arr[12] - B.arr.arr[12], 281166.46);
+    t.d('ARR m12', S.arr.arr[12], 30329655.82);
+  });
+
+  test('T44', 'Trade show plus a paid campaign competing for AE capacity', function (t) {
+    var x = sc('T44'), S = x.scenario, B = x.baseline;
+    var chs = ['outbound', 'paid', 'events', 'partners'];
+    [13.5, 22.5, 14.0, 4.5].forEach(function (v, i) { t.r('Created m4 ' + chs[i], S.funnel[chs[i]].oppsCreated[4], v); });
+    t.r('Total created m4', S.capacity.totalCreated[4], 54.5);
+    t.r('Capacity m4', S.capacity.capacity[4], 42);
+    t.r('WorkShare m4', S.capacity.workShare[4], 0.770642);
+    [10.4037, 17.3394, 10.7890, 3.4679].forEach(function (v, i) { t.r('Worked m4 ' + chs[i], S.funnel[chs[i]].oppsWorked[4], v); });
+    var dBoth = S.arr.arr[12] - B.arr.arr[12];
+    var dShow = sc('T40').scenario.arr.arr[12] - B.arr.arr[12];
+    var dPaid = sc('T45').scenario.arr.arr[12] - B.arr.arr[12];
+    t.d('Delta ARR m12', dBoth, 99359.35);
+    t.d('Delta ARR m12, show alone', dShow, 133145.03);
+    t.d('Delta ARR m12, campaign alone', dPaid, 63359.02);
+    t.d('Delta ARR m12, the two alone added', dShow + dPaid, 196504.05);
+    t.ok('Together is less than the two alone', dBoth < dShow + dPaid);
+    t.d('ARR m12', S.arr.arr[12], 30147848.71);
+  });
+
+  test('T45', 'Paid campaign of 120,000 in month 4 alone', function (t) {
+    var x = sc('T45'), S = x.scenario, B = x.baseline;
+    t.r('Utilization m4', S.capacity.utilization[4], 1.0595);
+    t.r('WorkShare m4', S.capacity.workShare[4], 0.943820);
+    t.d('Delta ARR m12', S.arr.arr[12] - B.arr.arr[12], 63359.02);
+  });
+
+  test('T46', 'Hire SDRs template defaults', function (t) {
+    var init = E.templates.hireSdrs(A0), x = sc('T46'), r = x.returns, S = x.scenario, B = x.baseline;
+    var hc = init.effects.filter(function (e) { return e.kind === 'headcount'; })[0];
+    t.eq('Role', hc.role, 'sdr'); t.eq('Count', hc.count, 2); t.eq('Start month', hc.startMonth, 2);
+    t.d('Recruiting m2', init.effects.filter(function (e) { return e.kind === 'vendor_cost'; })[0].byMonth[2], 16000);
+    var tools = init.effects.filter(function (e) { return e.kind === 'program_spend'; })[0];
+    t.eq('Tools channel', tools.channel, 'outbound'); t.eq('Tools buy no leads', tools.leads, 'none');
+    t.eq('Tools months', Object.keys(tools.byMonth).length, 35); t.d('Tools m2', tools.byMonth[2], 3000); t.d('Tools m36', tools.byMonth[36], 3000);
+    t.d('NPV', r.npv, 466556.62);
+    t.eq('Payback month', r.payback.month, 24);
+    t.d('Delta ARR m12', S.arr.arr[12] - B.arr.arr[12], 181471.27);
+    t.r('ROI', r.roi, 0.9433);
+    t.r('Highest utilization', r.highestUtilization, 0.8286);
+  });
+
+  test('T47', 'Paid campaign template defaults', function (t) {
+    var x = sc('T47'), r = x.returns, S = x.scenario, B = x.baseline;
+    var e = E.templates.paidCampaign(A0).effects[0];
+    t.eq('From CPL', e.leads, 'from_cpl'); t.r('CPL multiplier', e.cplMultiplier, 1.2);
+    [2, 3, 4].forEach(function (m) { t.d('Spend m' + m, e.byMonth[m], 30000); });
+    t.r('Paid leads m2', S.funnel.paid.leads[2], 354.1667);
+    t.r('Paid deals m4', S.funnel.paid.deals[4], 1.9125);
+    t.d('Paid new ARR m4', S.funnel.paid.newArr[4], 57375.00);
+    t.d('P&L program spend m2', S.pl.programSpend[2], 170000);
+    t.d('NPV', r.npv, 26163.11);
+    t.eq('Payback month', r.payback.month, 29);
+    t.d('Delta ARR m12', S.arr.arr[12] - B.arr.arr[12], 53530.09);
+  });
+
+  test('T48', 'Driver change: paid win rate x1.5 in months 10 to 12', function (t) {
+    var x = sc('T48'), S = x.scenario, B = x.baseline;
+    t.r('Paid deals m9', S.funnel.paid.deals[9], 1.35);
+    [10, 11, 12].forEach(function (m) { t.r('Paid deals m' + m, S.funnel.paid.deals[m], 2.025); });
+    t.r('Paid deals m13', S.funnel.paid.deals[13], 1.368);
+    t.d('Delta ARR m12', S.arr.arr[12] - B.arr.arr[12], 61237.30);
+  });
+
+  test('T49', 'One AE from month 2 with end month 7', function (t) {
+    var x = sc('T49'), S = x.scenario, B = x.baseline;
+    for (var m = 1; m <= 36; m++) t.d('Delta payroll m' + m, S.payroll.total[m] - B.payroll.total[m], (m >= 2 && m <= 7) ? 12500 : 0);
+    var opps = { 3: 0.375, 4: 0.75, 5: 1.125, 6: 1.5, 7: 1.5 };
+    for (m = 1; m <= 36; m++) t.r('Extra outbound opps m' + m, S.funnel.outbound.oppsCreated[m] - B.funnel.outbound.oppsCreated[m], opps[m] || 0);
+    var deals = { 7: 0.09, 8: 0.18, 9: 0.27, 10: 0.36, 11: 0.36 };
+    for (m = 1; m <= 36; m++) t.r('Extra deals m' + m, S.arr.deals[m] - B.arr.deals[m], deals[m] || 0);
+  });
+
+  // ===== 4.6 Edge cases =====
+  test('T50', 'AE capacity of 4 opportunities a month', function (t) {
+    var R = sc('T50').baseline;
+    t.r('Capacity m1', R.capacity.capacity[1], 24); t.r('Created m1', R.capacity.totalCreated[1], 29.5);
+    t.r('WorkShare m1', R.capacity.workShare[1], 0.813559); t.r('Outbound worked m1', R.funnel.outbound.oppsWorked[1], 10.9831);
+    t.d('New ARR m1', R.arr.newArr[1], 289600.00); t.d('New ARR m3', R.arr.newArr[3], 282049.15);
+    t.d('New ARR m4', R.arr.newArr[4], 272484.75); t.d('New ARR m5', R.arr.newArr[5], 245301.69);
+    t.d('New ARR m6', R.arr.newArr[6], 235606.78); t.d('New ARR m6 = 289,600 x 24 / 29.5', R.arr.newArr[6], 289600 * 24 / 29.5);
+    t.d('ARR m12', R.arr.arr[12], 29576442.26);
+  });
+
+  test('T51', 'Paid program spend of 0', function (t) {
+    var R = sc('T51').baseline;
+    for (var m = 1; m <= 36; m++) {
+      t.r('Paid leads m' + m, R.funnel.paid.leads[m], 0);
+      t.r('Paid deals m' + m, R.funnel.paid.deals[m], m <= 2 ? 1.35 : 0);
+    }
+    t.d('P&L program spend m1', R.pl.programSpend[1], 80000);
+    t.d('ARR m12', R.arr.arr[12], 29628593.93); t.d('ARR m36', R.arr.arr[36], 44955862.07);
+    var c16 = E.runChecks(R).filter(function (c) { return c.id === 'C16'; })[0];
+    t.ok('No NaN anywhere (C16)', c16.pass, c16.reason);
+  });
+
+  test('T52', 'Extra 10,000,000 of paid spend in month 1', function (t) {
+    var x = sc('T52'), S = x.scenario;
+    t.d('Paid leads m1', S.funnel.paid.leads[1], 41916.67);
+    t.r('Created m1', S.capacity.totalCreated[1], 1279.5);
+    t.r('WorkShare m1', S.capacity.workShare[1], 0.032825);
+    var w = 0; ['outbound', 'paid', 'events', 'partners'].forEach(function (c) { w += S.funnel[c].oppsWorked[1]; });
+    t.r('Total worked m1', w, 42.0);
+    t.d('EBITDA m1', S.pl.ebitda[1], -11127547.20);
+    t.d('Cash m1', S.bs.cash[1], 36964790.00); t.d('Cash m2', S.bs.cash[2], 25951218.77);
+    t.d('New ARR m3', S.arr.newArr[3], 472000.35);
+    t.d('Cash low point', S.cashTests.lowPoint, 6711626.71); t.eq('Cash low point month', S.cashTests.lowPointMonth, 35);
+    t.ok('Floor reported as breached', S.cashTests.floorBreachMonths.length > 0 && S.guardrails.items.cashFloor.pass === false);
+    t.ok('Covenant reported as breached', S.cashTests.covenantBreachMonths.length > 0 && S.guardrails.items.covenant.pass === false);
+    var c16 = E.runChecks(S).filter(function (c) { return c.id === 'C16'; })[0];
+    t.ok('All numbers finite (C16)', c16.pass, c16.reason);
+  });
+
+  test('T53', 'Opening cash of 5,000,000', function (t) {
+    var R = sc('T53').baseline;
+    t.d('Opening retained earnings', R.bs.retainedEarnings[0], -105716000);
+    t.d('Cash m4', R.bs.cash[4], 560400.58); t.d('Cash m5', R.bs.cash[5], -479522.32);
+    t.d('Interest income m6', R.pl.interestIncome[6], 0);
+    t.r('Runway m5', R.kpis.runway[5], 0);
+    var c1 = E.runChecks(R).filter(function (c) { return c.id === 'C1'; })[0];
+    t.ok('Balance sheet still balances (C1)', c1.pass, c1.reason);
+  });
+
+  test('T54', 'DSO of 30 days', function (t) {
+    var R = sc('T54').baseline;
+    t.d('AR m1', R.bs.accountsReceivable[1], 2164986.67); t.d('Collections m1', R.billing.collections[1], 3180000.00);
+    t.d('Cash m1', R.bs.cash[1], 38024790.00);
+  });
+  test('T55', 'DSO of 60 days', function (t) {
+    var R = sc('T55').baseline;
+    t.d('AR m1', R.bs.accountsReceivable[1], 4284986.67); t.d('Collections m1', R.billing.collections[1], 1060000.00);
+    t.d('Cash m1', R.bs.cash[1], 35904790.00); t.d('Cash m36', R.bs.cash[36], 15929770.08);
+  });
+  test('T56', 'DSO of 0 days', function (t) {
+    var R = sc('T56').baseline;
+    t.d('AR m1', R.bs.accountsReceivable[1], 0); t.d('Collections m1', R.billing.collections[1], 5344986.67);
+  });
+  test('T57', 'DPO of 45 days', function (t) {
+    var R = sc('T57').baseline;
+    t.d('AP m1', R.bs.accountsPayable[1], 1557403.87); t.d('Vendor paid m1', R.vendor.paid[1], 520000.00);
+    t.d('Cash m1', R.bs.cash[1], 37484790.00);
+  });
+  test('T58', 'Debt amortization from month 25 over 20 months', function (t) {
+    var R = sc('T58').baseline;
+    for (var m = 1; m <= 36; m++) t.d('Principal m' + m, R.debt.principal[m], m >= 25 ? 500000 : 0);
+    t.d('Debt m36', R.bs.debt[36], 4000000);
+    t.d('Interest expense m25', R.pl.interestExpense[25], 91666.67); t.d('Interest expense m26', R.pl.interestExpense[26], 87083.33);
+    t.d('CFF m25', R.cf.cff[25], -500000);
+    t.d('Cash m36', R.bs.cash[36], 12328356.50);
+    t.eq('Floor breached', R.guardrails.items.cashFloor.pass, false);
+    t.eq('Covenant not breached', R.guardrails.items.covenant.pass, true);
+    t.ok('Floor breach months reported', R.cashTests.floorBreachMonths.length > 0);
+    t.eq('Covenant breach months reported', R.cashTests.covenantBreachMonths.length, 0);
+  });
+  test('T59', 'Integrations hub ship month 40 equals hub disabled', function (t) {
+    var R = sc('T59').baseline;
+    var off = E.runModel(withA(function (a) { a.milestones.integrations_hub.enabled = false; }), []);
+    t.d('ARR m36', R.arr.arr[36], 45700686.96);
+    var d = E.maxSeriesDiff(R, off);
+    t.ok('Same as the hub disabled', d.diff <= 1e-6, 'difference ' + d.diff + ' at ' + d.path);
+  });
+  test('T60', 'Hosting optimization ship month 1', function (t) {
+    var R = sc('T60').baseline;
+    t.d('Hosting m1', R.pl.hosting[1], 216601.20); t.d('Hosting m2', R.pl.hosting[2], 203279.99);
+    t.d('Hosting m4', R.pl.hosting[4], 176140.83); t.d('Baseline hosting m4', base().pl.hosting[4], 220176.04);
+  });
+  test('T61', 'All three milestones disabled', function (t) {
+    var R = sc('T61').baseline;
+    t.d('ARR m12', R.arr.arr[12], 30048489.36); t.d('ARR m36', R.arr.arr[36], 45114663.02);
+    t.d('Cash low point', R.cashTests.lowPoint, 15381981.28); t.eq('Cash low point month', R.cashTests.lowPointMonth, 36);
+  });
+  test('T62', 'Annual billing share of 0', function (t) {
+    var R = sc('T62').baseline;
+    for (var m = 0; m <= 36; m++) t.d('Deferred revenue m' + m, R.bs.deferredRevenue[m], 0);
+    t.d('Opening retained earnings', R.bs.retainedEarnings[0], -65230000);
+    t.d('Cash m1', R.bs.cash[1], 36964790.00);
+  });
+  test('T63', 'Tax function', function (t) {
+    var c = [[-100000, 500000, 0, 600000], [100000, 500000, 0, 400000], [100000, 40000, 15000, 0], [100000, 0, 25000, 0]];
+    c.forEach(function (x) {
+      var r = E.computeTax(x[0], x[1], 0.25);
+      t.d('Tax (' + x[0] + ', ' + x[1] + ')', r.tax, x[2]); t.d('NOL (' + x[0] + ', ' + x[1] + ')', r.nol, x[3]);
+    });
+  });
+  test('T64', 'Ramp function', function (t) {
+    [[-1, 4, 0], [0, 4, 0], [1, 4, 0.25], [4, 4, 1], [9, 4, 1], [0, 0, 1], [-1, 0, 0]].forEach(function (x) {
+      t.eq('ramp(' + x[0] + ', ' + x[1] + ')', E.ramp(x[0], x[1]), x[2]);
+    });
+  });
+
+  // ---------- runner ----------
+  function run() {
+    var results = [];
+    tests.forEach(function (tc) {
+      var t = new Ctx();
+      var t0 = (typeof performance !== 'undefined') ? performance.now() : 0;
+      try { tc.fn(t); } catch (err) { t.fail('Threw: ' + (err && err.stack || err)); }
+      results.push({ id: tc.id, name: tc.name, pass: t.failures.length === 0, assertions: t.n, failures: t.failures,
+        ms: (typeof performance !== 'undefined') ? Math.round(performance.now() - t0) : 0 });
+    });
+    var passed = results.filter(function (r) { return r.pass; }).length;
+    var baseChecks = E.runChecks(base());
+    return {
+      total: results.length, passed: passed, failed: results.length - passed,
+      assertions: results.reduce(function (s, r) { return s + r.assertions; }, 0),
+      integrity: E.checkSummary(baseChecks).label,
+      checks: baseChecks,
+      results: results
+    };
+  }
+  function format(rep) {
+    var lines = [];
+    lines.push('Capital Allocation Copilot: SPEC.md test plan');
+    lines.push('Baseline ' + rep.integrity);
+    rep.checks.forEach(function (c) { lines.push('  ' + (c.pass ? 'pass ' : 'FAIL ') + c.id + ' ' + c.name + (c.pass ? '' : ': ' + c.reason)); });
+    lines.push('');
+    rep.results.forEach(function (r) {
+      lines.push((r.pass ? 'PASS ' : 'FAIL ') + r.id + ' ' + r.name + ' (' + r.assertions + ' assertions)');
+      r.failures.slice(0, 15).forEach(function (f) { lines.push('     - ' + f); });
+      if (r.failures.length > 15) lines.push('     ... and ' + (r.failures.length - 15) + ' more');
+    });
+    lines.push('');
+    lines.push(rep.passed + ' of ' + rep.total + ' tests passed, ' + rep.assertions + ' assertions.');
+    return lines.join('\n');
+  }
+  return { run: run, format: format, parseCell: parseCell, tests: tests };
+})();
+</script>
+
+<!-- ===================================================================== -->
+<!-- UI: reads engine outputs and renders them. No math here.              -->
+<!-- ===================================================================== -->
+<script id="ui">
+(function () {
+  'use strict';
+  var params = new URLSearchParams(location.search);
+
+  function money(x) {
+    if (x == null) return 'n/a';
+    if (!isFinite(x)) return x > 0 ? 'not burning' : 'n/a';
+    return Math.round(x).toLocaleString('en-US');
+  }
+  function num(x, d) {
+    if (x == null) return 'n/a';
+    if (!isFinite(x)) return 'not burning';
+    return x.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+  }
+  function pct(x) { return x == null ? 'n/a' : (x * 100).toFixed(1) + '%'; }
+  function el(tag, text) { var e = document.createElement(tag); if (text != null) e.textContent = text; return e; }
+  function table(headers, rows) {
+    var t = el('table'); t.border = '1'; t.cellPadding = '3';
+    var tr = el('tr'); headers.forEach(function (h) { tr.appendChild(el('th', h)); }); t.appendChild(tr);
+    rows.forEach(function (r) { var row = el('tr'); r.forEach(function (c) { row.appendChild(el('td', c)); }); t.appendChild(row); });
+    return t;
+  }
+
+  function renderBadge(res) {
+    var b = Engine.checkSummary(res.checks.baseline), s = Engine.checkSummary(res.checks.scenario);
+    var worst = b.passed <= s.passed ? b : s;
+    var badge = document.getElementById('badge');
+    badge.textContent = worst.label;
+    badge.style.color = worst.passed === worst.total ? 'green' : 'red';
+    badge.style.fontWeight = 'bold';
+    var box = document.getElementById('check-failures');
+    box.innerHTML = '';
+    [['Baseline', res.checks.baseline], ['Scenario', res.checks.scenario]].forEach(function (pair) {
+      pair[1].filter(function (c) { return !c.pass; }).forEach(function (c) {
+        var p = el('p', pair[0] + ' ' + c.id + ' ' + c.name + ' failed: ' + c.reason);
+        p.style.color = 'red';
+        box.appendChild(p);
+      });
+    });
+  }
+
+  function renderApp(res) {
+    var R = res.baseline, app = document.getElementById('app');
+    app.innerHTML = '';
+
+    app.appendChild(el('h2', 'Objective and guardrails (baseline)'));
+    var G = R.guardrails.items;
+    app.appendChild(table(['Item', 'Value', 'Month', 'Target', 'Result'], [
+      ['ARR target', money(G.objective.value), R.months[G.objective.month], money(G.objective.target), G.objective.pass ? 'met' : 'not met, gap ' + money(G.objective.gap)],
+      ['Cash floor', money(G.cashFloor.value), R.months[G.cashFloor.month], money(G.cashFloor.target), G.cashFloor.pass ? 'pass' : 'fail'],
+      ['Covenant', money(G.covenant.value), R.months[G.covenant.month], money(G.covenant.target), G.covenant.pass ? 'pass' : 'fail'],
+      ['Runway (months)', num(G.runway.value, 2), R.months[G.runway.month], num(G.runway.target, 0), G.runway.pass ? 'pass' : 'fail'],
+      ['Blended CAC payback (months)', num(G.cacPayback.value, 2), R.months[G.cacPayback.month], num(G.cacPayback.target, 0), G.cacPayback.pass ? 'pass' : 'fail'],
+      ['Burn multiple', num(G.burnMultiple.value, 2), R.months[G.burnMultiple.month], num(G.burnMultiple.target, 2), G.burnMultiple.pass ? 'pass' : 'fail'],
+      ['Gross margin, trailing', pct(G.grossMargin.value), R.months[G.grossMargin.month], pct(G.grossMargin.target), G.grossMargin.pass ? 'pass' : 'fail']
+    ]));
+
+    app.appendChild(el('h2', 'Monthly baseline (raw engine output)'));
+    var rows = [];
+    for (var m = 1; m <= R.H; m++) {
+      rows.push([String(m), R.months[m], money(R.arr.newArr[m]), money(R.arr.arr[m]), num(R.arr.customers[m], 1), money(R.pl.revenue[m]),
+        money(R.pl.grossProfit[m]), money(R.pl.ebitda[m]), money(R.pl.netIncome[m]), money(R.cf.netBurn[m]), money(R.bs.cash[m]),
+        money(R.bs.deferredRevenue[m]), String(R.headcount.total[m]), pct(R.capacity.utilization[m]), num(R.kpis.runway[m], 1),
+        num(R.kpis.burnMultiple[m], 2), num(R.kpis.blendedCacPayback[m], 1)]);
+    }
+    app.appendChild(table(['m', 'Month', 'New ARR', 'Closing ARR', 'Customers', 'Revenue', 'Gross profit', 'EBITDA', 'Net income',
+      'Net burn', 'Ending cash', 'Deferred revenue', 'Headcount', 'Utilization', 'Runway', 'Burn multiple', 'Blended CAC payback'], rows));
+
+    app.appendChild(el('h2', '13-week cash forecast from ' + R.months[R.cash13.t0]));
+    app.appendChild(table(['Week', 'Days', 'Receipts', 'Payroll and commissions', 'Vendors and capex', 'Debt service', 'Tax', 'Net cash flow', 'Ending cash'],
+      R.cash13.weeks.map(function (w) {
+        return [String(w.week), w.label, money(w.receipts), money(w.payrollAndCommissions), money(w.vendorsAndCapex), money(w.debtService),
+          money(w.tax), money(w.net), money(w.endCash)];
+      })));
+
+    app.appendChild(el('h2', 'Integrity checks (baseline)'));
+    app.appendChild(table(['Check', 'Name', 'Result', 'Reason'], res.checks.baseline.map(function (c) {
+      return [c.id, c.name, c.pass ? 'pass' : 'FAIL', c.reason];
+    })));
+  }
+
+  function main() {
+    var res = Engine.evaluate(Engine.defaultAssumptions(), []);
+    renderBadge(res);
+    if (params.get('test') === '1') {
+      var out = document.getElementById('test-output');
+      out.hidden = false;
+      var report = window.TestSuite.run();
+      window.__TEST_RESULTS__ = report;
+      out.textContent = window.TestSuite.format(report);
+      document.title = (report.failed === 0 ? 'PASS ' : 'FAIL ') + report.passed + '/' + report.total;
+      return;
+    }
+    renderApp(res);
+  }
+  try { main(); }
+  catch (err) {
+    window.__TEST_RESULTS__ = { error: String(err && err.stack || err) };
+    var b = document.getElementById('badge'); b.textContent = 'Engine error: ' + err.message; b.style.color = 'red';
+  }
+})();
+</script>
+</body>
+</html>
