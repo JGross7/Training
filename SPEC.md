@@ -378,7 +378,7 @@ RampedAE_m  = N0_ae  + Σ over AE hires active in m  (count × ramp(m − start,
 RampedSDR_m = N0_sdr + Σ over SDR hires active in m (count × ramp(m − start, sdrRampMonths))
 ```
 
-Planned hires and initiative hires both count. An initiative hire stops counting after its `end` month.
+Planned hires and initiative hires both count. An initiative hire stops counting after its `end` month. An initiative hire may give its own `rampMonths` (the "Ramp" input of the hire templates in section 1.17); it then ramps over that many months instead of `aeRampMonths` or `sdrRampMonths`. Planned hires always use the company-wide ramp.
 
 ### 2.3 Funnel, capacity and timing by sales cycle
 
@@ -624,7 +624,7 @@ Prepaid and accrued liabilities do not change, so they do not appear. The statem
 
 ### 2.14 13-week cash forecast
 
-The forecast starts on the first day of a month `t0` (default 1, so January 1, 2027) and covers 91 days. Week `w` is days `7w − 6` to `7w`. Each day belongs to a calendar month `m` with `D_m` days (real calendar: February 2028 has 29 days). Monthly flows from the model are placed on days like this:
+The forecast starts on the first day of a month `t0` (default 1, so January 1, 2027; `t0` must be a whole month from 1 to the horizon) and covers 91 days. If fewer than 91 days are left in the model, the forecast stops at the horizon and reports whole weeks only. Week `w` is days `7w − 6` to `7w`. Each day belongs to a calendar month `m` with `D_m` days (real calendar: February 2028 has 29 days). Monthly flows from the model are placed on days like this:
 
 | Flow | Placement |
 |---|---|
@@ -690,7 +690,7 @@ Effect kinds (`byMonth` maps a month number to an amount):
 |---|---|---|
 | `program_spend` | `channel`, `byMonth`, `leads` ("from_cpl" or "none"), `cplMultiplier` (default 1) | Adds to `Spend_c,m` (so it is in S&M and in vendor spend). With "from_cpl" it also buys leads at `CPL × cplMultiplier` |
 | `direct_leads` | `channel`, `byMonth` | Adds leads to the channel funnel in those months (for example badge scans) |
-| `headcount` | `role`, `count`, `startMonth`, `endMonth` (optional), `loadedCostAnnual` (optional) | Adds people: payroll on the role's P&L line and, for AEs and SDRs, ramped capacity |
+| `headcount` | `role`, `count`, `startMonth`, `endMonth` (optional), `loadedCostAnnual` (optional), `rampMonths` (optional) | Adds people: payroll on the role's P&L line and, for AEs and SDRs, ramped capacity |
 | `vendor_cost` | `line` ("cogs", "rd", "sm", "ga"), `byMonth` | Adds a non-payroll cost to that line, paid through payables |
 | `allocated_cost` | `byMonth` | The cost of existing staff time. It does **not** change the P&L, the balance sheet or cash, because those people are already paid. It is counted in the investment and in the return measures (section 2.17) |
 | `capex` | `byMonth` | Adds to capex |
@@ -703,6 +703,7 @@ Rules:
 2. Lead-stage drivers (`costPerLead`, `leadToMqlRate`, `mqlToOppRate`) use the month the leads arrive. `winRate` and `acv` use the month the deal closes. Others use the month they are applied.
 3. Several initiatives are applied together in one run. They interact only through shared drivers, in practice through AE capacity.
 4. The engine never changes the assumptions object it is given.
+5. The engine checks its inputs before it runs. Every numeric assumption and every amount in an initiative must be a finite number, `salesCycleMonths` must be a whole number of 0 or more, `dsoDays` and `dpoDays` must be 0 or more, and a `headcount` effect must have a `startMonth`. If not, the run stops with a plain reason that names the input. A missing or non-numeric input is never read as zero. Amounts in months after the horizon are ignored.
 
 Incremental results, for every output series `X`:
 
@@ -739,6 +740,7 @@ NewArrPerDollar = Σ ΔNewARR_m / TotalInvestment
 PaybackMonth = the first month m, after CumNF first goes negative, in which CumNF_m ≥ 0
              = "not within 36 months" if that never happens
              = the first month with any effect, if CumNF never goes negative
+               ("any effect" = the first month in which the measured flow or the investment is not zero)
              = none, if the initiative has no effect at all
 EarningsPaybackMonth = same rule applied to Σ (ΔEBITDA_k − AllocatedCost_k)
 CashLowPoint = min over m = 1 … 36 of Cash_m in the scenario, and the month it happens
@@ -780,7 +782,7 @@ Names are suggestions; the behavior is required.
 
 ## 3. Integrity checks
 
-The engine runs every check on every recalculation, for the baseline and for the current scenario. The header badge shows "Integrity N/16". A failed check is shown in red with its name, the first month that fails and the size of the difference.
+The engine runs every check on every recalculation, for the baseline and for the current scenario. The header badge shows "Integrity N/16" (a check that is missing counts as failed). A failed check is shown in red with its name, the first month that fails and the size of the difference.
 
 Tolerance: a dollar check passes when the absolute difference is at most 0.01. A count check passes at 1e-6.
 
@@ -788,22 +790,22 @@ A check must compare two numbers that the engine computed by **different paths**
 
 | # | Check | Passes when, for every month in range |
 |---|---|---|
-| C1 | Balance sheet balances | `Assets_m = Liabilities_m + Equity_m` for `m = 0 … 36` |
-| C2 | Cash flow ties to the balance sheet | `Cash_m` (direct method, 2.11) `= Cash_(m−1) + CFO_m + CFI_m + CFF_m` (indirect, 2.13) |
+| C1 | Balance sheet balances | `Assets_m = Liabilities_m + Equity_m` for `m = 0 … 36`; each stored total (assets, liabilities, equity, liabilities plus equity) equals the sum of its lines |
+| C2 | Cash flow ties to the balance sheet | `Cash_m` (direct method, 2.11) `= Cash_(m−1) + CFO_m + CFI_m + CFF_m` (indirect, 2.13); stored net change in cash, net burn and free cash flow equal their formulas in 2.13 |
 | C3 | Net income rolls into retained earnings | `RetainedEarnings_m = RetainedEarnings_(m−1) + NetIncome_m` |
 | C4 | ARR rollforward ties | `ARR_m = ARR_(m−1) + NewARR_m + Expansion_m − Contraction_m − Churn_m`, `NewARR_m = Σ_c NewARR_c,m`, and `ARR_m ≥ 0` |
-| C5 | Funnel shape | For every channel: `Leads ≥ MQL ≥ SourcedOpps ≥ 0`; `OppsCreated ≥ OppsWorked ≥ 0`; `Deals_c,m ≤ OppsWorked_c,(m − cycle)`; and `Σ_c OppsWorked_c,m ≤ Capacity_m` whenever `WorkShare_m < 1` |
+| C5 | Funnel shape | For every channel: `Leads ≥ MQL ≥ SourcedOpps ≥ 0`; `OppsCreated ≥ OppsWorked ≥ 0`; `Deals_c,m ≤ OppsWorked_c,(m − cycle)`; `Capacity_m = RampedAE_m × oppCapacityPerAePerMonth`; and `Σ_c OppsWorked_c,m ≤ Capacity_m` whenever `Σ_c OppsCreated_c,m > Capacity_m` (recomputed, not taken from the stored `WorkShare_m`) |
 | C6 | Channel spend equals P&L program spend | `Σ_c Spend_c,m` from the funnel `=` the program-spend component of S&M `=` baseline spend plus initiative program spend summed from the inputs |
 | C7 | A zero initiative changes nothing | Running the model with a null initiative (one of each effect kind, all amounts zero, count zero) gives the same value as the baseline for every series, within 1e-6 |
 | C8 | Revenue equals what ARR implies | `Revenue_m × 24 = ARR_(m−1) + ARR_m` |
 | C9 | Deferred revenue rolls forward | (a) `DR_m = DR_(m−1) + I_m − s × Revenue_m`; (b) `DR_m = Σ_{j=0}^{11} I_(m−j) × (23 − 2j) / 24`, recomputed from the invoice history; (c) `Σ_{j=0}^{11} I_(m−j) = s × ARR_m`; (d) `I_m ≥ 0` |
-| C10 | Covenant and cash floor are reported | A floor result and a covenant result exist for every month 1 to 36; the reported low point equals the minimum of balance sheet cash; the reported breach months equal the months where balance sheet cash is below each threshold |
-| C11 | Receivables and payables roll forward | `AR_m = AR_(m−1) + Billings_m − Collections_m`; `AP_m = AP_(m−1) + VendorSpend_m − VendorPaid_m`; `AR, AP, DR, Collections, VendorPaid ≥ 0` |
+| C10 | Covenant and cash floor are reported | A floor result and a covenant result exist for every month 1 to 36; the reported low point equals the minimum of balance sheet cash; the reported breach months equal the months where balance sheet cash is below each threshold; the cash-floor and covenant rows of section 2.18 show the same low point and the same pass or fail; `guardrails.cashFloor = cashFloor` (the floor is one number held in two inputs, and the check fails if they differ) |
+| C11 | Receivables and payables roll forward | `AR_m = AR_(m−1) + Billings_m − Collections_m`; `AP_m = AP_(m−1) + VendorSpend_m − VendorPaid_m`; `AR, AP, DR, Collections, VendorPaid ≥ 0`; `AR_m` and `AP_m` equal the values rebuilt from the billings and vendor-spend history with `dsoDays` and `dpoDays` (the formulas in 2.6 and 2.8) |
 | C12 | Payroll ties to headcount | `Σ over P&L lines of Payroll_line,m = Σ over roles of the payroll formula in 2.2`, and total headcount equals the sum by role |
-| C13 | P&L foots | `GrossProfit = Revenue − COGS`; `COGS` and `Opex` equal the sum of their lines; `EBITDA = GrossProfit − Opex`; `NetIncome = EBITDA − Depreciation + InterestIncome − InterestExpense − Tax` |
+| C13 | P&L foots | `GrossProfit = Revenue − COGS`; `COGS` and `Opex` equal the sum of their lines; `EBITDA = GrossProfit − Opex`; `NetIncome = EBITDA − Depreciation + InterestIncome − InterestExpense − Tax`; stored EBIT and pre-tax income equal their formulas |
 | C14 | PP&E and debt roll forward | `PPE_m = PPE_(m−1) + Capex_m − Depreciation_m ≥ 0`; `Debt_m = Debt_(m−1) − Principal_m ≥ 0`; `InterestExpense_m = Debt_(m−1) × rate / 12` |
-| C15 | 13-week forecast ties to the monthly model | `DailyCash` on each month-end inside the window equals `Cash_m`; `Σ WeekNet_w = DailyCash_91 − DailyCash_0` |
-| C16 | Customers roll forward and all numbers are finite | `Customers_m = Customers_(m−1) + Deals_m − LostCustomers_m ≥ 0`; no series contains NaN or an infinite value (runway may be "not burning") |
+| C15 | 13-week forecast ties to the monthly model | `DailyCash` on each month-end inside the window equals `Cash_m`; `Σ WeekNet_w = DailyCash_91 − DailyCash_0`; each week's net equals its categories and its ending cash equals the daily path |
+| C16 | Customers roll forward and all numbers are finite | `Customers_m = Customers_(m−1) + Deals_m − LostCustomers_m ≥ 0`; no series contains NaN or an infinite value (a runway figure may be "not burning", plus infinity, in the KPI series and in the runway row of section 2.18) |
 
 Covenant or cash-floor **breaches** and guardrail failures are business warnings, shown separately in amber or red. They are not integrity failures: the math can be right while the plan is bad.
 
@@ -1132,6 +1134,30 @@ Each scenario must also pass all 16 integrity checks.
 | T62 | `annualBillingShare` = 0 | Deferred revenue is 0 in every month; opening retained earnings −65,230,000; cash at month 1 = 36,964,790.00 (unchanged, because month-1 collections come from opening receivables) |
 | T63 | Tax function alone, `taxRate` 25% | (pre-tax −100,000, NOL 500,000) → tax 0, NOL 600,000. (100,000, 500,000) → tax 0, NOL 400,000. (100,000, 40,000) → tax 15,000, NOL 0. (100,000, 0) → tax 25,000, NOL 0 |
 | T64 | Ramp function alone | `ramp(−1, 4) = 0`, `ramp(0, 4) = 0`, `ramp(1, 4) = 0.25`, `ramp(4, 4) = 1`, `ramp(9, 4) = 1`, `ramp(0, 0) = 1`, `ramp(−1, 0) = 0` |
+
+### 4.7 Tests added by the first engine audit
+
+Added in `AUDIT-1.md`. "Reference" expected values come from a second, independent calculation of the formulas in section 2. The others are worked by hand in the test.
+
+| Test | What it proves |
+|---|---|
+| T70 | A missing, non-numeric or out-of-range input stops the run with a reason that names it (section 2.16 rule 5) |
+| T71 | A profitable company: tax losses are used first, tax is then paid in cash and on the last day of the month in the 13-week view, runway is "not burning", and all 16 checks pass |
+| T72 | C5 fails when AE capacity is exceeded but not applied |
+| T73 | C10 fails when `cashFloor` and `guardrails.cashFloor` differ, and ties the guardrail rows to the breach report |
+| T74 | Template defaults reproduce sections 4.3 and 4.4, and the template "Ramp" input changes the result |
+| T75 | Partner program template: 16.67 extra leads a month for 12 months, 72,675 of partner new ARR in month 6, investment 160,000 |
+| T76 | Capex initiative: depreciation starts the month after purchase and stops after the useful life |
+| T77 | Vendor costs on COGS, R&D and G&A hit the right line and are paid a month later |
+| T78 | Every driver, both modes, order independence, clamping, and lead-month versus close-month timing |
+| T79 | Each guardrail can fail and the objective can be met |
+| T80 | Payback month rules, including "never negative" and "not within 36 months" |
+| T81 | 13-week forecast from other start months: leap-year February, principal payments, floor versus covenant flags |
+| T82 | Debt amortization starts and stops on the right months |
+| T83 | Annualized ARR growth, revenue growth, channel program cost per deal, and payables at 45 days |
+| T84 | Milestones that ship in month 1, month 35, and month 36 or later |
+| T85 | Every sub-test inside every integrity check can fail |
+| T86 | An initiative hire uses its own loaded cost and stops at its end month |
 
 ---
 

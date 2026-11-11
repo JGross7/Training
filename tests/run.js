@@ -30,6 +30,8 @@ const PAGE = 'file://' + path.join(ROOT, 'index.html');
     }
     console.log(await page.evaluate(() => document.getElementById('test-output').textContent));
     failed += rep.failed;
+    // A run that executed nothing must not count as a pass.
+    if (!(rep.total > 0 && rep.assertions > 0)) { console.log('FAIL No tests ran'); failed++; }
 
     // 2. T00: the reference tables embedded in index.html still match SPEC.md
     const embedded = await page.evaluate(() => window.SPEC_TABLES);

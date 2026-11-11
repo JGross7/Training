@@ -226,6 +226,86 @@
   }
 
   // ---------------------------------------------------------------------
+  // Input validation. A missing or non-numeric input stops the run with a
+  // plain reason. It is never read as zero (AUDIT-1.md, finding 1).
+  // ---------------------------------------------------------------------
+  var NUMBER_RULES = {
+    horizonMonths: { whole: true, min: 1 }, startMonth: { whole: true, min: 1 }, startYear: { whole: true },
+    dsoDays: { min: 0 }, dpoDays: { min: 0 }, aeRampMonths: { min: 0 }, sdrRampMonths: { min: 0 },
+    usefulLifeMonths: { min: 0 }, openingPpeRemainingLifeMonths: { min: 0 }, debtAmortMonths: { min: 0 },
+    salesCycleMonths: { whole: true, min: 0 }, costPerLead: { nullable: true, min: 0 }, rampMonths: { min: 0 },
+    month: { whole: true, min: 1 }
+  };
+  function checkNumber(bad, v, path, rule) {
+    rule = rule || {};
+    if (rule.nullable && v == null) return;
+    if (typeof v !== 'number' || !isFinite(v)) { bad.push(path + ' must be a number'); return; }
+    if (rule.whole && Math.floor(v) !== v) bad.push(path + ' must be a whole number');
+    if (rule.min != null && v < rule.min) bad.push(path + ' must be ' + rule.min + ' or more');
+  }
+  // Every number in `template` must be a number at the same place in `obj`.
+  function checkNumbersLike(bad, template, obj, path) {
+    if (!obj || typeof obj !== 'object') { bad.push(path + ' is missing'); return; }
+    Object.keys(template).forEach(function (k) {
+      if (typeof template[k] === 'number' || k === 'costPerLead') checkNumber(bad, obj[k], path + '.' + k, NUMBER_RULES[k]);
+    });
+  }
+  function validateAssumptions(A) {
+    var bad = [], T = defaultAssumptions();
+    if (!A || typeof A !== 'object') return ['The assumptions object is missing'];
+    Object.keys(T).forEach(function (k) { if (typeof T[k] === 'number') checkNumber(bad, A[k], k, NUMBER_RULES[k]); });
+    ['nonHeadcountMonthly', 'opening', 'objective', 'guardrails'].forEach(function (k) { checkNumbersLike(bad, T[k], A[k], k); });
+    if (!Array.isArray(A.openingInvoiceWeights) || A.openingInvoiceWeights.length !== 12) bad.push('openingInvoiceWeights must list 12 months');
+    else A.openingInvoiceWeights.forEach(function (w, i) { checkNumber(bad, w, 'openingInvoiceWeights[' + i + ']'); });
+    var roles = (A.roles && typeof A.roles === 'object') ? A.roles : {};
+    Object.keys(roles).forEach(function (r) {
+      checkNumbersLike(bad, T.roles.engineer, roles[r], 'roles.' + r);
+      if (roles[r] && PL_LINES.indexOf(roles[r].plLine) < 0) bad.push('roles.' + r + '.plLine must be one of ' + PL_LINES.join(', '));
+    });
+    if (!Array.isArray(A.channelOrder) || !A.channels) bad.push('channels are missing');
+    else A.channelOrder.forEach(function (c) { checkNumbersLike(bad, T.channels.paid, A.channels[c], 'channels.' + c); });
+    if (!Array.isArray(A.plannedHires)) bad.push('plannedHires is missing');
+    else A.plannedHires.forEach(function (h, i) {
+      checkNumber(bad, h && h.month, 'plannedHires[' + i + '].month', NUMBER_RULES.month);
+      if (!h || !roles[h.role]) bad.push('plannedHires[' + i + '].role is not a known role');
+    });
+    Object.keys(A.milestones || {}).forEach(function (id) {
+      var ms = A.milestones[id] || {}, p = 'milestones.' + id;
+      checkNumber(bad, ms.shipMonth, p + '.shipMonth');
+      checkNumber(bad, ms.rampMonths, p + '.rampMonths', NUMBER_RULES.rampMonths);
+      Object.keys(ms.effects || {}).forEach(function (e) { checkNumber(bad, ms.effects[e], p + '.effects.' + e); });
+    });
+    return bad;
+  }
+  function validateInitiatives(initiatives) {
+    var bad = [];
+    (initiatives || []).forEach(function (init, i) {
+      ((init && init.effects) || []).forEach(function (e, j) {
+        var p = 'initiative ' + ((init && init.id) || i) + ', effect ' + (j + 1) + ' (' + e.kind + ')';
+        Object.keys(e.byMonth || {}).forEach(function (k) { checkNumber(bad, e.byMonth[k], p + ' amount in month ' + k); });
+        if (e.kind === 'headcount') {
+          checkNumber(bad, e.count, p + ' count');
+          checkNumber(bad, e.startMonth, p + ' startMonth', { whole: true });
+          checkNumber(bad, e.endMonth, p + ' endMonth', { nullable: true, whole: true });
+          checkNumber(bad, e.loadedCostAnnual, p + ' loadedCostAnnual', { nullable: true });
+          checkNumber(bad, e.rampMonths, p + ' rampMonths', { nullable: true, min: 0 });
+        }
+        if (e.kind === 'driver_change') {
+          checkNumber(bad, e.value, p + ' value');
+          checkNumber(bad, e.fromMonth, p + ' fromMonth', { nullable: true });
+          checkNumber(bad, e.toMonth, p + ' toMonth', { nullable: true });
+        }
+        if (e.kind === 'program_spend') checkNumber(bad, e.cplMultiplier, p + ' cplMultiplier', { nullable: true });
+      });
+    });
+    return bad;
+  }
+  function assertValidInputs(assumptions, initiatives) {
+    var bad = validateAssumptions(assumptions).concat(validateInitiatives(initiatives));
+    if (bad.length) throw new Error('Invalid input: ' + bad.slice(0, 5).join('; ') + (bad.length > 5 ? '; and ' + (bad.length - 5) + ' more' : ''));
+  }
+
+  // ---------------------------------------------------------------------
   // Initiative effects -> driver inputs (SPEC.md 2.16)
   // ---------------------------------------------------------------------
   function eachMonth(byMonth, H, fn) {
@@ -274,6 +354,7 @@
               start: e.startMonth,
               end: e.endMonth == null ? H : e.endMonth,
               cost: e.loadedCostAnnual == null ? r.loadedCostAnnual : e.loadedCostAnnual,
+              ramp: e.rampMonths == null ? null : e.rampMonths,
               initiativeId: init.id
             });
             break;
@@ -343,6 +424,7 @@
   // The monthly model (SPEC.md 2.1 to 2.13)
   // ---------------------------------------------------------------------
   function runModel(assumptionsIn, initiativesIn) {
+    assertValidInputs(assumptionsIn, initiativesIn); // before cloning: a JSON copy would turn NaN into null
     var A = clone(assumptionsIn);
     var inits = clone(initiativesIn || []);
     var H = A.horizonMonths;
@@ -399,8 +481,8 @@
       var sdr = A.roles.sdr ? A.roles.sdr.openingCount : 0;
       allHires.forEach(function (h) {
         if (!active(h, m)) return;
-        if (h.role === 'ae') ae += h.count * ramp(m - h.start, A.aeRampMonths);
-        if (h.role === 'sdr') sdr += h.count * ramp(m - h.start, A.sdrRampMonths);
+        if (h.role === 'ae') ae += h.count * ramp(m - h.start, h.ramp == null ? A.aeRampMonths : h.ramp);
+        if (h.role === 'sdr') sdr += h.count * ramp(m - h.start, h.ramp == null ? A.sdrRampMonths : h.ramp);
       });
       rampedAE[m] = ae;
       rampedSDR[m] = sdr;
@@ -750,6 +832,7 @@
   function cash13Week(R, t0) {
     var A = R.inputs.assumptions, H = R.H;
     t0 = t0 == null ? 1 : t0;
+    if (!(Math.floor(t0) === t0 && t0 >= 1 && t0 <= H)) throw new Error('13-week forecast: the start month must be a whole month from 1 to ' + H);
     var dailyCash = [R.bs.cash[t0 - 1]];
     var days = [null];
     var d = 0;
@@ -1006,7 +1089,7 @@
     hireSdrs: function (A, opts) {
       var p = withDefaults(A.templates.hireSdrs, opts);
       return { id: p.id || 'hire_sdrs', name: p.name || 'Hire SDRs', template: 'hireSdrs', params: p, effects: [
-        { kind: 'headcount', role: 'sdr', count: p.count, startMonth: p.startMonth, loadedCostAnnual: p.loadedCostAnnual },
+        { kind: 'headcount', role: 'sdr', count: p.count, startMonth: p.startMonth, loadedCostAnnual: p.loadedCostAnnual, rampMonths: p.rampMonths },
         { kind: 'vendor_cost', line: 'sm', byMonth: single(p.startMonth, p.recruitingEach * p.count) },
         { kind: 'program_spend', channel: 'outbound', byMonth: byMonthRange(p.startMonth, A.horizonMonths, p.toolsPerSdrMonthly * p.count), leads: 'none' }
       ] };
@@ -1014,7 +1097,7 @@
     hireAes: function (A, opts) {
       var p = withDefaults(A.templates.hireAes, opts);
       return { id: p.id || 'hire_aes', name: p.name || 'Hire AEs', template: 'hireAes', params: p, effects: [
-        { kind: 'headcount', role: 'ae', count: p.count, startMonth: p.startMonth, loadedCostAnnual: p.loadedCostAnnual },
+        { kind: 'headcount', role: 'ae', count: p.count, startMonth: p.startMonth, loadedCostAnnual: p.loadedCostAnnual, rampMonths: p.rampMonths },
         { kind: 'vendor_cost', line: 'sm', byMonth: single(p.startMonth, p.recruitingEach * p.count) }
       ] };
     },
@@ -1093,6 +1176,10 @@
       var liab = R.bs.accountsPayable[m] + R.bs.accruedLiabilities[m] + R.bs.deferredRevenue[m] + R.bs.debt[m];
       var eq = R.bs.paidInCapital[m] + R.bs.retainedEarnings[m];
       ck.eq(m, assets, liab + eq, D, 'Assets vs liabilities plus equity');
+      ck.eq(m, R.bs.totalAssets[m], assets, D, 'Stored total assets vs its lines');
+      ck.eq(m, R.bs.totalLiabilities[m], liab, D, 'Stored total liabilities vs its lines');
+      ck.eq(m, R.bs.totalEquity[m], eq, D, 'Stored total equity vs its lines');
+      ck.eq(m, R.bs.totalLiabilitiesAndEquity[m], liab + eq, D, 'Stored liabilities plus equity vs its lines');
     }
     out.push(ck.out());
 
@@ -1105,6 +1192,9 @@
       ck.eq(m, R.cf.cfo[m], cfo, D, 'CFO vs net income plus depreciation and working capital changes');
       ck.eq(m, R.cf.cfi[m], -R.capex.capex[m], D, 'CFI vs capex');
       ck.eq(m, R.cf.cff[m], -R.debt.principal[m], D, 'CFF vs principal');
+      ck.eq(m, R.cf.netChange[m], R.cf.cfo[m] + R.cf.cfi[m] + R.cf.cff[m], D, 'Net change in cash vs CFO plus CFI plus CFF');
+      ck.eq(m, R.cf.netBurn[m], -(R.cf.cfo[m] + R.cf.cfi[m]), D, 'Net burn vs CFO plus CFI');
+      ck.eq(m, R.cf.fcf[m], R.cf.cfo[m] + R.cf.cfi[m] - R.pl.interestIncome[m] + R.pl.interestExpense[m], D, 'Free cash flow vs CFO, CFI and interest');
     }
     out.push(ck.out());
 
@@ -1127,9 +1217,10 @@
     // C5 Funnel shape
     ck = new Recorder('C5', 'Funnel shape', R);
     for (m = 1; m <= H; m++) {
-      var worked = 0;
+      var worked = 0, createdAll = 0;
       chs.forEach(function (cid) {
         var F = R.funnel[cid], ch = A.channels[cid];
+        createdAll += F.oppsCreated[m];
         ck.ge(m, F.leads[m], F.mql[m], Cn, cid + ' leads vs MQLs');
         ck.ge(m, F.mql[m], F.sourcedOpps[m], Cn, cid + ' MQLs vs sourced opportunities');
         ck.ge(m, F.sourcedOpps[m], 0, Cn, cid + ' sourced opportunities');
@@ -1140,7 +1231,10 @@
         ck.ge(m, w, F.deals[m], Cn, cid + ' worked opportunities vs deals');
         worked += F.oppsWorked[m];
       });
-      if (R.capacity.workShare[m] < 1) ck.ge(m, R.capacity.capacity[m], worked, Cn, 'Capacity vs opportunities worked');
+      // Capacity is recomputed from ramped AEs. The test does not rely on the stored work share.
+      var capM = R.capacity.rampedAE[m] * A.oppCapacityPerAePerMonth;
+      ck.eq(m, R.capacity.capacity[m], capM, Cn, 'Capacity vs ramped AEs times opportunities per AE');
+      if (createdAll > capM + Cn || R.capacity.workShare[m] < 1) ck.ge(m, capM, worked, Cn, 'Capacity vs opportunities worked');
     }
     out.push(ck.out());
 
@@ -1210,6 +1304,17 @@
       ck.ok(null, CT.lowPointMonth === lowM, 'Reported low point month ' + CT.lowPointMonth + ' vs ' + lowM);
       ck.ok(null, JSON.stringify(CT.floorBreachMonths) === JSON.stringify(fb), 'Reported floor breach months do not match balance sheet cash');
       ck.ok(null, JSON.stringify(CT.covenantBreachMonths) === JSON.stringify(cb), 'Reported covenant breach months do not match balance sheet cash');
+      // The guardrail table must tell the same story as the month-by-month report.
+      var GI = R.guardrails && R.guardrails.items;
+      if (!GI || !GI.cashFloor || !GI.covenant) ck.fail(null, null, 'No cash floor or covenant guardrail result');
+      else {
+        ck.eq(lowM, GI.cashFloor.value, low, D, 'Cash floor guardrail value vs balance sheet cash');
+        ck.eq(lowM, GI.covenant.value, low, D, 'Covenant guardrail value vs balance sheet cash');
+        ck.ok(null, GI.cashFloor.target === A.cashFloor, 'The cash floor is set twice and the values differ: guardrails.cashFloor ' +
+          fmtNum(GI.cashFloor.target) + ' vs cashFloor ' + fmtNum(A.cashFloor));
+        ck.ok(null, GI.cashFloor.pass === (fb.length === 0), 'Cash floor guardrail result does not match the reported breach months');
+        ck.ok(null, GI.covenant.pass === (cb.length === 0), 'Covenant guardrail result does not match the reported breach months');
+      }
     }
     out.push(ck.out());
 
@@ -1220,6 +1325,17 @@
       ck.eq(m, R.bs.accountsPayable[m], R.bs.accountsPayable[m - 1] + R.vendor.spend[m] - R.vendor.paid[m], D, 'Payables roll');
       ck.ge(m, R.billing.collections[m], 0, D, 'Collections');
       ck.ge(m, R.vendor.paid[m], 0, D, 'Vendor payments');
+    }
+    // Second path: rebuild both balances from the invoice and vendor history and the payment terms (SPEC.md 2.6, 2.8).
+    function lagged(series, opening, days, mm) {
+      var Lx = days / 30, nx = Math.floor(Lx), fx2 = Lx - nx, tot = 0;
+      function atK(k) { return k <= 0 ? opening : series[k]; }
+      for (var jj = 0; jj <= nx - 1; jj++) tot += atK(mm - jj);
+      return tot + fx2 * atK(mm - nx);
+    }
+    for (m = 1; m <= H; m++) {
+      ck.eq(m, R.bs.accountsReceivable[m], lagged(R.billing.billings, A.openingMonthlyBillings, A.dsoDays, m), D, 'Receivables vs billings and days sales outstanding');
+      ck.eq(m, R.bs.accountsPayable[m], lagged(R.vendor.spend, A.openingMonthlyVendorSpend, A.dpoDays, m), D, 'Payables vs vendor spend and days payable outstanding');
     }
     for (m = 0; m <= H; m++) {
       ck.ge(m, R.bs.accountsReceivable[m], 0, D, 'Receivables');
@@ -1272,6 +1388,8 @@
       ck.eq(m, P.opex[m], rd + sm + ga, D, 'Operating expenses vs R&D plus S&M plus G&A');
       ck.eq(m, P.ebitda[m], P.grossProfit[m] - (rd + sm + ga), D, 'EBITDA vs gross profit minus operating expenses');
       ck.eq(m, P.netIncome[m], P.ebitda[m] - P.depreciation[m] + P.interestIncome[m] - P.interestExpense[m] - P.tax[m], D, 'Net income vs EBITDA less depreciation, interest and tax');
+      ck.eq(m, P.ebit[m], P.ebitda[m] - P.depreciation[m], D, 'EBIT vs EBITDA less depreciation');
+      ck.eq(m, P.preTaxIncome[m], P.ebitda[m] - P.depreciation[m] + P.interestIncome[m] - P.interestExpense[m], D, 'Pre-tax income vs EBIT plus net interest');
     }
     out.push(ck.out());
 
@@ -1298,7 +1416,11 @@
         if (dayNo <= nDays) ck.eq(m, F13.dailyCash[dayNo], R.bs.cash[m], D, 'Daily cash on day ' + dayNo + ' vs month-end cash');
       }
       var wkSum = 0;
-      F13.weeks.forEach(function (wk) { wkSum += wk.net; });
+      F13.weeks.forEach(function (wk) {
+        wkSum += wk.net;
+        ck.eq(null, wk.net, wk.receipts - wk.payrollAndCommissions - wk.vendorsAndCapex - wk.debtService - wk.tax, D, 'Week ' + wk.week + ' net cash vs its categories');
+        ck.eq(null, wk.endCash, F13.dailyCash[wk.endDay], D, 'Week ' + wk.week + ' ending cash vs daily cash');
+      });
       var lastDay = F13.weeks.length * 7;
       ck.eq(null, wkSum, F13.dailyCash[lastDay] - F13.dailyCash[0], D, 'Sum of weekly net cash vs change in daily cash');
     }
@@ -1313,7 +1435,8 @@
     (function scan(x, p) {
       if (!ck.pass) return;
       if (typeof x === 'number') {
-        if (Number.isNaN(x) || (!isFinite(x) && p.indexOf('.kpis.runway') !== 0)) ck.fail(null, null, 'Not a finite number at ' + p);
+        var notBurning = x === Infinity && (p.indexOf('.kpis.runway.') === 0 || p === '.guardrails.items.runway.value');
+        if (!isFinite(x) && !notBurning) ck.fail(null, null, 'Not a finite number at ' + p);
         return;
       }
       if (x && typeof x === 'object') Object.keys(x).forEach(function (k) {
@@ -1328,7 +1451,8 @@
 
   function checkSummary(checks) {
     var passed = checks.filter(function (c) { return c.pass; }).length;
-    return { passed: passed, total: checks.length, label: 'Integrity ' + passed + '/' + checks.length, failures: checks.filter(function (c) { return !c.pass; }) };
+    var total = Math.max(CHECK_COUNT, checks.length); // a missing check counts as a failure
+    return { passed: passed, total: total, label: 'Integrity ' + passed + '/' + total, failures: checks.filter(function (c) { return !c.pass; }) };
   }
 
   // Everything the UI needs for one recalculation.
@@ -1341,6 +1465,7 @@
   global.Engine = {
     CHECK_COUNT: CHECK_COUNT, TOL_DOLLAR: TOL_DOLLAR, TOL_COUNT: TOL_COUNT,
     defaultAssumptions: defaultAssumptions, assumptionType: assumptionType,
+    validateAssumptions: validateAssumptions, validateInitiatives: validateInitiatives,
     yearIndex: yearIndex, step: step, ramp: ramp, clamp: clamp, computeTax: computeTax,
     monthLabel: monthLabel, daysInMonth: daysInMonth,
     runModel: runModel, computeKpis: computeKpis, cash13Week: cash13Week, cashTests: cashTests, guardrails: guardrails,
@@ -1467,8 +1592,47 @@ window.TestSuite = (function () {
     T59: function () { return [withA(function (a) { a.milestones.integrations_hub.shipMonth = 40; }), []]; },
     T60: function () { return [withA(function (a) { a.milestones.hosting_optimization.shipMonth = 1; }), []]; },
     T61: function () { return [withA(function (a) { Object.keys(a.milestones).forEach(function (k) { a.milestones[k].enabled = false; }); }), []]; },
-    T62: function () { return [withA(function (a) { a.annualBillingShare = 0; }), []]; }
+    T62: function () { return [withA(function (a) { a.annualBillingShare = 0; }), []]; },
+    // Added by the first engine audit (AUDIT-1.md)
+    T71: function () { return [withA(function (a) {
+      a.openingNol = 1000000; a.nonHeadcountMonthly = { rd: 20000, sm: 20000, ga: 20000 };
+      Object.keys(a.roles).forEach(function (r) { a.roles[r].loadedCostAnnual *= 0.45; }); }), []]; },
+    T74a: function () { return [A0, [E.templates.tradeShow(A0)]]; },
+    T74b: function () { return [A0, [E.templates.hireAes(A0)]]; },
+    T74c: function () { return [A0, [E.templates.hireAes(A0, { rampMonths: 8 })]]; },
+    T74d: function () { return [A0, [E.templates.hireSdrs(A0, { rampMonths: 0 })]]; },
+    T75: function () { return [A0, [E.templates.partnerProgram(A0)]]; },
+    T76a: function () { return [A0, [{ id: 'capex', name: 'Equipment', effects: [{ kind: 'capex', byMonth: { 3: 360000 } }] }]]; },
+    T76b: function () { return [withA(function (a) { a.usefulLifeMonths = 12; }), [{ id: 'capex12', name: 'Equipment', effects: [{ kind: 'capex', byMonth: { 2: 240000 } }] }]]; },
+    T77: function () { return [A0, [{ id: 'vendors', name: 'Vendor costs on three lines', effects: [
+      { kind: 'vendor_cost', line: 'cogs', byMonth: { 5: 50000 } }, { kind: 'vendor_cost', line: 'rd', byMonth: { 1: 70000 } },
+      { kind: 'vendor_cost', line: 'ga', byMonth: { 36: 9000 } }] }]]; },
+    T78a: function () { return [A0, [driver('winRate', 'paid', 10, 12, 'add', 0.02), driver('winRate', 'paid', 10, 12, 'multiply', 1.5)]]; },
+    T78b: function () { return [A0, [driver('winRate', 'paid', 10, 12, 'multiply', 1.5), driver('winRate', 'paid', 10, 12, 'add', 0.02)]]; },
+    T78c: function () { return [A0, [driver('mqlToOppRate', 'partners', 1, 36, 'add', 2)]]; },
+    T78d: function () { return [A0, [driver('leadToMqlRate', null, 6, 6, 'add', 0.05)]]; },
+    T78e: function () { return [A0, [driver('costPerLead', 'paid', 3, 8, 'multiply', 0.8)]]; },
+    T78f: function () { return [A0, [driver('acv', 'events', 9, 20, 'multiply', 1.1)]]; },
+    T78g: function () { return [A0, [driver('churnRateMonthly', null, 13, 36, 'multiply', 0.5)]]; },
+    T78h: function () { return [A0, [driver('expansionRateMonthly', null, 2, 30, 'add', 0.004), driver('contractionRateMonthly', null, 5, 15, 'multiply', 2)]]; },
+    T78i: function () { return [A0, [driver('hostingCostPerCustomerPerMonth', null, 7, 36, 'add', -60)]]; },
+    T79a: function () { return [withA(function (a) { a.hostingCostPerCustomerPerMonth = 600; }), []]; },
+    T79b: function () { return [withA(function (a) { a.nonHeadcountMonthly.sm = 500000; }), []]; },
+    T79c: function () { return [withA(function (a) { a.nonHeadcountMonthly.ga = 800000; }), []]; },
+    T79d: function () { return [withA(function (a) { a.objective.arrTarget = 30000000; }), []]; },
+    T81a: function () { return [withA(function (a) { a.debtAmortStartMonth = 1; a.debtAmortMonths = 20; }), []]; },
+    T81b: function () { return [withA(function (a) { a.opening.cash = 16500000; }), []]; },
+    T82: function () { return [withA(function (a) { a.debtAmortStartMonth = 10; a.debtAmortMonths = 12; }), []]; },
+    T84a: function () { return [withA(function (a) { a.milestones.hosting_optimization.shipMonth = 35; }), []]; },
+    T84b: function () { return [withA(function (a) { a.milestones.integrations_hub.shipMonth = 1; }), []]; },
+    T84c: function () { return [withA(function (a) { a.milestones.offline_mobile.shipMonth = 1; a.milestones.offline_mobile.rampMonths = 0; }), []]; },
+    T86: function () { return [A0, [{ id: 'eng', name: 'Four engineers, months 10 to 20', effects: [
+      { kind: 'headcount', role: 'engineer', count: 4, startMonth: 10, endMonth: 20, loadedCostAnnual: 260000 }] }]]; }
   };
+  function driver(name, channel, from, to, mode, value) {
+    return { id: 'drv_' + name + '_' + mode, name: name + ' ' + mode + ' ' + value, effects: [
+      { kind: 'driver_change', driver: name, channel: channel, fromMonth: from, toMonth: to, mode: mode, value: value }] };
+  }
   function sc(id) { var s = SCENARIOS[id](); return evaluateNamed(id, s[0], s[1]); }
 
   // ---------- test registry ----------
@@ -2120,6 +2284,499 @@ window.TestSuite = (function () {
     [[-1, 4, 0], [0, 4, 0], [1, 4, 0.25], [4, 4, 1], [9, 4, 1], [0, 0, 1], [-1, 0, 0]].forEach(function (x) {
       t.eq('ramp(' + x[0] + ', ' + x[1] + ')', E.ramp(x[0], x[1]), x[2]);
     });
+  });
+
+  // =====================================================================
+  // Added by the first engine audit (AUDIT-1.md). Each test would have caught
+  // one of the findings. "Reference" values come from an independent
+  // calculation of the SPEC.md formulas, not from this engine. Other values
+  // are worked by hand in the comment beside them.
+  // =====================================================================
+  function checkOf(R, id, opts) { return E.runChecks(R, opts).filter(function (c) { return c.id === id; })[0]; }
+  function rejected(t, label, fn, word) {
+    var msg = null;
+    try { fn(); } catch (err) { msg = String(err && err.message); }
+    t.ok(label + ' is rejected', msg !== null, 'the run went ahead');
+    if (msg !== null) t.ok(label + ' names the input', msg.indexOf(word) >= 0, msg);
+  }
+
+  test('T70', 'Audit: a missing or non-numeric input stops the run and is never read as zero', function (t) {
+    t.eq('Default assumptions are valid', E.validateAssumptions(E.defaultAssumptions()).length, 0);
+    t.eq('Outbound has no cost per lead and that is allowed', E.defaultAssumptions().channels.outbound.costPerLead, null);
+    var bad = {
+      'Churn rate NaN': [function (a) { a.churnRateMonthly = NaN; }, 'churnRateMonthly'],
+      'Churn rate missing': [function (a) { delete a.churnRateMonthly; }, 'churnRateMonthly'],
+      'Opening ARR as text': [function (a) { a.openingArr = '24000000'; }, 'openingArr'],
+      'Opening cash as text': [function (a) { a.opening.cash = '38000000'; }, 'opening.cash'],
+      'Infinite ACV': [function (a) { a.channels.paid.acv = Infinity; }, 'channels.paid.acv'],
+      'Paid cost per lead NaN': [function (a) { a.channels.paid.costPerLead = NaN; }, 'channels.paid.costPerLead'],
+      'Ship month missing': [function (a) { a.milestones.integrations_hub.shipMonth = null; }, 'milestones.integrations_hub.shipMonth'],
+      'Milestone effect NaN': [function (a) { a.milestones.offline_mobile.effects.churnReduction = NaN; }, 'churnReduction'],
+      'Sales cycle of 2.5 months': [function (a) { a.channels.paid.salesCycleMonths = 2.5; }, 'salesCycleMonths'],
+      'Negative sales cycle': [function (a) { a.channels.paid.salesCycleMonths = -1; }, 'salesCycleMonths'],
+      'Negative DSO': [function (a) { a.dsoDays = -10; }, 'dsoDays'],
+      'Negative DPO': [function (a) { a.dpoDays = -10; }, 'dpoDays'],
+      'Role cost missing': [function (a) { delete a.roles.ae.loadedCostAnnual; }, 'roles.ae.loadedCostAnnual'],
+      'Cash floor guardrail missing': [function (a) { delete a.guardrails.cashFloor; }, 'guardrails.cashFloor'],
+      'Planned hire for an unknown role': [function (a) { a.plannedHires[0].role = 'astronaut'; }, 'plannedHires[0].role'],
+      'Eleven invoice weights': [function (a) { a.openingInvoiceWeights.pop(); }, 'openingInvoiceWeights']
+    };
+    Object.keys(bad).forEach(function (label) { rejected(t, label, function () { E.runModel(withA(bad[label][0]), []); }, bad[label][1]); });
+    var badInits = {
+      'Hire with no start month': [{ kind: 'headcount', role: 'ae', count: 2 }, 'startMonth'],
+      'Hire with a NaN count': [{ kind: 'headcount', role: 'ae', count: NaN, startMonth: 2 }, 'count'],
+      'Spend amount NaN': [{ kind: 'program_spend', channel: 'paid', byMonth: { 3: NaN }, leads: 'from_cpl' }, 'month 3'],
+      'Leads as text': [{ kind: 'direct_leads', channel: 'events', byMonth: { 4: '200' } }, 'month 4'],
+      'Driver change with no value': [{ kind: 'driver_change', driver: 'winRate', mode: 'multiply' }, 'value']
+    };
+    Object.keys(badInits).forEach(function (label) {
+      rejected(t, label, function () { E.runModel(A0, [{ id: 'bad', effects: [badInits[label][0]] }]); }, badInits[label][1]);
+    });
+    rejected(t, '13-week forecast from month 0', function () { E.cash13Week(base(), 0); }, 'start month');
+    rejected(t, '13-week forecast from month 37', function () { E.cash13Week(base(), 37); }, 'start month');
+    rejected(t, '13-week forecast from month 1.5', function () { E.cash13Week(base(), 1.5); }, 'start month');
+  });
+
+  test('T71', 'Audit: a profitable company is "not burning", pays tax, and still shows 16/16', function (t) {
+    var R = sc('T71').baseline, G = R.guardrails.items;
+    // Month 1: pre-tax 547,140.30 is covered by the 1,000,000 of tax losses. Month 2: 583,877.43 less the
+    // remaining 452,859.70 leaves 131,017.73 taxed at 25% = 32,754.43. Month 3: no losses left (reference).
+    t.d('Pre-tax income m1', R.pl.preTaxIncome[1], 547140.30); t.d('Tax m1', R.pl.tax[1], 0); t.d('Tax losses m1', R.tax.nol[1], 452859.70);
+    t.d('Tax m2', R.pl.tax[2], 32754.43); t.d('Tax losses m2', R.tax.nol[2], 0);
+    t.d('Tax m3', R.pl.tax[3], 154832.97); t.d('Tax m3 is 25% of pre-tax income', R.pl.tax[3], 0.25 * R.pl.preTaxIncome[3]);
+    t.d('Net income m2', R.pl.netIncome[2], 551123.00); t.d('Net income m3', R.pl.netIncome[3], 464498.91);
+    t.d('Cash m1', R.bs.cash[1], 38109477.50); t.d('Cash m2', R.bs.cash[2], 38751654.96); t.d('Cash m3', R.bs.cash[3], 39311416.87);
+    t.d('Cash m36', R.bs.cash[36], 76230046.34); t.d('Tax paid over 36 months', sum(R.pl.tax, 1, 36), 11077979.94);
+    // Tax leaves the bank on the last day of the month in the 13-week view.
+    var taxWeeks = R.cash13.weeks.map(function (w) { return w.tax; });
+    t.d('13-week tax, week 9 (Feb 28)', taxWeeks[8], 32754.43); t.d('13-week tax, week 13 (Mar 31)', taxWeeks[12], 154832.97);
+    t.d('13-week tax total', taxWeeks.reduce(function (a, b) { return a + b; }, 0), 187587.40);
+    t.d('13-week ending cash', R.cash13.weeks[12].endCash, 39367605.99);
+    // Not burning: runway is infinite, the guardrail passes, and that is not an integrity failure.
+    t.eq('Runway m1', R.kpis.runway[1], Infinity); t.eq('Lowest runway months 1 to 12', G.runway.value, Infinity);
+    t.eq('Runway guardrail passes', G.runway.pass, true);
+    var ch = E.runChecks(R);
+    t.eq('Checks passed', ch.filter(function (c) { return c.pass; }).length, 16);
+    t.eq('Badge', E.checkSummary(ch).label, 'Integrity 16/16');
+    // Only "not burning" (plus infinity, on a runway figure) is allowed.
+    var bad = structuredClone(R); bad.guardrails.items.runway.value = -Infinity;
+    t.eq('Minus infinity on runway fails C16', checkOf(bad, 'C16').pass, false);
+    bad = structuredClone(R); bad.guardrails.items.runway.value = NaN;
+    t.eq('NaN on runway fails C16', checkOf(bad, 'C16').pass, false);
+    bad = structuredClone(R); bad.kpis.burnMultiple[5] = Infinity;
+    t.eq('Infinity anywhere else fails C16', checkOf(bad, 'C16').pass, false);
+    // A missing check shows as a failure in the badge.
+    t.eq('Badge with a check missing', E.checkSummary(ch.slice(0, 15)).label, 'Integrity 15/16');
+  });
+
+  test('T72', 'Audit: C5 fails when AE capacity is not applied', function (t) {
+    // T44 creates 54.5 opportunities in month 4 against capacity for 42.
+    var S = structuredClone(sc('T44').scenario);
+    t.eq('C5 passes before the change', checkOf(S, 'C5').pass, true);
+    S.capacity.workShare[4] = 1;
+    ['outbound', 'paid', 'events', 'partners'].forEach(function (c) { S.funnel[c].oppsWorked[4] = S.funnel[c].oppsCreated[4]; });
+    var c5 = checkOf(S, 'C5');
+    t.eq('C5 fails when everything created is worked', c5.pass, false); t.eq('C5 first failing month', c5.firstMonth, 4);
+    S = structuredClone(sc('T44').scenario); S.capacity.capacity[4] += 5;
+    t.eq('C5 fails when stored capacity is not ramped AEs times 7', checkOf(S, 'C5').pass, false);
+    S = structuredClone(base()); S.funnel.paid.deals[6] = S.funnel.paid.oppsWorked[4] + 1;
+    c5 = checkOf(S, 'C5');
+    t.eq('C5 fails when deals exceed the opportunities they came from', c5.pass, false); t.eq('C5 month', c5.firstMonth, 6);
+  });
+
+  test('T73', 'Audit: the cash floor is one number (C10 fails if its two inputs differ)', function (t) {
+    var one = E.runModel(withA(function (a) { a.cashFloor = 30000000; }), []);
+    var c10 = checkOf(one, 'C10');
+    t.eq('C10 fails when only cashFloor is changed', c10.pass, false);
+    t.ok('The reason names both inputs', c10.reason.indexOf('guardrails.cashFloor') >= 0 && c10.reason.indexOf('30,000,000') >= 0, c10.reason);
+    var other = E.runModel(withA(function (a) { a.guardrails.cashFloor = 30000000; }), []);
+    t.eq('C10 fails when only guardrails.cashFloor is changed', checkOf(other, 'C10').pass, false);
+    var both = E.runModel(withA(function (a) { a.cashFloor = 30000000; a.guardrails.cashFloor = 30000000; }), []);
+    t.eq('C10 passes when both are changed together', checkOf(both, 'C10').pass, true);
+    t.eq('Cash floor guardrail fails at 30,000,000', both.guardrails.items.cashFloor.pass, false);
+    // Cash ends below 30,000,000 from September 2027 (month 9: 29,638,588.28) to the end: 28 months.
+    t.eq('Breach months', both.cashTests.floorBreachMonths.length, 28); t.eq('First breach month', both.cashTests.floorBreachMonths[0], 9);
+    t.eq('Covenant still passes', both.guardrails.items.covenant.pass, true);
+    var S = structuredClone(base()); S.guardrails.items.cashFloor.value += 1;
+    t.eq('C10 fails when the guardrail value is not the low point', checkOf(S, 'C10').pass, false);
+    S = structuredClone(base()); S.guardrails.items.covenant.pass = false;
+    t.eq('C10 fails when the covenant result contradicts the breach months', checkOf(S, 'C10').pass, false);
+  });
+
+  test('T74', 'Audit: templates build the SPEC examples, and the ramp input does something', function (t) {
+    // Default trade show template = section 4.3. Default AE template = section 4.4.
+    var show = sc('T74a').returns, aes = sc('T74b').returns;
+    t.d('Trade show template investment', show.totalInvestment, 76000.00); t.d('Trade show template NPV', show.npv, 202196.90);
+    t.eq('Trade show template payback', show.payback.month, 14); t.d('Trade show template new ARR', show.extraNewArr, 130000.00);
+    t.d('Trade show template cumulative NF', show.cumNetFlow[36], 266954.41);
+    t.d('AE template investment', aes.totalInvestment, 932270.00); t.d('AE template NPV', aes.npv, 191401.37);
+    t.eq('AE template payback', aes.payback.month, 30); t.d('AE template new ARR', aes.extraNewArr, 1016618.40);
+    // Ramp of 8 months: 2 AEs are at 1/8 in month 3 (0.25), half in month 6 (1.0), full in month 10 (2.0).
+    var x = sc('T74c'), S = x.scenario, B = x.baseline;
+    [[2, 0], [3, 0.25], [6, 1.0], [9, 1.75], [10, 2.0], [20, 2.0]].forEach(function (p) {
+      t.r('Ramp 8: ramped AEs added m' + p[0], S.capacity.rampedAE[p[0]] - B.capacity.rampedAE[p[0]], p[1]);
+    });
+    // Month 3 opportunities 0.25 x 1.5 = 0.375 close in month 7: 0.375 x 0.24 x 45,000 = 4,050.
+    t.d('Ramp 8: extra new ARR m7', S.arr.newArr[7] - B.arr.newArr[7], 4050.00);
+    t.d('Ramp 8: NPV (reference)', x.returns.npv, 66368.62); t.eq('Ramp 8: payback month (reference)', x.returns.payback.month, 33);
+    t.d('Ramp 8: delta ARR m12 (reference)', S.arr.arr[12] - B.arr.arr[12], 86193.12);
+    t.ok('A slower ramp is worth less', x.returns.npv < aes.npv);
+    // SDR ramp of 0: both new SDRs are fully productive in their start month. 75 + 2 x 25 = 125 leads.
+    x = sc('T74d'); S = x.scenario;
+    t.r('SDR ramp 0: outbound leads m1', S.funnel.outbound.leads[1], 75); t.r('SDR ramp 0: outbound leads m2', S.funnel.outbound.leads[2], 125);
+    t.d('SDR ramp 0: NPV (reference)', x.returns.npv, 575288.50); t.eq('SDR ramp 0: payback month (reference)', x.returns.payback.month, 22);
+    var dflt = sc('T46').scenario;
+    t.r('SDR default ramp: leads m2', dflt.funnel.outbound.leads[2], 75); t.r('SDR default ramp: leads m3', dflt.funnel.outbound.leads[3], 100);
+    t.r('SDR default ramp: leads m4', dflt.funnel.outbound.leads[4], 125);
+    // Planned hires keep the company-wide ramp: the January 2028 AE is at 25% in month 14.
+    t.r('Planned AE ramp m14', base().capacity.rampedAE[14], 6.25);
+  });
+
+  test('T75', 'Audit: partner program template', function (t) {
+    var init = E.templates.partnerProgram(A0), x = sc('T75'), r = x.returns, S = x.scenario, B = x.baseline;
+    var setup = init.effects.filter(function (e) { return e.kind === 'vendor_cost'; })[0];
+    var co = init.effects.filter(function (e) { return e.kind === 'program_spend'; })[0];
+    t.eq('Setup line', setup.line, 'sm'); t.d('Setup m2', setup.byMonth[2], 40000); t.eq('Setup months', Object.keys(setup.byMonth).length, 1);
+    t.eq('Co-marketing channel', co.channel, 'partners'); t.eq('Co-marketing buys leads', co.leads, 'from_cpl');
+    t.eq('Co-marketing months', Object.keys(co.byMonth).length, 12); t.d('Co-marketing m3', co.byMonth[3], 10000); t.d('Co-marketing m14', co.byMonth[14], 10000);
+    t.eq('No co-marketing in month 2', co.byMonth[2], undefined); t.eq('No co-marketing in month 15', co.byMonth[15], undefined);
+    // Month 3: 24,000 / 600 = 40 leads plus 10,000 / 600 = 16.67. x 45% x 25% = 6.375 opportunities.
+    // They close in month 6: 6.375 x 30% = 1.9125 deals x 38,000 = 72,675.
+    t.r('Partner leads m2', S.funnel.partners.leads[2], 40); t.r('Partner leads m3', S.funnel.partners.leads[3], 56.6667);
+    t.r('Partner leads m15 (base spend up 5%)', S.funnel.partners.leads[15], 42);
+    t.r('Partner deals m6', S.funnel.partners.deals[6], 1.9125); t.d('Partner new ARR m6', S.funnel.partners.newArr[6], 72675.00);
+    t.d('P&L program spend m3', S.pl.programSpend[3], 150000); t.d('Delta S&M m2', S.pl.sm[2] - B.pl.sm[2], 40000);
+    t.d('Total investment', r.totalInvestment, 160000.00);
+    t.d('NPV (reference)', r.npv, 305207.18); t.eq('Payback month (reference)', r.payback.month, 18);
+    t.d('Delta ARR m12 (reference)', S.arr.arr[12] - B.arr.arr[12], 153264.26); t.r('ROI (reference)', r.roi, 2.5373);
+  });
+
+  test('T76', 'Audit: capex initiative and depreciation timing', function (t) {
+    // 360,000 bought in month 3, depreciated over 36 months from month 4: 10,000 a month.
+    var x = sc('T76a'), r = x.returns, S = x.scenario, B = x.baseline;
+    for (var m = 1; m <= 36; m++) {
+      t.d('Delta depreciation m' + m, S.pl.depreciation[m] - B.pl.depreciation[m], m >= 4 ? 10000 : 0);
+      t.d('Delta EBITDA m' + m, S.pl.ebitda[m] - B.pl.ebitda[m], 0);
+      t.d('Net flow m' + m, r.netFlow[m], m === 3 ? -360000 : 0);
+    }
+    t.d('Delta capex m3', S.capex.capex[3] - B.capex.capex[3], 360000); t.d('Delta CFI m3', S.cf.cfi[3] - B.cf.cfi[3], -360000);
+    t.d('Delta cash m3', S.bs.cash[3] - B.bs.cash[3], -360000);
+    t.d('Delta PP&E m3', S.bs.ppe[3] - B.bs.ppe[3], 360000); t.d('Delta PP&E m36 (33 months depreciated)', S.bs.ppe[36] - B.bs.ppe[36], 30000);
+    t.d('Total investment', r.totalInvestment, 360000.00); t.d('Cumulative NF m36', r.cumNetFlow[36], -360000.00);
+    t.d('NPV = -360,000 discounted 3 months', r.npv, -360000 / Math.pow(1.12, 3 / 12)); t.d('NPV (reference)', r.npv, -349943.55);
+    t.eq('Payback', r.payback.status, 'not_within_horizon'); t.eq('Payback month', r.payback.month, null);
+    t.eq('Earnings payback: no effect on EBITDA', r.earningsPayback.status, 'never_negative');
+    // Useful life of 12 months: 240,000 bought in month 2 is 20,000 a month in months 3 to 14, then nothing.
+    x = sc('T76b'); S = x.scenario; B = x.baseline;
+    for (m = 1; m <= 36; m++) t.d('Life 12: delta depreciation m' + m, S.pl.depreciation[m] - B.pl.depreciation[m], (m >= 3 && m <= 14) ? 20000 : 0);
+    t.d('Life 12: delta PP&E m14', S.bs.ppe[14] - B.bs.ppe[14], 0);
+    // Baseline with a 12-month life: month 13 depreciates the capex of months 1 to 12 (12 x 40,000 / 12) plus opening PP&E.
+    t.d('Life 12: baseline depreciation m13', B.pl.depreciation[13], 40000 + 45000); t.d('Life 12: baseline depreciation m30', B.pl.depreciation[30], 40000);
+  });
+
+  test('T77', 'Audit: vendor costs land on the right P&L line and are paid a month later', function (t) {
+    var x = sc('T77'), r = x.returns, S = x.scenario, B = x.baseline;
+    function d(get, m) { return get(S)[m] - get(B)[m]; }
+    t.d('Delta COGS m5', d(function (R) { return R.pl.cogs; }, 5), 50000); t.d('Delta gross profit m5', d(function (R) { return R.pl.grossProfit; }, 5), -50000);
+    t.d('Delta R&D m5', d(function (R) { return R.pl.rd; }, 5), 0); t.d('Delta S&M m5', d(function (R) { return R.pl.sm; }, 5), 0);
+    t.d('Delta G&A m5', d(function (R) { return R.pl.ga; }, 5), 0); t.d('Delta EBITDA m5', d(function (R) { return R.pl.ebitda; }, 5), -50000);
+    t.d('Delta R&D m1', d(function (R) { return R.pl.rd; }, 1), 70000); t.d('Delta COGS m1', d(function (R) { return R.pl.cogs; }, 1), 0);
+    t.d('Delta G&A m36', d(function (R) { return R.pl.ga; }, 36), 9000); t.d('Delta EBITDA m36', d(function (R) { return R.pl.ebitda; }, 36), -9000);
+    t.d('Delta payables m5', d(function (R) { return R.bs.accountsPayable; }, 5), 50000); t.d('Delta vendor paid m5', d(function (R) { return R.vendor.paid; }, 5), 0);
+    t.d('Delta vendor paid m6', d(function (R) { return R.vendor.paid; }, 6), 50000); t.d('Delta vendor paid m2', d(function (R) { return R.vendor.paid; }, 2), 70000);
+    t.d('NF m1', r.netFlow[1], 0); t.d('NF m2', r.netFlow[2], -70000); t.d('NF m6', r.netFlow[6], -50000); t.d('NF m36', r.netFlow[36], 0);
+    // The month-36 bill is expensed and owed, but paid after the model ends.
+    t.d('Delta payables m36', d(function (R) { return R.bs.accountsPayable; }, 36), 9000);
+    t.d('Total investment (as expensed)', r.totalInvestment, 129000.00); t.d('Cumulative NF m36 (as paid)', r.cumNetFlow[36], -120000.00);
+    t.d('NPV (reference)', r.npv, -115935.80);
+  });
+
+  test('T78', 'Audit: driver changes (every driver, both modes, timing and clamping)', function (t) {
+    var B = base(), x, S, m;
+    // (a) base x multipliers + adds, in any order: 0.18 x 1.5 + 0.02 = 0.29. Deals 7.5 x 0.29 = 2.175.
+    var ab = sc('T78a').scenario, ba = sc('T78b').scenario;
+    [10, 11, 12].forEach(function (mm) { t.r('Paid win rate m' + mm, ab.funnel.paid.winRate[mm], 0.29); t.r('Paid deals m' + mm, ab.funnel.paid.deals[mm], 2.175); });
+    t.r('Paid win rate m9 (before the window)', ab.funnel.paid.winRate[9], 0.18); t.r('Paid win rate m13 (after: hub lift only)', ab.funnel.paid.winRate[13], 0.1824);
+    t.r('Outbound win rate m11 (other channel untouched)', ab.funnel.outbound.winRate[11], 0.24);
+    t.eq('Order of effects does not matter', E.maxSeriesDiff(ab, ba).diff, 0);
+    // (b) Rates are clamped to 1: 25% + 200% becomes 100%, so every partner MQL becomes an opportunity (18).
+    S = sc('T78c').scenario;
+    t.r('Partner sourced opps m1', S.funnel.partners.sourcedOpps[1], 18); t.r('Partner MQLs m1', S.funnel.partners.mql[1], 18);
+    t.eq('C5 still passes', checkOf(S, 'C5').pass, true);
+    // (c) Lead-stage drivers use the month the leads arrive. Month 6 only, all channels, +5 points.
+    S = sc('T78d').scenario;
+    t.r('Paid MQLs m5', S.funnel.paid.mql[5], 50); t.r('Paid MQLs m6', S.funnel.paid.mql[6], 62.5); t.r('Paid MQLs m7', S.funnel.paid.mql[7], 50);
+    t.r('Events MQLs m6', S.funnel.events.mql[6], 24); t.r('Partner MQLs m6', S.funnel.partners.mql[6], 20); t.r('Outbound MQLs m6', S.funnel.outbound.mql[6], 18.75);
+    // Paid cycle is 2 months: 62.5 x 15% x 18% = 1.6875 deals in month 8 only.
+    t.r('Paid deals m7', S.funnel.paid.deals[7], 1.35); t.r('Paid deals m8', S.funnel.paid.deals[8], 1.6875); t.r('Paid deals m9', S.funnel.paid.deals[9], 1.35);
+    // (d) Cost per lead x 0.8 on paid, months 3 to 8: 60,000 / 192 = 312.5 leads. Spend is unchanged.
+    x = sc('T78e'); S = x.scenario;
+    [[2, 250], [3, 312.5], [8, 312.5], [9, 250]].forEach(function (p) { t.r('Paid leads m' + p[0], S.funnel.paid.leads[p[0]], p[1]); });
+    t.r('Paid cost per lead m3', S.funnel.paid.costPerLead[3], 192); t.r('Events leads m3 (other channel)', S.funnel.events.leads[3], 80);
+    t.d('Program spend m3 unchanged', S.pl.programSpend[3], 140000);
+    t.d('Delta ARR m12 (reference)', S.arr.arr[12] - B.arr.arr[12], 62973.65); t.d('NPV (reference)', x.returns.npv, 127702.10);
+    t.eq('Total investment is zero', x.returns.totalInvestment, 0); t.eq('ROI is not defined without an investment', x.returns.roi, null);
+    // (e) ACV applies in the month the deal closes. Events ACV x 1.1 in months 9 to 20.
+    S = sc('T78f').scenario;
+    t.d('Events new ARR m8', S.funnel.events.newArr[8], 52000); t.d('Events new ARR m9', S.funnel.events.newArr[9], 57200);
+    t.d('Events ACV m13 with hub lift 1/6', S.funnel.events.acv[13], 52000 * 1.1 * (1 + 0.05 / 6));
+    t.d('Events new ARR m20', S.funnel.events.newArr[20], S.funnel.events.deals[20] * 52000 * 1.1 * 1.05);
+    t.d('Events new ARR m21 (window over)', S.funnel.events.newArr[21], S.funnel.events.deals[21] * 52000 * 1.05);
+    t.d('Paid new ARR m9 (other channel)', S.funnel.paid.newArr[9], 40500);
+    // (f) Churn x 0.5 from month 13. The mobile app (ships month 18) then reduces the halved rate.
+    x = sc('T78g'); S = x.scenario;
+    t.r('Churn rate m12', S.arr.churnRate[12], 0.006); t.r('Churn rate m13', S.arr.churnRate[13], 0.003);
+    t.near('Churn rate m24 = 0.003 x 0.85', S.arr.churnRate[24], 0.00255, 1e-9);
+    t.d('ARR m12 unchanged', S.arr.arr[12], 30048489.36); t.d('Churn m13 = ARR m12 x 0.3%', S.arr.churn[13], 30048489.36 * 0.003);
+    t.near('Lost customers m13', S.arr.lostCustomers[13], S.arr.customers[12] * 0.003, 1e-9);
+    t.d('ARR m13 (reference)', S.arr.arr[13], 30691482.39); t.d('ARR m36 (reference)', S.arr.arr[36], 49505431.92);
+    t.r('Customers m36 (reference)', S.arr.customers[36], 796.9875); t.d('NPV (reference)', x.returns.npv, 2144072.78);
+    // Never negative, so "payback" is the first month the measured series moves: revenue in month 13,
+    // cash in month 14 (the larger month-13 invoices are collected from the following month).
+    t.eq('Payback: never negative', x.returns.payback.status, 'never_negative'); t.d('NF m13', x.returns.netFlow[13], 0);
+    t.eq('Cash: first month with an effect', x.returns.payback.month, 14); t.eq('Earnings: first month with an effect', x.returns.earningsPayback.month, 13);
+    // (g, h) Expansion + 0.4 points in months 2 to 30. Contraction x 2 in months 5 to 15.
+    S = sc('T78h').scenario;
+    t.d('Expansion m1 (before)', S.arr.expansion[1], 400800); t.d('Expansion m2', S.arr.expansion[2], 24481600 * 0.0207);
+    t.near('Expansion rate m30', S.arr.expansionRate[30], 0.0207, 1e-12); t.near('Expansion rate m31', S.arr.expansionRate[31], 0.0167, 1e-12);
+    t.near('Contraction rate m4', S.arr.contractionRate[4], 0.0027, 1e-12); t.near('Contraction rate m5', S.arr.contractionRate[5], 0.0054, 1e-12);
+    t.near('Contraction rate m15', S.arr.contractionRate[15], 0.0054, 1e-12); t.near('Contraction rate m16', S.arr.contractionRate[16], 0.0027, 1e-12);
+    t.d('Contraction m5 = ARR m4 x 0.54%', S.arr.contraction[5], S.arr.arr[4] * 0.0054);
+    // (i) Hosting 60 cheaper per customer from month 7: 360 becomes 300, a sixth off. Paid a month later.
+    x = sc('T78i'); S = x.scenario;
+    t.d('Hosting m6 unchanged', S.pl.hosting[6], B.pl.hosting[6]); t.d('Hosting m7', S.pl.hosting[7], B.pl.hosting[7] * 300 / 360);
+    t.d('Hosting m7 (reference)', S.pl.hosting[7], 186405.77); t.d('NF m7', x.returns.netFlow[7], 0); t.d('NF m8 (reference)', x.returns.netFlow[8], 37281.15);
+    t.d('NPV (reference)', x.returns.npv, 837111.48);
+    t.eq('Payback: never negative', x.returns.payback.status, 'never_negative'); t.eq('First month with an effect', x.returns.payback.month, 8);
+    for (m = 1; m <= 36; m++) t.d('ARR unchanged m' + m, S.arr.arr[m], B.arr.arr[m]);
+  });
+
+  test('T79', 'Audit: every guardrail can fail, and the objective can be met', function (t) {
+    var I;
+    // Hosting at 600 a customer: gross margin 71.06% is below 72%.
+    I = sc('T79a').baseline.guardrails.items;
+    t.r('Gross margin (reference)', I.grossMargin.value, 0.7106); t.eq('Gross margin fails', I.grossMargin.pass, false);
+    t.r2('CAC payback (reference)', I.cacPayback.value, 19.65); t.eq('CAC payback passes', I.cacPayback.pass, true);
+    // S&M non-headcount at 500,000 a month: blended CAC payback 25.81 months is above 24.
+    I = sc('T79b').baseline.guardrails.items;
+    t.r2('CAC payback (reference)', I.cacPayback.value, 25.81); t.eq('CAC payback fails', I.cacPayback.pass, false);
+    t.eq('Gross margin passes', I.grossMargin.pass, true); t.eq('Runway passes', I.runway.pass, true);
+    // G&A non-headcount at 800,000 a month: burn multiple 2.68 and runway 17.19 months both fail.
+    var G = sc('T79c').baseline.guardrails; I = G.items;
+    t.r2('Burn multiple (reference)', I.burnMultiple.value, 2.68); t.eq('Burn multiple fails', I.burnMultiple.pass, false);
+    t.r2('Lowest runway (reference)', I.runway.value, 17.19); t.eq('Runway fails', I.runway.pass, false);
+    t.eq('Cash floor fails', I.cashFloor.pass, false); t.eq('Covenant fails', I.covenant.pass, false);
+    t.eq('Gross margin passes', I.grossMargin.pass, true); t.eq('CAC payback passes', I.cacPayback.pass, true);
+    t.eq('Guardrails passed', G.guardrailsPassed, 2); t.eq('Not all guardrails pass', G.allGuardrailsPass, false);
+    // Opening cash of 5,000,000 (T53): runway hits 0, burn multiple is unchanged in kind and still passes.
+    I = sc('T53').baseline.guardrails.items;
+    t.eq('Runway fails', I.runway.pass, false); t.r('Lowest runway', I.runway.value, 0); t.eq('Lowest runway month', I.runway.month, 5);
+    t.r2('Burn multiple (reference)', I.burnMultiple.value, 1.96); t.eq('Burn multiple passes', I.burnMultiple.pass, true);
+    // A target of 30,000,000 is met by 48,489.36.
+    G = sc('T79d').baseline.guardrails;
+    t.eq('Objective met', G.objectiveMet, true); t.d('Gap', G.items.objective.gap, -48489.36); t.eq('Objective month', G.items.objective.month, 12);
+  });
+
+  test('T80', 'Audit: payback month rules', function (t) {
+    function pb(flows, effect) { return E.paybackMonth([0].concat(flows), effect ? [0].concat(effect) : null, flows.length); }
+    var r = pb([-5, 2, 3, 1]); t.eq('Back to exactly zero counts', r.month, 3); t.eq('Status', r.status, 'paid_back');
+    r = pb([-5, 2, 2, 0]); t.eq('Never recovers: no month', r.month, null); t.eq('Never recovers: status', r.status, 'not_within_horizon');
+    r = pb([0, 0, 4, 1]); t.eq('Never negative: first month with an effect', r.month, 3); t.eq('Never negative: status', r.status, 'never_negative');
+    r = pb([0, 0, 0, 0]); t.eq('No effect: no month', r.month, null); t.eq('No effect: status', r.status, 'no_effect');
+    r = pb([0, 0, 0, 0], [0, 7, 0, 0]); t.eq('Investment with no flow yet: first month of investment', r.month, 2);
+    r = pb([3, -5, 1, 1]); t.eq('Positive first, then negative, then back', r.month, 4);
+    r = pb([-5, 6, -3, 2]); t.eq('First month back at zero or better', r.month, 2);
+  });
+
+  test('T81', 'Audit: 13-week forecast from other start months (leap year, principal, cash floor)', function (t) {
+    var R = base(), A = R.inputs.assumptions;
+    t.eq('February 2027 has 28 days', E.daysInMonth(A, 2), 28); t.eq('February 2028 has 29 days', E.daysInMonth(A, 14), 29);
+    t.eq('February 2029 has 28 days', E.daysInMonth(A, 26), 28); t.eq('December 2027 has 31 days', E.daysInMonth(A, 12), 31);
+    // From February 1, 2028: 29 + 31 + 30 = 90 days, so day 91 is May 1.
+    var F = E.cash13Week(R, 14);
+    t.d('Start cash = January 2028 ending cash', F.startCash, 26635987.11); t.d('Day 29 = February 2028 ending cash', F.dailyCash[29], 25894294.15);
+    t.d('Day 60 = March 2028', F.dailyCash[60], 25180881.38); t.d('Day 90 = April 2028', F.dailyCash[90], 24499458.06);
+    t.d('Day 91 (reference)', F.dailyCash[91], 24555033.15); t.d('Week 1 receipts (reference)', F.weeks[0].receipts, 645026.92);
+    t.d('Week 5 ending cash (reference)', F.weeks[4].endCash, 26208328.74);
+    t.eq('Week 1 label', F.weeks[0].label, 'Feb 1 to Feb 7'); t.eq('Week 13 label', F.weeks[12].label, 'Apr 25 to May 1'); t.eq('Weeks', F.weeks.length, 13);
+    // From December 1, 2027: 31 + 31 + 29 = 91 days, ending on February 29, 2028.
+    F = E.cash13Week(R, 12);
+    t.d('Start cash = November 2027', F.startCash, 28085499.76); t.d('Day 31 = December 2027', F.dailyCash[31], 27381491.22);
+    t.d('Day 62 = January 2028', F.dailyCash[62], 26635987.11); t.d('Day 91 = February 29, 2028', F.dailyCash[91], 25894294.15);
+    t.eq('Week 13 label', F.weeks[12].label, 'Feb 23 to Feb 29');
+    // Principal of 500,000 a month from January 2027 goes out with interest on the last day of each month.
+    var Rd = sc('T81a').baseline, W = Rd.cash13.weeks;
+    t.d('Debt service week 5 (Jan 31): 91,666.67 + 500,000', W[4].debtService, 591666.67);
+    t.d('Debt service week 9 (Feb 28): 87,083.33 + 500,000', W[8].debtService, 587083.33);
+    t.d('Debt service week 13 (Mar 31): 82,500 + 500,000', W[12].debtService, 582500.00);
+    t.d('Debt service week 1', W[0].debtService, 0); t.d('13-week ending cash (reference)', W[12].endCash, 33514615.20);
+    // Opening cash of 16,500,000: below the 15,000,000 floor from week 9, never below the 12,000,000 covenant.
+    var Rf = sc('T81b').baseline.cash13;
+    t.d('Week 8 ending cash (reference)', Rf.weeks[7].endCash, 15303471.07); t.d('Week 9 ending cash (reference)', Rf.weeks[8].endCash, 14450354.53);
+    t.d('Week 13 ending cash (reference)', Rf.weeks[12].endCash, 13290138.02);
+    t.eq('Week 8 below floor', Rf.weeks[7].belowFloor, false); t.eq('Week 9 below floor', Rf.weeks[8].belowFloor, true);
+    t.eq('Any week below floor', Rf.anyWeekBelowFloor, true); t.eq('Any week below covenant', Rf.anyWeekBelowCovenant, false);
+    t.eq('Lowest week', Rf.lowestWeek, 13);
+  });
+
+  test('T82', 'Audit: debt amortization starts and stops on the right months', function (t) {
+    // 10,000,000 over 12 months from month 10: 833,333.33 a month in months 10 to 21, then nothing.
+    var R = sc('T82').baseline;
+    for (var m = 1; m <= 36; m++) t.d('Principal m' + m, R.debt.principal[m], (m >= 10 && m <= 21) ? 10000000 / 12 : 0);
+    t.d('Debt m9', R.bs.debt[9], 10000000); t.d('Debt m10', R.bs.debt[10], 10000000 * 11 / 12); t.d('Debt m21', R.bs.debt[21], 0); t.d('Debt m36', R.bs.debt[36], 0);
+    t.d('Interest m10 (on the full balance)', R.pl.interestExpense[10], 91666.67); t.d('Interest m11', R.pl.interestExpense[11], 10000000 * 11 / 12 * 0.11 / 12);
+    t.d('Interest m21 (on the last 833,333.33)', R.pl.interestExpense[21], 7638.89); t.d('Interest m22', R.pl.interestExpense[22], 0);
+    t.d('CFF m21', R.cf.cff[21], -10000000 / 12); t.d('CFF m22', R.cf.cff[22], 0);
+    t.d('Cash m36 (reference)', R.bs.cash[36], 9370446.32);
+    t.eq('Covenant breached', R.guardrails.items.covenant.pass, false);
+  });
+
+  test('T83', 'Audit: growth rates, channel cost per deal and payables timing', function (t) {
+    var R = base(), K = R.kpis;
+    // ARR growth is annualized before month 12: (26,948,012.16 / 24,000,000)^(12/6) - 1 = 26.08%.
+    t.r('ARR growth m6', K.arrGrowth[6], Math.pow(26948012.16 / 24000000, 2) - 1); t.r('ARR growth m6', K.arrGrowth[6], 0.2608);
+    t.r('ARR growth m1', K.arrGrowth[1], Math.pow(24481600 / 24000000, 12) - 1);
+    t.r('ARR growth m12', K.arrGrowth[12], 0.2520); t.r('ARR growth m24', K.arrGrowth[24], 0.2510); t.r('ARR growth m36', K.arrGrowth[36], 0.2439);
+    t.r('ARR growth m18 = ARR m18 / ARR m6 - 1', K.arrGrowth[18], 33561166.56 / 26948012.16 - 1);
+    // Revenue growth compares with the same month a year earlier, from month 13.
+    t.eq('Revenue growth basis m12', K.revenueGrowthBasis[12], 'arr'); t.r('Revenue growth m12 shows ARR growth', K.revenueGrowth[12], K.arrGrowth[12]);
+    t.eq('Revenue growth basis m13', K.revenueGrowthBasis[13], 'revenue'); t.r('Revenue growth m13', K.revenueGrowth[13], 2527076.10 / 2020066.67 - 1);
+    t.r('Revenue growth m36', K.revenueGrowth[36], 3861875.86 / 3103230.18 - 1);
+    // Program cost per deal uses the channel's base win rate: 60,000 / (7.5 x 0.18) = 44,444.44.
+    t.d('Paid program cost per deal m1', K.channelProgramCostPerDeal.paid[1], 60000 / (7.5 * 0.18));
+    t.d('Outbound program cost per deal m1', K.channelProgramCostPerDeal.outbound[1], 28000 / (13.5 * 0.24));
+    t.d('Events program cost per deal m1', K.channelProgramCostPerDeal.events[1], 28000 / (4.0 * 0.25));
+    // Month 18: spend and opportunities are both 5% higher, and the hub lift is not counted, so the figure is unchanged.
+    t.d('Paid program cost per deal m18', K.channelProgramCostPerDeal.paid[18], 60000 / (7.5 * 0.18));
+    // DPO of 45 days (T57): half of each month's bills are still unpaid a month later.
+    var P = sc('T57').baseline;
+    t.d('Payables m2 = spend m2 + half of spend m1', P.bs.accountsPayable[2], P.vendor.spend[2] + 0.5 * P.vendor.spend[1]);
+    t.d('Vendor paid m2 = half of opening spend + half of month 1', P.vendor.paid[2], 0.5 * 1040000 + 0.5 * P.vendor.spend[1]);
+    t.d('Vendor spend m1', P.vendor.spend[1], 1037403.87); t.d('Vendor paid m2', P.vendor.paid[2], 520000 + 518701.93);
+  });
+
+  test('T84', 'Audit: milestones that ship in month 1, month 35, month 36 or later', function (t) {
+    var off = E.runModel(withA(function (a) { a.milestones.hosting_optimization.enabled = false; }), []);
+    [36, 37, 48].forEach(function (ship) {
+      var late = E.runModel(withA(function (a) { a.milestones.hosting_optimization.shipMonth = ship; }), []);
+      t.eq('Hosting project shipping in month ' + ship + ' equals the project switched off', E.maxSeriesDiff(late, off).diff, 0);
+    });
+    // Ships in month 35: one month of effect at one third. 20% x 1/3 off hosting in month 36 only.
+    var R = sc('T84a').baseline;
+    t.d('Hosting m35 (ship month, no effect)', R.pl.hosting[35], off.pl.hosting[35]);
+    t.d('Hosting m36', R.pl.hosting[36], off.pl.hosting[36] * (1 - 0.20 / 3));
+    // Hub ships in month 1: deals closing in month 2 come from the opening pipeline and get 1/6 of the lift.
+    R = sc('T84b').baseline;
+    t.r('Paid win rate m1 (ship month)', R.funnel.paid.winRate[1], 0.18); t.r('Paid win rate m2', R.funnel.paid.winRate[2], 0.1824);
+    t.r('Paid win rate m7 (full lift)', R.funnel.paid.winRate[7], 0.1944); t.r('Paid win rate m36', R.funnel.paid.winRate[36], 0.1944);
+    t.r('Paid deals m2', R.funnel.paid.deals[2], 1.368); t.d('Paid ACV m2', R.funnel.paid.acv[2], 30000 * (1 + 0.05 / 6));
+    t.d('New ARR m1 unchanged', R.arr.newArr[1], 289600.00);
+    // Mobile app ships in month 1 with no ramp: the full 15% churn reduction applies from month 1.
+    R = sc('T84c').baseline;
+    t.near('Churn rate m1', R.arr.churnRate[1], 0.0051, 1e-12); t.d('Churn m1', R.arr.churn[1], 24000000 * 0.0051);
+    t.r('Customers m1 = 600 + 6.94 - 600 x 0.51%', R.arr.customers[1], 603.88); t.d('ARR m1', R.arr.arr[1], 24503200.00);
+  });
+
+  test('T85', 'Audit: every part of every check can fail', function (t) {
+    function fails(label, id, mutate, source) {
+      var copy = structuredClone(source || base());
+      mutate(copy);
+      var c = checkOf(copy, id);
+      t.ok(label + ' fails ' + id, c && !c.pass, 'it passed');
+      if (c && !c.pass) t.ok(label + ' gives a reason', c.reason.length > 0);
+    }
+    var off = base().billing.invoiceOffset;
+    fails('Stored total assets + 1', 'C1', function (R) { R.bs.totalAssets[5] += 1; });
+    fails('Stored total liabilities + 1', 'C1', function (R) { R.bs.totalLiabilities[5] += 1; });
+    fails('Stored total equity + 1', 'C1', function (R) { R.bs.totalEquity[5] += 1; });
+    fails('Stored liabilities plus equity + 1', 'C1', function (R) { R.bs.totalLiabilitiesAndEquity[5] += 1; });
+    fails('CFI + 1', 'C2', function (R) { R.cf.cfi[7] += 1; });
+    fails('CFF + 1', 'C2', function (R) { R.cf.cff[7] += 1; });
+    fails('Net change in cash + 1', 'C2', function (R) { R.cf.netChange[7] += 1; });
+    fails('Net burn + 1', 'C2', function (R) { R.cf.netBurn[7] += 1; });
+    fails('Free cash flow + 1', 'C2', function (R) { R.cf.fcf[7] += 1; });
+    fails('Working capital change hidden in CFO', 'C2', function (R) { R.cf.cfo[7] += 1; R.cf.cfi[7] -= 1; });
+    fails('Channel new ARR + 1', 'C4', function (R) { R.funnel.paid.newArr[3] += 1; });
+    fails('Negative ARR', 'C4', function (R) { R.arr.arr[9] = -5; });
+    fails('Sourced opportunities above MQLs', 'C5', function (R) { R.funnel.events.sourcedOpps[3] = R.funnel.events.mql[3] + 1; });
+    fails('Worked above created', 'C5', function (R) { R.funnel.events.oppsWorked[3] = R.funnel.events.oppsCreated[3] + 1; });
+    fails('Negative worked opportunities', 'C5', function (R) { R.funnel.events.oppsWorked[3] = -1; });
+    fails('Funnel spend + 1', 'C6', function (R) { R.funnel.paid.spend[4] += 1; });
+    fails('Funnel and P&L spend both + 1', 'C6', function (R) { R.funnel.paid.spend[4] += 1; R.pl.programSpend[4] += 1; });
+    fails('Annual invoice + 1', 'C9', function (R) { R.billing.invoices[5 + off] += 1; });
+    fails('Invoice moved between months', 'C9', function (R) { R.billing.invoices[5 + off] += 1000; R.billing.invoices[6 + off] -= 1000; R.bs.deferredRevenue[5] += 1000; });
+    fails('Negative annual invoice', 'C9', function (R) { R.billing.invoices[5 + off] = -1; });
+    fails('Low point + 1', 'C10', function (R) { R.cashTests.lowPoint += 1; });
+    fails('Low point month wrong', 'C10', function (R) { R.cashTests.lowPointMonth = 3; });
+    fails('Extra floor breach month', 'C10', function (R) { R.cashTests.floorBreachMonths.push(3); });
+    fails('Extra covenant breach month', 'C10', function (R) { R.cashTests.covenantBreachMonths.push(3); });
+    fails('Floor result flipped', 'C10', function (R) { R.cashTests.floor[6].breached = true; });
+    fails('No guardrail report', 'C10', function (R) { delete R.guardrails; });
+    fails('Collections + 1', 'C11', function (R) { R.billing.collections[4] += 1; });
+    fails('Vendor paid + 1', 'C11', function (R) { R.vendor.paid[4] += 1; });
+    fails('Payables + 1', 'C11', function (R) { R.bs.accountsPayable[4] += 1; });
+    fails('Negative collections', 'C11', function (R) { R.billing.collections[4] = -1; });
+    fails('Negative deferred revenue', 'C11', function (R) { R.bs.deferredRevenue[4] = -1; });
+    // The roll still ties here, so only the rebuild from billings and payment terms can catch it.
+    fails('Receivables collected a month late', 'C11', function (R) { R.bs.accountsReceivable[5] += 1000; R.billing.collections[5] -= 1000; R.billing.collections[6] += 1000; });
+    fails('Payables paid a month late', 'C11', function (R) { R.bs.accountsPayable[5] += 1000; R.vendor.paid[5] -= 1000; R.vendor.paid[6] += 1000; });
+    fails('Headcount of a role + 1', 'C12', function (R) { R.headcount.byRole.engineer[6] += 1; });
+    fails('Total headcount + 1', 'C12', function (R) { R.headcount.total[6] += 1; });
+    fails('Total payroll + 1', 'C12', function (R) { R.payroll.total[6] += 1; });
+    fails('COGS + 1', 'C13', function (R) { R.pl.cogs[5] += 1; });
+    fails('Gross profit + 1', 'C13', function (R) { R.pl.grossProfit[5] += 1; });
+    fails('R&D + 1', 'C13', function (R) { R.pl.rd[5] += 1; });
+    fails('S&M + 1', 'C13', function (R) { R.pl.sm[5] += 1; });
+    fails('G&A + 1', 'C13', function (R) { R.pl.ga[5] += 1; });
+    fails('Operating expenses + 1', 'C13', function (R) { R.pl.opex[5] += 1; });
+    fails('Net income + 1', 'C13', function (R) { R.pl.netIncome[5] += 1; });
+    fails('EBIT + 1', 'C13', function (R) { R.pl.ebit[5] += 1; });
+    fails('Pre-tax income + 1', 'C13', function (R) { R.pl.preTaxIncome[5] += 1; });
+    fails('PP&E + 1', 'C14', function (R) { R.bs.ppe[5] += 1; });
+    fails('Interest expense + 1', 'C14', function (R) { R.pl.interestExpense[5] += 1; });
+    fails('Negative PP&E', 'C14', function (R) { R.bs.ppe[5] = -1; });
+    fails('13-week opening cash + 1', 'C15', function (R) { R.cash13.dailyCash[0] += 1; });
+    fails('Weekly net + 1', 'C15', function (R) { R.cash13.weeks[3].net += 1; });
+    fails('Weekly receipts + 1', 'C15', function (R) { R.cash13.weeks[3].receipts += 1; });
+    fails('Weekly ending cash + 1', 'C15', function (R) { R.cash13.weeks[3].endCash += 1; });
+    fails('No 13-week forecast', 'C15', function (R) { delete R.cash13; });
+    fails('Lost customers + 1', 'C16', function (R) { R.arr.lostCustomers[5] += 1; });
+    fails('Negative customers', 'C16', function (R) { R.arr.customers[5] = -1; });
+    fails('NaN in a KPI', 'C16', function (R) { R.kpis.ltv[5] = NaN; });
+    // Changes built so that only one sub-test can notice them.
+    var Hh = base().H;
+    function shiftLastMonth(key) { return function (R) {
+      R.cf[key][Hh] += 1; R.bs.cash[Hh] += 1; R.cf.netChange[Hh] += 1; R.cf.netBurn[Hh] -= 1; R.cf.fcf[Hh] += 1; }; }
+    fails('CFO and cash both + 1 in the last month', 'C2', shiftLastMonth('cfo'));
+    fails('CFI and cash both + 1 in the last month', 'C2', shiftLastMonth('cfi'));
+    fails('Deferred revenue shifted in every month', 'C9', function (R) { for (var k = 0; k <= Hh; k++) R.bs.deferredRevenue[k] += 1000; });
+    fails('One engineer moved to another role', 'C12', function (R) { R.headcount.byRole.engineer[6] += 1; R.headcount.byRole.csm[6] -= 1; });
+    fails('A cost hidden inside COGS', 'C13', function (R) {
+      R.pl.cogs[5] += 1; ['grossProfit', 'ebitda', 'ebit', 'preTaxIncome', 'netIncome'].forEach(function (k) { R.pl[k][5] -= 1; }); });
+    fails('Weekly net and receipts both + 1', 'C15', function (R) { R.cash13.weeks[3].net += 1; R.cash13.weeks[3].receipts += 1; });
+    // Three business cases the checks must report rather than hide.
+    var c11 = checkOf(E.runModel(withA(function (a) { a.dsoDays = 90; }), []), 'C11');
+    t.eq('DSO of 90 days with unchanged opening receivables fails C11', c11.pass, false);
+    t.ok('C11 names collections', c11.reason.indexOf('Collections') >= 0, c11.reason); t.eq('C11 month', c11.firstMonth, 1);
+    var c9 = checkOf(E.runModel(withA(function (a) { a.churnRateMonthly = 0.2; }), []), 'C9');
+    t.eq('Churn of 20% a month needs refunds, which fails C9', c9.pass, false); t.ok('C9 names invoices', c9.reason.indexOf('Annual invoices') >= 0, c9.reason);
+    var c4 = checkOf(E.runModel(withA(function (a) { a.churnRateMonthly = 0.9; a.contractionRateMonthly = 0.5; }), []), 'C4');
+    t.eq('Losing 140% of ARR in a month fails C4', c4.pass, false); t.ok('C4 names ARR', c4.reason.indexOf('ARR') >= 0, c4.reason);
+  });
+
+  test('T86', 'Audit: an initiative hire uses its own cost and stops at its end month', function (t) {
+    // 4 engineers at 260,000 from month 10 to month 20: 86,666.67 a month, then 89,266.67 after the 3% January raise.
+    var x = sc('T86'), r = x.returns, S = x.scenario, B = x.baseline;
+    for (var m = 1; m <= 36; m++) {
+      var exp = (m >= 10 && m <= 12) ? 4 * 260000 / 12 : ((m >= 13 && m <= 20) ? 4 * 260000 / 12 * 1.03 : 0);
+      t.d('Delta payroll m' + m, S.payroll.total[m] - B.payroll.total[m], exp);
+      t.d('Delta R&D m' + m, S.pl.rd[m] - B.pl.rd[m], exp);
+      t.d('Investment m' + m, r.investment[m], exp);
+      t.eq('Delta headcount m' + m, S.headcount.total[m] - B.headcount.total[m], (m >= 10 && m <= 20) ? 4 : 0);
+    }
+    t.d('Delta S&M m10', S.pl.sm[10] - B.pl.sm[10], 0); t.eq('Engineers m20 (41 + 5 planned + 4)', S.headcount.byRole.engineer[20], 50); t.eq('Engineers m21', S.headcount.byRole.engineer[21], 46);
+    t.d('Total investment = 3 x 86,666.67 + 8 x 89,266.67', r.totalInvestment, 974133.33);
+    t.d('NPV (reference)', r.npv, -845584.74); t.eq('Payback', r.payback.status, 'not_within_horizon');
   });
 
   // ---------- runner ----------
