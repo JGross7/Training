@@ -1171,6 +1171,18 @@ The screen reads four engine views that only group the series above: `periods` (
 | T93 | The cards show the section 8.4 KPIs at month 12; change vs plan is scenario minus plan; guardrail flags, "not burning" and breaches |
 | UI (in `tests/run.js`) | Eight cards with trend lines; ARR bridge labels; floor and covenant lines on the 13-week chart; month, quarter and year columns; every assumption has an input labeled Actual or Assumption; an edit recalculates and shows change vs plan; a blank input is an error, not zero; Reset; no sideways scrolling on a 390px phone; no em dashes |
 
+### 4.9 Tests added in Step 3 (the Initiative Evaluator)
+
+The Add initiative form builds each initiative with the templates of section 1.17 and evaluates it with `applyInitiatives`, alone against the plan; the scenario on "Where we stand" includes every initiative marked "In scenario", in one run. The decision card reads `decisionView`, which regroups that result by month (cost, leads, opportunities, deals, new ARR, revenue, gross profit, EBITDA, cash), and `initiativeTrace`, which follows every extra lead through the funnel to its close month and lists the drivers used. `checkTemplateParams` checks the form's inputs: months must be whole months inside the model, costs 0 or more, people and campaign months whole numbers of 1 or more, and a paid campaign needs a channel that buys leads with spend. A campaign that runs past the model is a warning; the months after it are not counted.
+
+| Test | What it proves |
+|---|---|
+| T94 | The trade show template's card reproduces section 4.3: cost 76,000 in April 2027, 200 leads to 2.5 deals and 130,000 of new ARR in September 2027, every cell of the month-by-month table, NPV, ROI, payback 14 and 18, the KPI and cash low point effects, all five guardrails passing, and a one-row trace |
+| T95 | The two-AE template's card reproduces section 4.4, including every cell of its month-by-month table, and the trace of AE-sourced opportunities through the integrations hub lift; 12 opportunities are still open when the model ends |
+| T96 | Each template asks for exactly its default inputs; bad inputs are rejected with the field named; the paid campaign and SDR cards match T46 and T47 |
+| T97 | For ten scenarios the trace adds up: leads times rates give MQLs and opportunities, worked times win rate gives deals, deals times ACV gives new ARR, and the traced total equals the new ARR in the returns; capacity losses show in April 2027 for T44 |
+| UI (in `tests/run.js`) | The form's fields and defaults; the trade show and two-AE cards show the section 4.3 and 4.4 numbers; together they show the T43 NPV; the sources panel shows the drivers; editing, excluding, removing and input checks work; no sideways scrolling on a phone |
+
 ---
 
 ## 5. Units, sign conventions, rounding and glossary

@@ -11,7 +11,7 @@
   --page: #f9f9f7; --surface: #fcfcfb; --surface-2: #f2f1ed; --ink: #0b0b0b; --ink-2: #52514e; --muted: #6f6d68;
   --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11, 11, 11, 0.10); --shadow: 0 1px 2px rgba(11, 11, 11, 0.05);
   --accent: #2a78d6; --accent-ink: #1c5cab; --accent-wash: rgba(42, 120, 214, 0.10);
-  --up: #2a78d6; --down: #e34948; --total: #898781; --plan-line: #b9b7ae;
+  --up: #2a78d6; --down: #e34948; --total: #898781; --plan-line: #b9b7ae; --series-2: #eb6834;
   --good: #0ca30c; --good-ink: #006300; --good-wash: rgba(12, 163, 12, 0.10);
   --serious: #ec835a; --serious-ink: #a8481f; --serious-wash: rgba(236, 131, 90, 0.14);
   --critical: #d03b3b; --critical-ink: #b42f2f; --critical-wash: rgba(208, 59, 59, 0.10);
@@ -23,7 +23,7 @@
     --page: #0d0d0d; --surface: #1a1a19; --surface-2: #232321; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #9a988f;
     --grid: #2c2c2a; --axis: #383835; --border: rgba(255, 255, 255, 0.10); --shadow: none;
     --accent: #3987e5; --accent-ink: #86b6ef; --accent-wash: rgba(57, 135, 229, 0.16);
-    --up: #3987e5; --down: #e66767; --total: #898781; --plan-line: #55544f;
+    --up: #3987e5; --down: #e66767; --total: #898781; --plan-line: #55544f; --series-2: #d95926;
     --good: #0ca30c; --good-ink: #3fc33f; --good-wash: rgba(12, 163, 12, 0.16);
     --serious: #ec835a; --serious-ink: #f09b78; --serious-wash: rgba(236, 131, 90, 0.16);
     --critical: #d03b3b; --critical-ink: #ee7b7b; --critical-wash: rgba(208, 59, 59, 0.18);
@@ -35,7 +35,7 @@
   --page: #0d0d0d; --surface: #1a1a19; --surface-2: #232321; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #9a988f;
   --grid: #2c2c2a; --axis: #383835; --border: rgba(255, 255, 255, 0.10); --shadow: none;
   --accent: #3987e5; --accent-ink: #86b6ef; --accent-wash: rgba(57, 135, 229, 0.16);
-  --up: #3987e5; --down: #e66767; --total: #898781; --plan-line: #55544f;
+  --up: #3987e5; --down: #e66767; --total: #898781; --plan-line: #55544f; --series-2: #d95926;
   --good: #0ca30c; --good-ink: #3fc33f; --good-wash: rgba(12, 163, 12, 0.16);
   --serious: #ec835a; --serious-ink: #f09b78; --serious-wash: rgba(236, 131, 90, 0.16);
   --critical: #d03b3b; --critical-ink: #ee7b7b; --critical-wash: rgba(208, 59, 59, 0.18);
@@ -213,6 +213,88 @@ table.compact td:first-child { min-width: 0; }
   .guards .g-top { flex-wrap: wrap; gap: 4px; }
   .field { grid-template-columns: minmax(0, 1fr) 130px; }
 }
+/* Views */
+.views { flex: 0 0 auto; }
+.views .count { margin-left: 4px; }
+[data-view][hidden] { display: none !important; }
+
+/* Initiative builder */
+.templates { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); margin-bottom: 14px; }
+.template { text-align: left; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); padding: 10px 12px; cursor: pointer; display: grid; gap: 2px; }
+.template:hover { background: var(--surface-2); }
+.template[aria-checked="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-wash); }
+.template b { font-size: 14px; font-weight: 650; }
+.template span { font-size: 12px; color: var(--ink-2); }
+.form-grid { display: grid; gap: 12px 16px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); }
+.form-field { display: grid; gap: 4px; align-content: start; }
+.form-field > label { font-size: 13px; font-weight: 600; }
+.form-field .control input, .form-field .control select { text-align: left; }
+.form-field .control input[inputmode] { text-align: right; }
+.form-field .help { font-size: 12px; color: var(--ink-2); }
+.form-field .err { font-size: 12px; color: var(--critical-ink); }
+.form-field .warn { font-size: 12px; color: var(--serious-ink); }
+.form-field.invalid .control { border-color: var(--critical); }
+.form-help { margin: 12px 0 0; font-size: 13px; color: var(--ink-2); }
+.preview { margin: 12px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); font-size: 13px; color: var(--ink-2); }
+.preview strong { color: var(--ink); }
+.preview:empty { display: none; }
+.form-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+.btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+.btn[hidden] { display: none; }
+.init-bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.switch { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 550; cursor: pointer; padding: 8px 12px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border); }
+.switch input { width: 18px; height: 18px; accent-color: var(--accent); }
+.empty { padding: 28px 16px; text-align: center; color: var(--ink-2); font-size: 14px; }
+#init-cards { display: grid; gap: 16px; }
+
+/* Decision cards */
+.decision-head { display: flex; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap; align-items: flex-start; }
+.decision-head h3 { font-size: 18px; font-weight: 650; }
+.decision-head .meta { margin: 2px 0 0; font-size: 13px; color: var(--ink-2); }
+.card-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.card-actions label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; }
+.card-actions input { accent-color: var(--accent); }
+.verdict { margin: 10px 0 0; font-size: 15px; line-height: 1.5; }
+.tiles { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 160px), 1fr)); margin: 14px 0 0; padding: 0; list-style: none; }
+.tile { padding: 10px 12px; border-radius: 10px; background: var(--surface-2); display: grid; gap: 1px; min-width: 0; }
+.tile .t-label { font-size: 12px; font-weight: 600; color: var(--ink-2); }
+.tile .t-value { font-size: 20px; font-weight: 650; line-height: 1.25; }
+.tile .t-note { font-size: 12px; color: var(--ink-2); }
+.decision h4 { font-size: 14px; font-weight: 650; margin: 0 0 8px; }
+.d-section { margin-top: 18px; }
+.d-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); }
+.d-note { margin: 6px 0 0; font-size: 12.5px; color: var(--ink-2); }
+table.kpi-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+table.kpi-table th, table.kpi-table td { padding: 7px 8px; border-bottom: 1px solid var(--grid); text-align: right; }
+table.kpi-table th:first-child, table.kpi-table td:first-child { text-align: left; }
+table.kpi-table thead th { font-weight: 600; color: var(--ink-2); font-size: 12px; }
+table.kpi-table td.good { color: var(--good-ink); font-weight: 600; }
+table.kpi-table td.bad { color: var(--critical-ink); font-weight: 600; }
+.guard-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.guard-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; padding: 8px 10px; border-radius: 8px; background: var(--surface-2); font-size: 13px; }
+.guard-list .gl-label { font-weight: 600; }
+.guard-list .gl-note { grid-column: 1 / -1; font-size: 12px; color: var(--ink-2); }
+table.fin tr.highlight > * { background: var(--accent-wash); }
+table.fin tfoot td, table.fin tfoot th { font-weight: 650; border-top: 2px solid var(--axis); background: var(--surface); }
+
+/* Where each number comes from */
+.sources { margin-top: 18px; padding: 14px; border-radius: 10px; border: 1px dashed var(--axis); background: var(--page); }
+.sources h4 { margin-top: 0; }
+.sources ul.calc { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 13px; }
+.sources ul.calc b { font-weight: 650; }
+.drivers { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); align-items: start; }
+.drivers dl { margin: 0; padding: 10px 12px; border-radius: 8px; background: var(--surface); border: 1px solid var(--border); display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; font-size: 12.5px; align-content: start; align-items: baseline; }
+.drivers dt { color: var(--ink-2); }
+.drivers dd { margin: 0; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+.drivers .dl-title { grid-column: 1 / -1; font-weight: 650; font-size: 13px; color: var(--ink); }
+table.trace td small { display: block; font-size: 11px; color: var(--ink-2); font-weight: 400; white-space: normal; min-width: 110px; max-width: 200px; margin-left: auto; }
+table.trace tbody th { min-width: 96px; }
+@media (max-width: 560px) {
+  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tile .t-value { font-size: 17px; }
+  .views { width: 100%; }
+  .views button { flex: 1; }
+}
 @media print {
   .topbar { position: static; }
   .drawer, .scrim, .btn { display: none !important; }
@@ -227,6 +309,10 @@ table.compact td:first-child { min-width: 0; }
       <h1>Capital Allocation Copilot: Tallwater Software, Inc.</h1>
       <p><span class="fictional">Fictional company, for demonstration.</span> All numbers are made up.</p>
     </div>
+    <nav class="seg views" role="tablist" aria-label="View">
+      <button type="button" role="tab" data-view-tab="stand" aria-selected="true">Where we stand</button>
+      <button type="button" role="tab" data-view-tab="initiatives" aria-selected="false">Initiatives <span class="count" id="init-count" hidden>0</span></button>
+    </nav>
     <div class="top-actions">
       <div id="badge" role="status" aria-live="polite">Integrity: not run</div>
       <button type="button" class="btn" id="open-assumptions" aria-controls="assumptions" aria-expanded="false">Assumptions <span class="count" id="change-count" hidden>0</span></button>
@@ -236,7 +322,7 @@ table.compact td:first-child { min-width: 0; }
 <div class="banner" id="check-failures"></div>
 <div class="banner" id="input-error" role="alert"></div>
 <main id="app">
-  <section class="card" id="where" aria-labelledby="where-title" hidden>
+  <section class="card" id="where" data-view="stand" aria-labelledby="where-title" hidden>
     <div class="section-head">
       <div>
         <h2 id="where-title">Where we stand</h2>
@@ -247,7 +333,7 @@ table.compact td:first-child { min-width: 0; }
     <div class="kpis" id="kpis"></div>
     <ul class="guards" id="guardrails" aria-label="Objective and guardrails"></ul>
   </section>
-  <div class="two-col" id="charts" hidden>
+  <div class="two-col" id="charts" data-view="stand" hidden>
     <section class="card" aria-labelledby="bridge-title">
       <div class="section-head">
         <div><h2 id="bridge-title">ARR bridge</h2><p id="bridge-sub"></p></div>
@@ -276,7 +362,7 @@ table.compact td:first-child { min-width: 0; }
       <details class="more"><summary>Weekly detail</summary><div class="table-wrap" id="cash13-table"></div></details>
     </section>
   </div>
-  <section class="card" id="statements" aria-labelledby="fs-title" hidden>
+  <section class="card" id="statements" data-view="stand" aria-labelledby="fs-title" hidden>
     <div class="section-head">
       <div><h2 id="fs-title">Financial statements</h2><p id="fs-sub">Whole dollars. Losses in parentheses.</p></div>
       <div class="controls">
@@ -294,6 +380,30 @@ table.compact td:first-child { min-width: 0; }
     </div>
     <div class="table-wrap" id="fs-table" role="tabpanel" tabindex="0"></div>
   </section>
+  <section class="card" id="builder" data-view="initiatives" aria-labelledby="builder-title" hidden>
+    <div class="section-head">
+      <div>
+        <h2 id="builder-title">Add an initiative</h2>
+        <p>Each initiative is modeled as a change against the plan, month by month. Inputs start at the defaults in SPEC.md, which you can change in Assumptions.</p>
+      </div>
+    </div>
+    <div class="templates" id="template-picker" role="radiogroup" aria-label="Template"></div>
+    <form id="init-form" novalidate>
+      <div class="form-grid" id="init-fields"></div>
+      <p class="form-help" id="init-channel-help"></p>
+      <div class="preview" id="init-preview" aria-live="polite"></div>
+      <div class="form-actions">
+        <button type="submit" class="btn primary" id="init-submit">Add initiative</button>
+        <button type="button" class="btn" id="init-defaults">Restore defaults</button>
+        <button type="button" class="btn" id="init-cancel" hidden>Cancel editing</button>
+      </div>
+    </form>
+  </section>
+  <div class="init-bar" data-view="initiatives" hidden>
+    <label class="switch"><input type="checkbox" id="show-sources"> Show where each number comes from</label>
+  </div>
+  <section class="card" id="together" data-view="initiatives" aria-live="polite" hidden></section>
+  <div id="init-cards" data-view="initiatives" hidden></div>
 </main>
 <div class="scrim" id="scrim"></div>
 <aside class="drawer" id="assumptions" aria-labelledby="assumptions-title" aria-hidden="true">
@@ -1930,6 +2040,213 @@ table.compact td:first-child { min-width: 0; }
     ];
   }
 
+  // ---------------------------------------------------------------------
+  // Initiative Evaluator views (Step 3). They read applyInitiatives results
+  // and regroup them; the only arithmetic is scenario minus baseline, sums,
+  // and the identities the spec already states.
+  // ---------------------------------------------------------------------
+
+  // What each template asks for, and the rule each input must meet.
+  var TEMPLATE_PARAMS = {
+    tradeShow: { month: 'month', channel: 'channel', booth: 'money', travel: 'money', staffDays: 'amount', dayCost: 'money', expectedLeads: 'amount' },
+    hireSdrs: { count: 'people', startMonth: 'month', loadedCostAnnual: 'money', rampMonths: 'amount', recruitingEach: 'money', toolsPerSdrMonthly: 'money' },
+    hireAes: { count: 'people', startMonth: 'month', loadedCostAnnual: 'money', rampMonths: 'amount', recruitingEach: 'money' },
+    paidCampaign: { channel: 'spendChannel', budget: 'money', startMonth: 'month', months: 'span', cplMultiplier: 'multiplier' },
+    partnerProgram: { setup: 'money', setupMonth: 'month', coMarketingMonthly: 'money', startMonth: 'month', months: 'span' }
+  };
+
+  // Problems with a template's inputs: [{ field, level: 'error' | 'warning', message }].
+  function checkTemplateParams(A, key, p) {
+    var rules = TEMPLATE_PARAMS[key], out = [], H = A.horizonMonths;
+    if (!rules) return [{ field: null, level: 'error', message: 'Unknown template: ' + key }];
+    function bad(field, message, level) { out.push({ field: field, level: level || 'error', message: message }); }
+    Object.keys(rules).forEach(function (f) {
+      var v = p ? p[f] : undefined, rule = rules[f];
+      if (rule === 'channel' || rule === 'spendChannel') {
+        var ch = A.channels[v];
+        if (A.channelOrder.indexOf(v) < 0 || !ch) bad(f, 'Pick a channel');
+        else if (rule === 'spendChannel' && !(ch.leadSource === 'spend' && ch.costPerLead > 0)) bad(f, ch.name + ' does not buy leads with spend');
+        return;
+      }
+      if (typeof v !== 'number' || !isFinite(v)) { bad(f, 'Enter a number'); return; }
+      if (rule === 'month' && !(isWhole(v) && v >= 1 && v <= H)) bad(f, 'Pick a month from 1 to ' + H);
+      if ((rule === 'people' || rule === 'span') && !(isWhole(v) && v >= 1)) bad(f, 'Enter a whole number of 1 or more');
+      if ((rule === 'money' || rule === 'amount') && v < 0) bad(f, 'Enter 0 or more');
+      if (rule === 'multiplier' && !(v > 0)) bad(f, 'Enter a number above 0');
+    });
+    if (!out.length && rules.months && rules.startMonth && p.startMonth + p.months - 1 > H) {
+      bad('months', 'Runs past ' + monthLabel(A, H) + '; months after the model ends are not counted', 'warning');
+    }
+    return out;
+  }
+
+  function deltaOf(S, B, get, H) {
+    var a = get(S), b = get(B), out = zeros(H + 1);
+    for (var m = 1; m <= H; m++) out[m] = a[m] - b[m];
+    return out;
+  }
+  function channelSum(R, key) {
+    var A = R.inputs.assumptions, out = zeros(R.H + 1);
+    A.channelOrder.forEach(function (c) { for (var m = 1; m <= R.H; m++) out[m] += R.funnel[c][key][m] || 0; });
+    return out;
+  }
+  function finiteDelta(a, b) { return (typeof a === 'number' && typeof b === 'number' && isFinite(a) && isFinite(b)) ? a - b : null; }
+
+  // Where every incremental opportunity and deal comes from, one row per
+  // channel and month the leads arrive (SPEC.md 2.3), plus the drivers used.
+  function initiativeTrace(x) {
+    var S = x.scenario, B = x.baseline, A = S.inputs.assumptions, H = S.H, chs = A.channelOrder, E6 = 1e-9;
+    var spendLeads = {}, spendAmount = {}, spendNoLeads = {}, direct = {};
+    chs.forEach(function (c) { spendLeads[c] = zeros(H + 1); spendAmount[c] = zeros(H + 1); spendNoLeads[c] = zeros(H + 1); direct[c] = zeros(H + 1); });
+    (S.inputs.initiatives || []).forEach(function (init) {
+      (init.effects || []).forEach(function (e) {
+        if (e.kind === 'program_spend') eachMonth(e.byMonth, H, function (m, v) {
+          var cpl = S.funnel[e.channel].costPerLead[m], mult = e.cplMultiplier == null ? 1 : e.cplMultiplier;
+          if (e.leads === 'from_cpl' && cpl > 0 && mult > 0) { spendAmount[e.channel][m] += v; spendLeads[e.channel][m] += v / (cpl * mult); }
+          else spendNoLeads[e.channel][m] += v;
+        });
+        if (e.kind === 'direct_leads') eachMonth(e.byMonth, H, function (m, v) { direct[e.channel][m] += v; });
+      });
+    });
+    var dAe = deltaOf(S, B, function (R) { return R.capacity.rampedAE; }, H);
+    var dSdr = deltaOf(S, B, function (R) { return R.capacity.rampedSDR; }, H);
+    var rows = [], touched = {};
+    chs.forEach(function (c) {
+      var ch = A.channels[c], F = S.funnel[c], G = B.funnel[c];
+      for (var m = 1; m <= H; m++) {
+        var dl = F.leads[m] - G.leads[m], dmq = F.mql[m] - G.mql[m], dso = F.sourcedOpps[m] - G.sourcedOpps[m];
+        var dae = F.aeOpps[m] - G.aeOpps[m], dc = F.oppsCreated[m] - G.oppsCreated[m], dw = F.oppsWorked[m] - G.oppsWorked[m];
+        if (Math.abs(dl) < E6 && Math.abs(dc) < E6 && Math.abs(dw) < E6) continue;
+        touched[c] = 1;
+        var close = m + ch.salesCycleMonths, inModel = close <= H;
+        rows.push({
+          channel: c, channelName: ch.name, month: m, monthLabel: S.months[m],
+          leads: dl, leadsFromSpend: spendLeads[c][m], spendForLeads: spendAmount[c][m], spendWithoutLeads: spendNoLeads[c][m],
+          costPerLeadPaid: spendLeads[c][m] > 0 ? spendAmount[c][m] / spendLeads[c][m] : null,
+          directLeads: direct[c][m], sdrsAdded: ch.leadSource === 'sdr' ? dSdr[m] : 0,
+          leadsFromSdrs: ch.leadSource === 'sdr' ? dSdr[m] * A.leadsPerSdrPerMonth : 0,
+          leadToMqlRate: ch.leadToMqlRate, mqls: dmq, mqlToOppRate: ch.mqlToOppRate, sourcedOpps: dso,
+          aesAdded: ch.aeSelfSourced ? dAe[m] : 0, aeOpps: dae, created: dc, worked: dw,
+          lostToCapacity: dc - dw, workShare: S.capacity.workShare[m], baselineWorkShare: B.capacity.workShare[m],
+          capacity: S.capacity.capacity[m], totalCreated: S.capacity.totalCreated[m],
+          salesCycleMonths: ch.salesCycleMonths, closeMonth: inModel ? close : null, closeLabel: inModel ? S.months[close] : null,
+          winRate: inModel ? F.winRate[close] : null, baseWinRate: ch.winRate,
+          deals: inModel ? F.deals[close] - G.deals[close] : null,
+          acv: inModel ? F.acv[close] : null, baseAcv: ch.acv,
+          newArr: inModel ? F.newArr[close] - G.newArr[close] : null
+        });
+      }
+    });
+    var newArrTraced = 0, dealsTraced = 0, oppsAfter = 0;
+    rows.forEach(function (r) { if (r.closeMonth) { newArrTraced += r.newArr; dealsTraced += r.deals; } else oppsAfter += r.worked; });
+    var c0 = A.churnRateMonthly, k0 = A.contractionRateMonthly, e0 = A.expansionRateMonthly;
+    return {
+      rows: rows, newArrTraced: newArrTraced, dealsTraced: dealsTraced, oppsAfterModel: oppsAfter, lastMonthLabel: S.months[H],
+      drivers: {
+        channels: chs.filter(function (c) { return touched[c]; }).map(function (c) {
+          var ch = A.channels[c];
+          return { id: c, name: ch.name, leadSource: ch.leadSource, costPerLead: ch.costPerLead, leadToMqlRate: ch.leadToMqlRate,
+            mqlToOppRate: ch.mqlToOppRate, winRate: ch.winRate, salesCycleMonths: ch.salesCycleMonths, acv: ch.acv };
+        }),
+        capacity: { oppCapacityPerAePerMonth: A.oppCapacityPerAePerMonth, selfSourcedOppsPerAePerMonth: A.selfSourcedOppsPerAePerMonth,
+          leadsPerSdrPerMonth: A.leadsPerSdrPerMonth, aeRampMonths: A.aeRampMonths, sdrRampMonths: A.sdrRampMonths },
+        retention: { churnRateMonthly: c0, contractionRateMonthly: k0, expansionRateMonthly: e0, netMonthly: e0 - c0 - k0,
+          grossRetention: Math.pow(1 - c0 - k0, 12), netRetention: Math.pow(1 + e0 - c0 - k0, 12) },
+        unitCosts: { hostingCostPerCustomerPerMonth: A.hostingCostPerCustomerPerMonth, hostingCostGrowthAnnual: A.hostingCostGrowthAnnual,
+          thirdPartyPctOfRevenue: A.thirdPartyPctOfRevenue, commissionRate: A.commissionRate },
+        cashTiming: { annualBillingShare: A.annualBillingShare, dsoDays: A.dsoDays, dpoDays: A.dpoDays },
+        valuation: { discountRateAnnual: A.discountRateAnnual, monthlyDiscountRate: x.returns.monthlyDiscountRate },
+        milestones: Object.keys(A.milestones || {}).filter(function (id) { return A.milestones[id].enabled; }).map(function (id) {
+          var ms = A.milestones[id];
+          return { id: id, name: ms.name, shipMonth: ms.shipMonth, shipLabel: ms.shipMonth >= 1 && ms.shipMonth <= H ? S.months[ms.shipMonth] : null,
+            rampMonths: ms.rampMonths, effects: ms.effects };
+        })
+      }
+    };
+  }
+
+  var GUARD_KEYS = ['objective', 'cashFloor', 'covenant', 'runway', 'cacPayback', 'burnMultiple', 'grossMargin'];
+  var FIVE_GUARDRAILS = ['cashFloor', 'runway', 'cacPayback', 'burnMultiple', 'grossMargin'];
+
+  // Everything a decision card shows, for one applyInitiatives result.
+  function decisionView(x) {
+    var S = x.scenario, B = x.baseline, r = x.returns, A = S.inputs.assumptions, H = S.H, ic = S.initiativeCost, EPS2 = 1e-9;
+    function d(get) { return deltaOf(S, B, get, H); }
+    var leadsS = channelSum(S, 'leads'), leadsB = channelSum(B, 'leads'), mqlS = channelSum(S, 'mql'), mqlB = channelSum(B, 'mql');
+    var wS = channelSum(S, 'oppsWorked'), wB = channelSum(B, 'oppsWorked');
+    var dCreated = d(function (R) { return R.capacity.totalCreated; }), dDeals = d(function (R) { return R.arr.deals; });
+    var dNew = d(function (R) { return R.arr.newArr; }), dArr = d(function (R) { return R.arr.arr; }), dRev = d(function (R) { return R.pl.revenue; });
+    var dGp = d(function (R) { return R.pl.grossProfit; }), dEbitda = d(function (R) { return R.pl.ebitda; }), dCash = d(function (R) { return R.bs.cash; });
+    var dColl = d(function (R) { return R.billing.collections; }), dAe = d(function (R) { return R.capacity.rampedAE; });
+    var dSdr = d(function (R) { return R.capacity.rampedSDR; }), dCap = d(function (R) { return R.capacity.capacity; });
+    var dCust = d(function (R) { return R.arr.customers; });
+    var rows = [], t = { investment: 0, cash: 0, programSpend: 0, payroll: 0, vendor: 0, capex: 0, allocated: 0, leads: 0, mqls: 0,
+      oppsCreated: 0, oppsWorked: 0, deals: 0, newArr: 0, revenue: 0, grossProfit: 0, ebitda: 0 };
+    var first = null, lastM = null, peak = null, firstDeal = null;
+    for (var m = 1; m <= H; m++) {
+      var row = { m: m, label: S.months[m],
+        investment: ic.investment[m], cashCost: ic.investment[m] - ic.allocated[m], programSpend: ic.programSpend[m], payroll: ic.payroll[m],
+        vendor: ic.vendor[m], capex: ic.capex[m], allocated: ic.allocated[m],
+        leads: leadsS[m] - leadsB[m], mqls: mqlS[m] - mqlB[m], oppsCreated: dCreated[m], oppsWorked: wS[m] - wB[m], deals: dDeals[m],
+        newArr: dNew[m], arr: dArr[m], customers: dCust[m], revenue: dRev[m], grossProfit: dGp[m], ebitda: dEbitda[m], collections: dColl[m],
+        netFlow: r.netFlow[m], cumNetFlow: r.cumNetFlow[m], cash: dCash[m],
+        rampedAe: dAe[m], rampedSdr: dSdr[m], capacity: dCap[m], utilization: S.capacity.utilization[m], workShare: S.capacity.workShare[m] };
+      rows.push(row);
+      t.investment += row.investment; t.cash += row.cashCost; t.programSpend += row.programSpend; t.payroll += row.payroll; t.vendor += row.vendor;
+      t.capex += row.capex; t.allocated += row.allocated; t.leads += row.leads; t.mqls += row.mqls; t.oppsCreated += row.oppsCreated;
+      t.oppsWorked += row.oppsWorked; t.deals += row.deals; t.newArr += row.newArr; t.revenue += row.revenue; t.grossProfit += row.grossProfit; t.ebitda += row.ebitda;
+      if (Math.abs(row.investment) > EPS2) { if (first === null) first = m; lastM = m; if (peak === null || row.investment > rows[peak - 1].investment) peak = m; }
+      if (firstDeal === null && Math.abs(row.deals) > EPS2) firstDeal = m;
+    }
+    var lowCum = null;
+    rows.forEach(function (rw) { if (lowCum === null || rw.cumNetFlow < rows[lowCum - 1].cumNetFlow) lowCum = rw.m; });
+    var gm = Math.min(12, H), om = Math.min(A.objective.month, H);
+    function kpi(id, label, unit, better, pair, month) {
+      return { id: id, label: label, unit: unit, better: better, month: month, baseline: pair.baseline, scenario: pair.scenario, delta: finiteDelta(pair.scenario, pair.baseline) };
+    }
+    var cl = r.cashLowPoint;
+    var guards = GUARD_KEYS.map(function (k) {
+      var s = S.guardrails.items[k], b = B.guardrails.items[k];
+      return { key: k, label: s.label, target: s.target, scenario: s.value, scenarioMonth: s.month, baseline: b.value, baselineMonth: b.month,
+        pass: s.pass, baselinePass: b.pass, delta: finiteDelta(s.value, b.value),
+        effect: s.pass === b.pass ? (s.pass ? 'passes' : 'fails') : (s.pass ? 'fixes' : 'breaks') };
+    });
+    function byKey(k) { return guards.filter(function (g) { return g.key === k; })[0]; }
+    return {
+      months: S.months, H: H, rows: rows, totals: t,
+      cost: { total: r.totalInvestment, cash: t.cash, allocated: t.allocated, firstMonth: first, lastMonth: lastM, peakMonth: peak,
+        peakAmount: peak ? rows[peak - 1].investment : 0 },
+      pipeline: { firstDealMonth: firstDeal, highestUtilization: r.highestUtilization, highestUtilizationMonth: r.highestUtilizationMonth,
+        capacityBindingMonths: rows.filter(function (rw) { return rw.workShare < 1 && B.capacity.workShare[rw.m] >= 1; }).map(function (rw) { return rw.m; }) },
+      arr: { atObjective: dArr[om], objectiveMonth: om, atEnd: dArr[H], customersAtEnd: dCust[H] },
+      returns: { totalInvestment: r.totalInvestment, npv: r.npv, roi: r.roi, newArrPerDollar: r.newArrPerDollar, payback: r.payback,
+        earningsPayback: r.earningsPayback, cumNetFlowEnd: r.cumNetFlow[H], lowestCumNetFlow: lowCum ? rows[lowCum - 1].cumNetFlow : 0,
+        lowestCumNetFlowMonth: lowCum, discountRateAnnual: A.discountRateAnnual, monthlyDiscountRate: r.monthlyDiscountRate },
+      kpis: [
+        kpi('cacPayback', 'Blended CAC payback', 'months', 'down', r.blendedCacPayback12, gm),
+        kpi('burnMultiple', 'Burn multiple', 'multiple', 'down', r.burnMultiple12, gm),
+        kpi('runway', 'Lowest runway, first 12 months', 'months', 'up', r.lowestRunway12, gm),
+        { id: 'cashLowPoint', label: 'Cash low point', unit: 'money', better: 'up', baseline: cl.baseline, baselineMonth: cl.baselineMonth,
+          scenario: cl.scenario, scenarioMonth: cl.scenarioMonth, delta: cl.change }
+      ],
+      guardrails: guards,
+      guardrailsPassed: FIVE_GUARDRAILS.filter(function (k) { return byKey(k).pass; }).length,
+      guardrailsTotal: FIVE_GUARDRAILS.length,
+      breaks: guards.filter(function (g) { return g.effect === 'breaks'; }).map(function (g) { return g.key; }),
+      fixes: guards.filter(function (g) { return g.effect === 'fixes'; }).map(function (g) { return g.key; }),
+      trace: initiativeTrace(x)
+    };
+  }
+
+  // All included initiatives together compared with each one alone.
+  function togetherSummary(together, alones) {
+    var npvAlone = 0, newArrAlone = 0, costAlone = 0;
+    alones.forEach(function (x) { npvAlone += x.returns.npv; newArrAlone += x.returns.extraNewArr; costAlone += x.returns.totalInvestment; });
+    var r = together.returns;
+    return { count: alones.length, npv: r.npv, npvSumAlone: npvAlone, interaction: r.npv - npvAlone,
+      newArr: r.extraNewArr, newArrSumAlone: newArrAlone, totalInvestment: r.totalInvestment, costSumAlone: costAlone };
+  }
+
   global.Engine = {
     CHECK_COUNT: CHECK_COUNT, TOL_DOLLAR: TOL_DOLLAR, TOL_COUNT: TOL_COUNT,
     defaultAssumptions: defaultAssumptions, assumptionType: assumptionType,
@@ -1941,7 +2258,9 @@ table.compact td:first-child { min-width: 0; }
     applyInitiatives: applyInitiatives, computeReturns: computeReturns, paybackMonth: paybackMonth,
     deltaSeries: deltaSeries, maxSeriesDiff: maxSeriesDiff,
     templates: templates, nullInitiative: nullInitiative, evaluate: evaluate,
-    periods: periods, statements: statements, arrBridge: arrBridge, kpiCards: kpiCards
+    periods: periods, statements: statements, arrBridge: arrBridge, kpiCards: kpiCards,
+    TEMPLATE_PARAMS: TEMPLATE_PARAMS, checkTemplateParams: checkTemplateParams, decisionView: decisionView,
+    initiativeTrace: initiativeTrace, togetherSummary: togetherSummary
   };
 })(window);
 </script>
@@ -3386,6 +3705,196 @@ window.TestSuite = (function () {
     [0, 37, 2.5].forEach(function (m) { var threw = false; try { E.kpiCards(R, R, m); } catch (e) { threw = true; } t.ok('Month ' + m + ' is rejected', threw); });
   });
 
+  // =====================================================================
+  // Step 3: the Initiative Evaluator (SPEC.md 4.9). The decision card's
+  // numbers must be the section 4.3 and 4.4 worked examples, built from the
+  // templates the Add initiative form uses.
+  // =====================================================================
+  function rowsTable(t, T, v, cols, prefix) {
+    T.rows.forEach(function (row) {
+      var m = Number(row[0]), r = v.rows[m - 1];
+      t.eq(prefix + ' month label m=' + m, r.label, row[colIndex(T, 'Month')]);
+      Object.keys(cols).forEach(function (name) { t.cell(prefix + ' ' + name + ' m=' + m, r[cols[name][0]], row[colIndex(T, name)], cols[name][1]); });
+    });
+  }
+  function kpiOf(v, id) { return v.kpis.filter(function (k) { return k.id === id; })[0]; }
+
+  test('T94', 'Evaluator: trade show decision card (section 4.3)', function (t) {
+    var v = E.decisionView(sc('T74a')), r = v.returns, T = v.totals;
+    // Cost and when it is spent
+    t.d('Total cost', v.cost.total, 76000); t.d('Cash cost', v.cost.cash, 60000); t.d('Staff time', v.cost.allocated, 16000);
+    t.eq('First cost month', v.cost.firstMonth, 4); t.eq('Last cost month', v.cost.lastMonth, 4); t.eq('Peak cost month', v.cost.peakMonth, 4);
+    for (var m = 1; m <= 36; m++) t.d('Cost m' + m, v.rows[m - 1].investment, m === 4 ? 76000 : 0);
+    t.d('Program spend m4', v.rows[3].programSpend, 60000); t.d('Staff time m4', v.rows[3].allocated, 16000); t.d('Payroll m4', v.rows[3].payroll, 0);
+    // Pipeline by month
+    t.r('Leads m4', v.rows[3].leads, 200); t.r('MQLs m4', v.rows[3].mqls, 50); t.r('Opps created m4', v.rows[3].oppsCreated, 10);
+    t.r('Opps worked m4', v.rows[3].oppsWorked, 10); t.r('Deals m9', v.rows[8].deals, 2.5); t.d('New ARR m9', v.rows[8].newArr, 130000);
+    t.r('Total leads', T.leads, 200); t.r('Total deals', T.deals, 2.5); t.d('Total new ARR', T.newArr, 130000);
+    t.eq('First deals', v.pipeline.firstDealMonth, 9);
+    // Revenue, gross profit, EBITDA and cash by month: every cell of the section 4.3 table
+    rowsTable(t, TAB.tradeShowMonthly, v, {
+      'Δ New ARR': ['newArr', 'dollar'], 'Δ ARR': ['arr', 'dollar'], 'Δ Revenue': ['revenue', 'dollar'], 'Δ Gross profit': ['grossProfit', 'dollar'],
+      'Δ EBITDA': ['ebitda', 'dollar'], 'Δ Collections': ['collections', 'dollar'], 'Net flow NF': ['netFlow', 'dollar'],
+      'Cumulative NF': ['cumNetFlow', 'dollar'], 'Δ Cash balance': ['cash', 'dollar']
+    }, 'Card');
+    t.d('Sum of revenue', T.revenue, 333170.83); t.d('Sum of gross profit', T.grossProfit, 300005.32); t.d('Sum of EBITDA', T.ebitda, 227005.32);
+    // Returns
+    t.d('NPV', r.npv, 202196.90); t.r('ROI', r.roi, 3.5126); t.r('New ARR per $1', r.newArrPerDollar, 1.7105);
+    t.eq('Cash payback month', r.payback.month, 14); t.eq('Earnings payback month', r.earningsPayback.month, 18);
+    t.d('Cumulative NF m36', r.cumNetFlowEnd, 266954.41); t.d('Most cash out', r.lowestCumNetFlow, -89000); t.eq('Most cash out month', r.lowestCumNetFlowMonth, 9);
+    t.d('ARR change Dec 2027', v.arr.atObjective, 133145.03); t.d('ARR change Dec 2029', v.arr.atEnd, 163450.23);
+    // Effect on CAC payback, burn multiple, runway and the cash low point
+    var k = kpiOf(v, 'cacPayback'); t.r2('CAC payback with it', k.scenario, 17.88); t.r2('CAC payback plan', k.baseline, 18.03);
+    k = kpiOf(v, 'burnMultiple'); t.r('Burn multiple with it', k.scenario, 1.7161); t.r('Burn multiple plan', k.baseline, 1.7556);
+    k = kpiOf(v, 'runway'); t.r2('Lowest runway with it', k.scenario, 33.72); t.r2('Lowest runway plan', k.baseline, 34.44);
+    k = kpiOf(v, 'cashLowPoint'); t.d('Cash low point with it', k.scenario, 18222595.30); t.eq('Cash low point month', k.scenarioMonth, 33);
+    t.d('Cash low point plan', k.baseline, 18008506.93); t.eq('Plan low point month', k.baselineMonth, 34); t.d('Change in low point', k.delta, 214088.37);
+    // Guardrails
+    t.eq('Guardrails passed', v.guardrailsPassed, 5); t.eq('Guardrails broken', v.breaks.length, 0); t.eq('Guardrails fixed', v.fixes.length, 0);
+    v.guardrails.forEach(function (g) { t.eq(g.key + ' effect', g.effect, g.key === 'objective' ? 'fails' : 'passes'); });
+    t.d('Objective value with it', v.guardrails[0].scenario, 30048489.36 + 133145.03);
+    t.r('Highest utilization', v.pipeline.highestUtilization, 0.9405); t.eq('Capacity never binds', v.pipeline.capacityBindingMonths.length, 0);
+    // Where each number comes from
+    var tr = v.trace;
+    t.eq('One traced row', tr.rows.length, 1);
+    var x = tr.rows[0];
+    t.eq('Row channel', x.channel, 'events'); t.eq('Leads arrive', x.month, 4);
+    t.r('Badge scans', x.directLeads, 200); t.r('Leads bought by spend', x.leadsFromSpend, 0); t.d('Spend that buys no leads', x.spendWithoutLeads, 60000);
+    t.r('Lead to MQL rate', x.leadToMqlRate, 0.25); t.r('MQLs', x.mqls, 50); t.r('MQL to opportunity rate', x.mqlToOppRate, 0.20); t.r('Opportunities', x.sourcedOpps, 10);
+    t.r('Worked', x.worked, 10); t.r('Work share', x.workShare, 1); t.r('Created that month', x.totalCreated, 39.5); t.r('Capacity that month', x.capacity, 42);
+    t.eq('Sales cycle', x.salesCycleMonths, 5); t.eq('Closes', x.closeMonth, 9); t.eq('Closes label', x.closeLabel, 'Sep 2027');
+    t.r('Win rate at close', x.winRate, 0.25); t.r('Deals', x.deals, 2.5); t.d('ACV at close', x.acv, 52000); t.d('New ARR', x.newArr, 130000);
+    t.d('Traced new ARR', tr.newArrTraced, 130000); t.r('Opportunities after the model', tr.oppsAfterModel, 0);
+    t.eq('Drivers: channels used', tr.drivers.channels.map(function (c) { return c.id; }).join(','), 'events');
+    t.near('Drivers: net growth a month', tr.drivers.retention.netMonthly, 0.008, 1e-12);
+    t.r('Drivers: gross revenue retention (section 1.2)', tr.drivers.retention.grossRetention, 0.9005);
+    t.r('Drivers: net revenue retention (section 1.2)', tr.drivers.retention.netRetention, 1.1003);
+    t.near('Drivers: monthly discount rate', tr.drivers.valuation.monthlyDiscountRate, 0.00948879, 1e-8);
+  });
+
+  test('T95', 'Evaluator: two account executives decision card (section 4.4)', function (t) {
+    var v = E.decisionView(sc('T74b')), r = v.returns, T = v.totals, m;
+    t.d('Total cost', v.cost.total, 932270.00); t.d('Cash cost', v.cost.cash, 932270.00); t.d('Staff time', v.cost.allocated, 0);
+    t.eq('First cost month', v.cost.firstMonth, 2); t.eq('Last cost month', v.cost.lastMonth, 36); t.eq('Peak cost month (recruiting)', v.cost.peakMonth, 2);
+    t.d('Cost m2 = payroll + recruiting', v.rows[1].investment, 55000); t.d('Recruiting m2', v.rows[1].vendor, 30000);
+    for (m = 2; m <= 36; m++) t.d('Payroll m' + m, v.rows[m - 1].payroll, m <= 12 ? 25000 : m <= 24 ? 25750 : 26522.50);
+    t.d('Cost m1', v.rows[0].investment, 0);
+    rowsTable(t, TAB.aeMonthly, v, {
+      'Ramped AEs added': ['rampedAe', 'count'], 'Δ Opps': ['oppsCreated', 'count'], 'Δ Deals': ['deals', 'count'], 'Δ New ARR': ['newArr', 'dollar'],
+      'Δ ARR': ['arr', 'dollar'], 'Δ Revenue': ['revenue', 'dollar'], 'Δ EBITDA': ['ebitda', 'dollar'], 'Δ Collections': ['collections', 'dollar'],
+      'Net flow NF': ['netFlow', 'dollar'], 'Cumulative NF': ['cumNetFlow', 'dollar'], 'Δ Cash balance': ['cash', 'dollar']
+    }, 'Card');
+    t.r('Extra capacity m6', v.rows[5].capacity, 14);
+    t.r('Total deals', T.deals, 21.7584); t.d('Total new ARR', T.newArr, 1016618.40);
+    t.d('Sum of revenue', T.revenue, 1276760.68); t.d('Sum of gross profit', T.grossProfit, 1134424.85); t.d('Sum of EBITDA', T.ebitda, 100493.01);
+    t.d('NPV', r.npv, 191401.37); t.r('ROI', r.roi, 0.3477); t.r('New ARR per $1', r.newArrPerDollar, 1.0905);
+    t.eq('Cash payback month', r.payback.month, 30); t.eq('Earnings payback month', r.earningsPayback.month, 35); t.d('Cumulative NF m36', r.cumNetFlowEnd, 324125.37);
+    t.d('ARR change Dec 2027', v.arr.atObjective, 148021.43); t.d('ARR change Dec 2029', v.arr.atEnd, 1145399.22);
+    t.r2('CAC payback with it', kpiOf(v, 'cacPayback').scenario, 18.27); t.r('Burn multiple with it', kpiOf(v, 'burnMultiple').scenario, 1.7560);
+    t.r2('Lowest runway with it', kpiOf(v, 'runway').scenario, 33.13);
+    t.d('Cash low point with it', kpiOf(v, 'cashLowPoint').scenario, 18148931.91); t.eq('Cash low point month', kpiOf(v, 'cashLowPoint').scenarioMonth, 33);
+    t.d('Change in low point', kpiOf(v, 'cashLowPoint').delta, 140424.98);
+    t.eq('Guardrails passed', v.guardrailsPassed, 5); t.eq('Guardrails broken', v.breaks.length, 0);
+    // Trace: AE-sourced outbound opportunities, month by month, through the hub lift
+    var tr = v.trace, rows = {};
+    tr.rows.forEach(function (x) { rows[x.month] = x; });
+    t.eq('Traced rows (months 3 to 36)', tr.rows.length, 34); t.eq('First traced month', tr.rows[0].month, 3);
+    t.ok('All rows are outbound', tr.rows.every(function (x) { return x.channel === 'outbound'; }));
+    t.r('m3 ramped AEs added', rows[3].aesAdded, 0.5); t.r('m3 AE opportunities', rows[3].aeOpps, 0.75); t.r('m3 leads', rows[3].leads, 0);
+    t.eq('m3 closes', rows[3].closeLabel, 'Jul 2027'); t.r('m3 deals', rows[3].deals, 0.18); t.d('m3 new ARR', rows[3].newArr, 8100);
+    t.r('m9 opportunities', rows[9].worked, 3); t.eq('m9 closes in month 13', rows[9].closeMonth, 13);
+    t.r('m9 win rate with 1/6 hub lift', rows[9].winRate, 0.2432); t.d('m9 ACV with 1/6 hub lift', rows[9].acv, 45375); t.d('m9 new ARR', rows[9].newArr, 33105.60);
+    t.r('m14 win rate, full lift', rows[14].winRate, 0.2592); t.d('m14 ACV, full lift', rows[14].acv, 47250); t.d('m14 new ARR', rows[14].newArr, 36741.60);
+    t.eq('m32 closes in month 36', rows[32].closeMonth, 36);
+    [33, 34, 35, 36].forEach(function (mm) { t.eq('m' + mm + ' closes after the model', rows[mm].closeMonth, null); });
+    t.r('Opportunities still open in Dec 2029', tr.oppsAfterModel, 12);
+    t.d('Traced new ARR = total new ARR', tr.newArrTraced, 1016618.40); t.r('Traced deals = total deals', tr.dealsTraced, 21.7584);
+  });
+
+  test('T96', 'Evaluator: template inputs, defaults and checks', function (t) {
+    var A = E.defaultAssumptions();
+    Object.keys(E.TEMPLATE_PARAMS).forEach(function (k) {
+      t.eq(k + ' asks for every default', Object.keys(E.TEMPLATE_PARAMS[k]).sort().join(','), Object.keys(A.templates[k]).sort().join(','));
+      t.eq(k + ' defaults are valid', E.checkTemplateParams(A, k, A.templates[k]).length, 0);
+      t.ok(k + ' template exists', typeof E.templates[k] === 'function');
+    });
+    t.eq('Five templates', Object.keys(E.TEMPLATE_PARAMS).join(','), 'tradeShow,hireSdrs,hireAes,paidCampaign,partnerProgram');
+    function errs(k, change) {
+      var p = {}; Object.keys(A.templates[k]).forEach(function (f) { p[f] = A.templates[k][f]; });
+      Object.keys(change).forEach(function (f) { p[f] = change[f]; });
+      return E.checkTemplateParams(A, k, p);
+    }
+    function rejects(label, k, change, field) {
+      var e = errs(k, change).filter(function (x) { return x.level === 'error'; });
+      t.ok(label + ' is rejected', e.length > 0 && e[0].field === field, JSON.stringify(e));
+    }
+    rejects('Trade show in month 0', 'tradeShow', { month: 0 }, 'month');
+    rejects('Trade show in month 37', 'tradeShow', { month: 37 }, 'month');
+    rejects('Trade show in month 4.5', 'tradeShow', { month: 4.5 }, 'month');
+    rejects('Negative booth cost', 'tradeShow', { booth: -1 }, 'booth');
+    rejects('Badge scans not a number', 'tradeShow', { expectedLeads: NaN }, 'expectedLeads');
+    rejects('Unknown funnel', 'tradeShow', { channel: 'radio' }, 'channel');
+    rejects('Zero AEs', 'hireAes', { count: 0 }, 'count');
+    rejects('Half an SDR', 'hireSdrs', { count: 1.5 }, 'count');
+    rejects('Negative ramp', 'hireAes', { rampMonths: -1 }, 'rampMonths');
+    rejects('Paid campaign on outbound, which has no cost per lead', 'paidCampaign', { channel: 'outbound' }, 'channel');
+    rejects('Cost per lead multiplier of 0', 'paidCampaign', { cplMultiplier: 0 }, 'cplMultiplier');
+    rejects('Partner program of 0 months', 'partnerProgram', { months: 0 }, 'months');
+    var late = errs('paidCampaign', { startMonth: 35 });
+    t.eq('A campaign that runs past the model is a warning, not an error', late.map(function (x) { return x.level + ':' + x.field; }).join(','), 'warning:months');
+    t.eq('Trade show may use any funnel', errs('tradeShow', { channel: 'outbound' }).length, 0);
+    // The form's defaults come from the assumptions, so editing them changes a new initiative.
+    var A2 = E.defaultAssumptions(); A2.templates.tradeShow.booth = 50000;
+    t.d('Template follows edited defaults', E.applyInitiatives(A2, [E.templates.tradeShow(A2)]).returns.totalInvestment, 78000);
+    // A campaign starting in month 35 counts only the 60,000 spent inside the model (SPEC.md 2.16 rule 5).
+    var lateRun = E.applyInitiatives(A, [E.templates.paidCampaign(A, { startMonth: 35 })]);
+    t.d('Late campaign cost inside the model', lateRun.returns.totalInvestment, 60000);
+    // Paid campaign defaults (section 4.5, T47) through the card
+    var pv = E.decisionView(sc('T47'));
+    t.d('Paid campaign cost', pv.cost.total, 90000); t.eq('Paid campaign spread', pv.cost.firstMonth + '-' + pv.cost.lastMonth, '2-4');
+    t.d('Paid campaign NPV', pv.returns.npv, 26163.11); t.eq('Paid campaign payback', pv.returns.payback.month, 29);
+    t.r('Paid leads m2 bought at $240 x 1.2', pv.trace.rows[0].leadsFromSpend, 30000 / 288); t.d('Cost per lead paid', pv.trace.rows[0].costPerLeadPaid, 288);
+    // Hire SDRs defaults (section 4.5, T46) through the card
+    var sv = E.decisionView(sc('T46'));
+    t.d('SDR NPV', sv.returns.npv, 466556.62); t.eq('SDR payback', sv.returns.payback.month, 24);
+    var s3 = sv.trace.rows.filter(function (x) { return x.month === 3; })[0], s4 = sv.trace.rows.filter(function (x) { return x.month === 4; })[0];
+    t.r('m3: 1 ramped SDR adds 25 leads', s3.leadsFromSdrs, 25); t.r('m4: 2 ramped SDRs add 50 leads', s4.leadsFromSdrs, 50); t.r('m4 ramped SDRs', s4.sdrsAdded, 2);
+    t.d('SDR tools buy no leads', s4.spendWithoutLeads, 3000);
+  });
+
+  test('T97', 'Evaluator: the trace always adds up', function (t) {
+    ['T74a', 'T74b', 'T46', 'T47', 'T75', 'T43', 'T44', 'T45', 'T74c', 'T74d'].forEach(function (id) {
+      var x = sc(id), v = E.decisionView(x), r = x.returns, tr = v.trace;
+      t.d(id + ' traced new ARR = new ARR', tr.newArrTraced, r.extraNewArr);
+      t.r(id + ' traced deals = deals', tr.dealsTraced, r.extraDeals);
+      t.d(id + ' monthly new ARR adds up', v.totals.newArr, r.extraNewArr);
+      t.d(id + ' monthly cost adds up', v.totals.investment, r.totalInvestment);
+      t.d(id + ' cash cost + staff time = total cost', v.cost.cash + v.cost.allocated, v.cost.total);
+      t.d(id + ' cumulative net flow ends where returns do', v.rows[v.H - 1].cumNetFlow, r.cumNetFlow[v.H]);
+      tr.rows.forEach(function (row) {
+        var lbl = id + ' ' + row.channel + ' m' + row.month;
+        t.near(lbl + ' leads x rate = MQLs', row.leads * row.leadToMqlRate, row.mqls, 1e-9);
+        t.near(lbl + ' MQLs x rate = sourced opportunities', row.mqls * row.mqlToOppRate, row.sourcedOpps, 1e-9);
+        t.near(lbl + ' sourced + AE-sourced = created', row.sourcedOpps + row.aeOpps, row.created, 1e-9);
+        t.near(lbl + ' leads have a source', row.leadsFromSpend + row.directLeads + row.leadsFromSdrs, row.leads, 1e-9);
+        if (row.closeMonth) {
+          t.near(lbl + ' worked x win rate = deals', row.worked * row.winRate, row.deals, 1e-9);
+          t.near(lbl + ' deals x ACV = new ARR', row.deals * row.acv, row.newArr, 1e-6);
+        }
+      });
+    });
+    // Trade show plus a 120,000 paid campaign: AE capacity binds in April 2027 (section 4.5, T44).
+    var v = E.decisionView(sc('T44')), out = v.trace.rows.filter(function (x) { return x.channel === 'outbound' && x.month === 4; })[0];
+    t.eq('Capacity binds in month 4 only', v.pipeline.capacityBindingMonths.join(','), '4');
+    t.r('Outbound creates nothing extra', out.created, 0); t.r('Outbound loses opportunities to capacity', out.worked, 10.4037 - 13.5);
+    t.r('Work share', out.workShare, 0.770642); t.r('Lost to capacity', out.lostToCapacity, 13.5 - 10.4037);
+    // Together vs alone (section 4.5, T43 and T44)
+    var both = E.togetherSummary(sc('T43'), [sc('T40'), sc('T41')]);
+    t.d('Trade show and two AEs: NPV together', both.npv, 393598.27); t.d('Same as the sum alone', both.interaction, 0);
+    var clash = E.togetherSummary(sc('T44'), [sc('T40'), sc('T45')]);
+    t.ok('Trade show and paid campaign: worth less together', clash.interaction < -1, String(clash.interaction));
+  });
+
   // ---------- runner ----------
   function run() {
     var results = [];
@@ -3442,7 +3951,12 @@ window.TestSuite = (function () {
     res: null,                  // last good evaluation of the working copy
     error: null,                // engine message when the working copy is invalid
     invalid: {},                // inputs that are not numbers yet, by path
-    asOf: 12, tab: 'pl', grain: 'month', bridge: null, t0: 1
+    asOf: 12, tab: 'pl', grain: 'month', bridge: null, t0: 1,
+    view: 'stand',              // 'stand' or 'initiatives'
+    initiatives: [],            // { uid, template, params, include }
+    alone: {},                  // per initiative: applyInitiatives alone, its decision view and checks
+    draft: null,                // the Add initiative form
+    showSources: false          // "where each number comes from"
   };
 
   // ------------------------------------------------------------------
@@ -3645,7 +4159,14 @@ window.TestSuite = (function () {
   // ------------------------------------------------------------------
   function recalc() {
     try {
-      state.res = E.evaluate(state.A, []);
+      var built = state.initiatives.map(function (it) { return { it: it, init: buildInit(it) }; });
+      var res = E.evaluate(state.A, built.filter(function (b) { return b.it.include; }).map(function (b) { return b.init; }));
+      var alone = {};
+      built.forEach(function (b) {
+        var x = E.applyInitiatives(state.A, [b.init]);
+        alone[b.it.uid] = { x: x, view: E.decisionView(x), checks: E.runChecks(x.scenario), problems: E.checkTemplateParams(state.A, b.it.template, b.it.params) };
+      });
+      state.res = res; state.alone = alone;
       state.error = null;
     } catch (err) {
       state.error = String(err && err.message || err);
@@ -3662,13 +4183,14 @@ window.TestSuite = (function () {
     markFields();
     if (!state.res) return;
     $('app').classList.toggle('stale', !!state.error);
-    ['where', 'charts', 'statements'].forEach(function (id) { $(id).hidden = false; });
+    applyView();
     renderAsOf();
     renderKpis();
     renderGuardrails();
     renderBridge();
     renderCash13();
     renderStatements();
+    renderInitiatives();
   }
 
   function renderBadge() {
@@ -3678,13 +4200,15 @@ window.TestSuite = (function () {
       return;
     }
     var res = state.res;
-    var b = E.checkSummary(res.checks.baseline), s = E.checkSummary(res.checks.scenario);
-    var worst = b.passed <= s.passed ? b : s;
+    var runs = [['Baseline', res.checks.baseline], ['Scenario', res.checks.scenario]];
+    state.initiatives.forEach(function (it) { if (state.alone[it.uid]) runs.push([it.params.name, state.alone[it.uid].checks]); });
+    var worst = null;
+    runs.forEach(function (pair) { var sm = E.checkSummary(pair[1]); if (!worst || sm.passed < worst.passed) worst = sm; });
     badge.textContent = worst.label;
     badge.className = worst.passed === worst.total ? 'ok' : 'bad';
     badge.title = worst.passed === worst.total ? 'Every integrity check in SPEC.md passes on this recalculation.' : 'Some integrity checks fail. See the list below the header.';
     var fails = [];
-    [['Baseline', res.checks.baseline], ['Scenario', res.checks.scenario]].forEach(function (pair) {
+    runs.forEach(function (pair) {
       pair[1].filter(function (c) { return !c.pass; }).forEach(function (c) { fails.push(pair[0] + ' ' + c.id + ' ' + c.name + ' failed: ' + c.reason); });
     });
     if (fails.length) {
@@ -3710,9 +4234,11 @@ window.TestSuite = (function () {
     var n = changedPaths().length, c = $('change-count');
     c.textContent = String(n); c.hidden = n === 0;
     c.setAttribute('aria-label', n + ' changed');
-    $('where-sub').textContent = n === 0
-      ? 'Plan: the default assumptions. Change vs plan appears when you edit an assumption.'
-      : 'Your edited assumptions (' + n + (n === 1 ? ' change' : ' changes') + '), compared with the plan.';
+    var k = included().length;
+    var withInits = k ? ' and ' + k + (k === 1 ? ' initiative' : ' initiatives') : '';
+    $('where-sub').textContent = n === 0 && !k
+      ? 'Plan: the default assumptions. Change vs plan appears when you edit an assumption or add an initiative.'
+      : (n ? 'Your edited assumptions (' + n + (n === 1 ? ' change)' : ' changes)') : 'The plan') + withInits + ', compared with the plan.';
   }
 
   function current() { return state.res.scenario; }
@@ -4057,7 +4583,8 @@ window.TestSuite = (function () {
     t.appendChild(tbody);
     box.appendChild(t);
     var changed = changedPaths().length;
-    $('fs-sub').textContent = (changed ? 'With your edited assumptions. ' : 'The plan. ') +
+    var inc = included().length;
+    $('fs-sub').textContent = (changed ? 'With your edited assumptions' : 'The plan') + (inc ? ' and ' + inc + (inc === 1 ? ' initiative' : ' initiatives') : '') + '. ' +
       'Whole dollars; losses in parentheses. Costs are shown as positive numbers.' +
       (st.periods.some(function (p) { return p.partial; }) ? ' Some periods are partial.' : '');
   }
@@ -4084,7 +4611,7 @@ window.TestSuite = (function () {
     ['Product roadmap', ['milestones.'], 'A milestone has no effect in the month it ships, then ramps in over its ramp months.'],
     ['Objective, guardrails and discount rate', ['objective.', 'guardrails.', 'discountRateAnnual']],
     ['Uncertainty ranges', ['uncertainty.', 'simulation.'], 'Used by the simulation in a later step. They do not change the numbers on this page yet.'],
-    ['Initiative template defaults', ['templates.'], 'Starting values for the Initiative Evaluator in a later step. They do not change the numbers on this page.']
+    ['Initiative template defaults', ['templates.'], 'Starting values for the Add initiative form. Changing them does not change initiatives you already added.']
   ];
   var SUBTITLES = { tradeShow: 'Trade show or event', hireSdrs: 'Hire SDRs', hireAes: 'Hire AEs', paidCampaign: 'Paid campaign', partnerProgram: 'Partner program',
     salesCycleShift: 'Sales cycle shift' };
@@ -4252,6 +4779,645 @@ window.TestSuite = (function () {
   }
 
   // ------------------------------------------------------------------
+  // Initiative Evaluator (Step 3). Initiatives are built by the engine's
+  // templates and evaluated by applyInitiatives; the cards only format.
+  // ------------------------------------------------------------------
+  var TEMPLATE_UI = {
+    tradeShow: { title: 'Trade show or event', short: 'Trade show', blurb: 'Booth, travel and staff time for one event. Badge scans enter the funnel you pick.',
+      fields: [['name', 'Name', 'text'], ['month', 'Event month', 'month'], ['channel', 'Use the funnel rates of', 'channel'],
+        ['booth', 'Booth and sponsorship', 'money'], ['travel', 'Travel', 'money'], ['staffDays', 'Staff days', 'amount', 'Days of existing staff time at the event.'],
+        ['dayCost', 'Loaded cost per staff day', 'money', 'Counted in the return, not in cash: these people are already paid.'],
+        ['expectedLeads', 'Expected badge scans or leads', 'amount']] },
+    hireSdrs: { title: 'Hire SDRs', short: 'Hire SDRs', blurb: 'Sales development reps add outbound leads once they ramp up.',
+      fields: [['name', 'Name', 'text'], ['count', 'Number of SDRs', 'people'], ['startMonth', 'Start month', 'month'],
+        ['loadedCostAnnual', 'Loaded cost per SDR per year', 'money'], ['rampMonths', 'Months to full productivity', 'months'],
+        ['recruitingEach', 'Recruiting cost per SDR', 'money'], ['toolsPerSdrMonthly', 'Tools per SDR per month', 'money']] },
+    hireAes: { title: 'Hire AEs', short: 'Hire AEs', blurb: 'Account executives add capacity and source their own outbound opportunities, with a ramp.',
+      fields: [['name', 'Name', 'text'], ['count', 'Number of AEs', 'people'], ['startMonth', 'Start month', 'month'],
+        ['loadedCostAnnual', 'Loaded cost per AE per year', 'money'], ['rampMonths', 'Months to full productivity', 'months'],
+        ['recruitingEach', 'Recruiting cost per AE', 'money']] },
+    paidCampaign: { title: 'Paid campaign', short: 'Paid campaign', blurb: 'A budget spread evenly over a few months, buying leads at the channel cost per lead.',
+      fields: [['name', 'Name', 'text'], ['channel', 'Channel', 'spendChannel'], ['budget', 'Total budget', 'money'], ['startMonth', 'First month', 'month'],
+        ['months', 'Months to spread it over', 'people'],
+        ['cplMultiplier', 'Cost per lead vs the channel average', 'multiple', '1.2 means each extra lead costs 20% more than an average lead.']] },
+    partnerProgram: { title: 'Partner program', short: 'Partner program', blurb: 'A one-off setup cost, then monthly co-marketing that buys partner leads.',
+      fields: [['name', 'Name', 'text'], ['setup', 'Setup cost', 'money'], ['setupMonth', 'Setup month', 'month'],
+        ['coMarketingMonthly', 'Co-marketing per month', 'money'], ['startMonth', 'First co-marketing month', 'month'], ['months', 'Months of co-marketing', 'people']] }
+  };
+  var TEMPLATE_ORDER = ['tradeShow', 'hireSdrs', 'hireAes', 'paidCampaign', 'partnerProgram'];
+  var uidSeq = 0;
+
+  function cloneParams(p) { var o = {}; Object.keys(p).forEach(function (k) { o[k] = p[k]; }); return o; }
+  function firstMonthOf(p) { return p.month || p.startMonth || p.setupMonth; }
+  function autoName(t, p) {
+    var m = firstMonthOf(p), R = state.res && state.res.baseline;
+    return TEMPLATE_UI[t].short + (R && isNum(m) && m >= 1 && m <= R.H ? ', ' + R.months[m] : '');
+  }
+  function defaultsFor(t) {
+    var p = cloneParams(state.A.templates[t] || {});
+    p.name = autoName(t, p);
+    return p;
+  }
+  function buildInit(it) {
+    var p = cloneParams(it.params); p.id = it.uid;
+    return E.templates[it.template](state.A, p);
+  }
+  function included() { return state.initiatives.filter(function (it) { return it.include; }); }
+  function monthName(m) { var R = state.res.baseline; return isNum(m) && m >= 1 && m <= R.H ? R.months[m] : 'month ' + m; }
+  function monthPhrase(m) { return 'Month ' + m + ', ' + monthName(m); }
+  function count(x, d) { return isNum(x) ? Number(x.toFixed(d)).toLocaleString('en-US', { maximumFractionDigits: d }) : 'n/a'; }
+  function rate(x) { return isNum(x) ? Number((x * 100).toFixed(2)) + '%' : 'n/a'; }
+  function signedCompact(x) { return isNum(x) ? signed(compact(Math.abs(x)), Math.abs(x) < 0.5 ? 0 : x) : 'n/a'; }
+  function paybackText(pb) {
+    if (pb.status === 'paid_back') return { main: 'Month ' + pb.month, note: monthName(pb.month) };
+    if (pb.status === 'never_negative') return { main: 'Immediate', note: 'Never below zero; first effect in ' + monthName(pb.month) };
+    if (pb.status === 'no_effect') return { main: 'No effect', note: 'Nothing changes' };
+    return { main: 'Not within ' + state.res.baseline.H + ' months', note: 'Still behind in ' + monthName(state.res.baseline.H) };
+  }
+
+  // --- Builder ----------------------------------------------------------
+  function startDraft(t, editingUid) {
+    var it = editingUid ? state.initiatives.filter(function (x) { return x.uid === editingUid; })[0] : null;
+    state.draft = { template: t, params: it ? cloneParams(it.params) : defaultsFor(t), editing: it ? it.uid : null, nameTouched: !!it };
+    renderBuilder();
+  }
+  function draftProblems() {
+    var d = state.draft, probs = E.checkTemplateParams(state.A, d.template, d.params);
+    if (!String(d.params.name || '').trim()) probs.push({ field: 'name', level: 'error', message: 'Give it a name' });
+    return probs;
+  }
+  function channelOptions(kind) {
+    return state.A.channelOrder.filter(function (c) {
+      var ch = state.A.channels[c];
+      return kind !== 'spendChannel' || (ch.leadSource === 'spend' && ch.costPerLead > 0);
+    }).map(function (c) { return [c, state.A.channels[c].name]; });
+  }
+  function channelRates(c, noCpl) {
+    var ch = state.A.channels[c]; if (!ch) return '';
+    return ch.name + ' rates: ' + (noCpl ? '' : ch.leadSource === 'spend' ? '$' + plain(ch.costPerLead) + ' per lead, ' : 'leads from SDRs, ') +
+      rate(ch.leadToMqlRate) + ' of leads become MQLs, ' + rate(ch.mqlToOppRate) + ' of MQLs become opportunities, ' + rate(ch.winRate) +
+      ' win rate, ' + ch.salesCycleMonths + '-month sales cycle, $' + plain(ch.acv) + ' ACV.';
+  }
+  function builderHelp() {
+    var d = state.draft, p = d.params, A = state.A, t = d.template;
+    if (t === 'tradeShow') return 'Badge scans enter the funnel directly. ' + channelRates(p.channel, true);
+    if (t === 'paidCampaign') return channelRates(p.channel);
+    if (t === 'hireSdrs') return 'Each ramped SDR adds ' + plain(A.leadsPerSdrPerMonth) + ' outbound leads a month. ' + channelRates('outbound');
+    if (t === 'hireAes') return 'Each ramped AE sources ' + plain(A.selfSourcedOppsPerAePerMonth) + ' outbound opportunities a month and can work ' +
+      plain(A.oppCapacityPerAePerMonth) + '. A new AE is at 0% in the start month. ' + channelRates('outbound');
+    if (t === 'partnerProgram') return channelRates('partners');
+    return '';
+  }
+  function renderBuilder() {
+    var d = state.draft, ui = TEMPLATE_UI[d.template], picker = clear($('template-picker')), R = state.res.baseline;
+    TEMPLATE_ORDER.forEach(function (t) {
+      var b = el('button', { type: 'button', class: 'template', role: 'radio', 'aria-checked': String(t === d.template), 'data-template': t, tabindex: t === d.template ? '0' : '-1' });
+      b.appendChild(el('b', null, TEMPLATE_UI[t].title)); b.appendChild(el('span', null, TEMPLATE_UI[t].blurb));
+      b.addEventListener('click', function () { if (!state.draft.editing || confirmLeaveEdit()) startDraft(t, null); });
+      b.addEventListener('keydown', function (e) {
+        var i = TEMPLATE_ORDER.indexOf(t), n = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
+        if (!n) return; e.preventDefault();
+        var next = TEMPLATE_ORDER[(i + n + TEMPLATE_ORDER.length) % TEMPLATE_ORDER.length];
+        startDraft(next, null); document.querySelector('[data-template="' + next + '"]').focus();
+      });
+      picker.appendChild(b);
+    });
+    $('builder-title').textContent = d.editing ? 'Edit initiative' : 'Add an initiative';
+    var grid = clear($('init-fields'));
+    ui.fields.forEach(function (f) {
+      var key = f[0], kind = f[2], id = 'init-' + key, v = d.params[key];
+      var wrap = el('div', { class: 'form-field', 'data-field': key });
+      wrap.appendChild(el('label', { for: id }, f[1]));
+      var ctl = el('div', { class: 'control' }), input;
+      if (kind === 'month' || kind === 'channel' || kind === 'spendChannel') {
+        input = el('select', { id: id, 'data-param': key });
+        var opts = kind === 'month' ? (function () { var o = []; for (var m = 1; m <= R.H; m++) o.push([m, R.months[m]]); return o; })() : channelOptions(kind);
+        opts.forEach(function (o) { input.appendChild(el('option', { value: o[0] }, o[1])); });
+        input.value = String(v);
+      } else if (kind === 'text') {
+        input = el('input', { id: id, type: 'text', 'data-param': key, autocomplete: 'off' });
+        input.value = v == null ? '' : v;
+      } else {
+        if (kind === 'money') ctl.appendChild(el('span', { class: 'affix' }, '$'));
+        input = el('input', { id: id, type: 'text', inputmode: 'decimal', 'data-param': key, autocomplete: 'off', spellcheck: 'false' });
+        input.value = isNum(v) ? plain(v) : '';
+      }
+      ctl.appendChild(input);
+      var suffix = { months: 'months', multiple: 'x' }[kind];
+      if (suffix) ctl.appendChild(el('span', { class: 'affix' }, suffix));
+      wrap.appendChild(ctl);
+      if (f[3]) wrap.appendChild(el('div', { class: 'help' }, f[3]));
+      wrap.appendChild(el('div', { class: 'err', 'aria-live': 'polite' }));
+      input.addEventListener(input.tagName === 'SELECT' ? 'change' : 'input', function () { onDraftEdit(key, kind, input); });
+      if (input.tagName !== 'SELECT' && kind !== 'text') input.addEventListener('blur', function () { if (isNum(d.params[key])) input.value = plain(d.params[key]); });
+      grid.appendChild(wrap);
+    });
+    $('init-submit').textContent = d.editing ? 'Save changes' : 'Add initiative';
+    $('init-cancel').hidden = !d.editing;
+    updateDraftFeedback();
+  }
+  function confirmLeaveEdit() { state.draft.editing = null; return true; }
+  function onDraftEdit(key, kind, input) {
+    var d = state.draft, v;
+    if (kind === 'text' || kind === 'channel' || kind === 'spendChannel') v = input.value;
+    else if (kind === 'month') v = Number(input.value);
+    else { var raw = input.value.replace(/[,$\sx]/gi, ''); v = raw === '' ? NaN : Number(raw); }
+    d.params[key] = v;
+    if (key === 'name') d.nameTouched = true;
+    if (!d.nameTouched && key !== 'name' && /month/i.test(key)) {
+      d.params.name = autoName(d.template, d.params);
+      var n = document.querySelector('#init-fields [data-param="name"]'); if (n) n.value = d.params.name;
+    }
+    clearTimeout(onDraftEdit.t); onDraftEdit.t = setTimeout(updateDraftFeedback, 120);
+  }
+  function updateDraftFeedback() {
+    var d = state.draft, probs = draftProblems(), errs = probs.filter(function (p) { return p.level === 'error'; });
+    document.querySelectorAll('#init-fields .form-field').forEach(function (w) {
+      var k = w.getAttribute('data-field'), mine = probs.filter(function (p) { return p.field === k; });
+      var box = w.querySelector('.err');
+      box.textContent = mine.map(function (p) { return p.message; }).join('. ');
+      box.className = mine.length && mine[0].level === 'warning' ? 'warn' : 'err';
+      w.classList.toggle('invalid', mine.some(function (p) { return p.level === 'error'; }));
+    });
+    $('init-channel-help').textContent = builderHelp();
+    $('init-submit').disabled = errs.length > 0 || !!state.error;
+    var pv = clear($('init-preview'));
+    if (state.error) { pv.textContent = 'Fix the assumptions first: the model cannot run with an invalid input.'; return; }
+    if (errs.length) { pv.textContent = 'Fix the highlighted inputs to see what this initiative would do.'; return; }
+    try {
+      var init = E.templates[d.template](state.A, Object.assign(cloneParams(d.params), { id: 'preview' }));
+      var x = E.applyInitiatives(state.A, [init]), r = x.returns, pb = paybackText(r.payback);
+      pv.appendChild(el('strong', null, 'Preview: '));
+      pv.appendChild(document.createTextNode('costs ' + compact(r.totalInvestment) + ', adds ' + compact(r.extraNewArr) + ' of new ARR, NPV ' +
+        compact(r.npv) + ', cash payback ' + (r.payback.status === 'paid_back' ? monthPhrase(r.payback.month) : pb.main.toLowerCase()) + '.'));
+    } catch (err) { pv.textContent = 'This initiative cannot be evaluated: ' + err.message; }
+  }
+  function submitDraft(e) {
+    e.preventDefault();
+    var d = state.draft, errs = draftProblems().filter(function (p) { return p.level === 'error'; });
+    if (errs.length) { var f = document.querySelector('#init-fields [data-field="' + errs[0].field + '"] [data-param]'); if (f) f.focus(); return; }
+    var uid;
+    if (d.editing) {
+      var it = state.initiatives.filter(function (x) { return x.uid === d.editing; })[0];
+      it.params = cloneParams(d.params); it.template = d.template; uid = it.uid;
+    } else {
+      uid = 'init' + (++uidSeq);
+      state.initiatives.push({ uid: uid, template: d.template, params: cloneParams(d.params), include: true });
+    }
+    startDraft(d.template, null);
+    recalc();
+    var card = document.querySelector('[data-init="' + uid + '"]');
+    if (card && card.scrollIntoView) card.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
+
+  // --- Charts on a decision card ------------------------------------------
+  function costChart(v, box) {
+    var width = Math.max(260, box.clientWidth || 420), height = 170, m = { l: 48, r: 8, t: 10, b: 24 }, pw = width - m.l - m.r, ph = height - m.t - m.b;
+    var rows = v.rows, max = 0, H = v.H;
+    rows.forEach(function (r) { max = Math.max(max, r.investment); });
+    var s = svg('svg', { viewBox: '0 0 ' + width + ' ' + height, width: width, height: height, role: 'img', 'aria-label': 'Cost by month, ' + compact(v.cost.total) + ' in total' });
+    if (max <= 0) { box.appendChild(el('p', { class: 'd-note' }, 'No cost.')); return; }
+    var sc = niceScale(0, max, 3), slot = pw / H, bw = Math.max(2, Math.min(24, slot * 0.7));
+    function Y(x) { return m.t + (sc.hi - x) / (sc.hi - sc.lo) * ph; }
+    sc.ticks.forEach(function (t) {
+      s.appendChild(svg('line', { class: t === 0 ? 'baseline' : 'gridline', x1: m.l, x2: width - m.r, y1: Y(t), y2: Y(t) }));
+      s.appendChild(svg('text', { x: m.l - 6, y: Y(t) + 4, 'text-anchor': 'end' }, axisMoney(t)));
+    });
+    rows.forEach(function (r) {
+      if (r.investment <= 0) return;
+      var x = m.l + slot * (r.m - 0.5) - bw / 2, yCash = Y(r.cashCost), yAll = Y(r.investment), g = svg('g', { 'data-cost-month': r.m });
+      if (r.cashCost > 0) g.appendChild(svg('path', { d: barPath(x, yCash, bw, Y(0) - yCash, r.allocated > 0 ? 0 : Math.min(4, bw / 2), 0), fill: 'var(--accent)' }));
+      if (r.allocated > 0) {
+        var top = yAll, bottom = r.cashCost > 0 ? yCash - 2 : Y(0);
+        if (bottom - top > 0.5) g.appendChild(svg('path', { d: barPath(x, top, bw, bottom - top, Math.min(4, bw / 2), 0), fill: 'var(--series-2)' }));
+      }
+      g.appendChild(svg('title', null, r.label + ': ' + dollars(r.investment) + (r.allocated > 0 ? ' (cash ' + dollars(r.cashCost) + ', staff time ' + dollars(r.allocated) + ')' : '')));
+      s.appendChild(g);
+    });
+    for (var mm = 1; mm <= H; mm += 12) s.appendChild(svg('text', { x: m.l + slot * (mm - 0.5), y: height - 6, 'text-anchor': mm === 1 ? 'start' : 'middle' }, v.months[mm]));
+    box.appendChild(s);
+  }
+  function cumChart(v, pb, box) {
+    var width = Math.max(260, box.clientWidth || 420), height = 190, m = { l: 52, r: 10, t: 22, b: 24 }, pw = width - m.l - m.r, ph = height - m.t - m.b;
+    var H = v.H, vals = [0].concat(v.rows.map(function (r) { return r.cumNetFlow; }));
+    var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), sc = niceScale(Math.min(0, lo), Math.max(0, hi), 4);
+    function X(i) { return m.l + i / H * pw; }
+    function Y(x) { return m.t + (sc.hi - x) / (sc.hi - sc.lo) * ph; }
+    var s = svg('svg', { viewBox: '0 0 ' + width + ' ' + height, width: width, height: height, role: 'img', tabindex: 0,
+      'aria-label': 'Cumulative net cash flow by month, ending at ' + compact(vals[H]) + '. Use the arrow keys to read each month.' });
+    sc.ticks.forEach(function (t) {
+      s.appendChild(svg('line', { class: t === 0 ? 'baseline' : 'gridline', x1: m.l, x2: width - m.r, y1: Y(t), y2: Y(t) }));
+      s.appendChild(svg('text', { x: m.l - 6, y: Y(t) + 4, 'text-anchor': 'end' }, axisMoney(t)));
+    });
+    var d = '';
+    vals.forEach(function (x, i) { d += (i ? 'L' : 'M') + X(i).toFixed(1) + ',' + Y(x).toFixed(1); });
+    s.appendChild(svg('path', { d: d, fill: 'none', stroke: 'var(--accent)', 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+    function marker(i, text, above) {
+      s.appendChild(svg('circle', { cx: X(i), cy: Y(vals[i]), r: 4, fill: 'var(--accent)', stroke: 'var(--surface)', 'stroke-width': 2 }));
+      if (above) {
+        var anchor = X(i) < m.l + 60 ? 'start' : X(i) > width - m.r - 60 ? 'end' : 'middle';
+        s.appendChild(svg('text', { class: 'lbl', x: X(i), y: Y(vals[i]) - 9, 'text-anchor': anchor }, text));
+      } else {
+        // Beside the point, so it never sits on the month labels below the plot.
+        var right = X(i) < m.l + 140;
+        s.appendChild(svg('text', { class: 'lbl', x: X(i) + (right ? 9 : -9), y: Y(vals[i]) + 4, 'text-anchor': right ? 'start' : 'end' }, text));
+      }
+    }
+    var low = v.returns.lowestCumNetFlowMonth;
+    if (low && vals[low] < 0) marker(low, 'Most out: ' + compact(vals[low]), false);
+    if (pb.status === 'paid_back') marker(pb.month, 'Paid back: ' + monthName(pb.month), true);
+    for (var mm = 1; mm <= H; mm += 12) s.appendChild(svg('text', { x: X(mm), y: height - 6, 'text-anchor': mm === 1 ? 'start' : 'middle' }, v.months[mm]));
+    var cross = svg('line', { y1: m.t, y2: m.t + ph, stroke: 'var(--axis)', 'stroke-width': 1, visibility: 'hidden' });
+    s.appendChild(cross);
+    var hit = svg('rect', { x: m.l, y: m.t, width: pw, height: ph, fill: 'transparent' });
+    s.appendChild(hit);
+    box.appendChild(s);
+    var tip = el('div', { class: 'tooltip', hidden: '' }); box.appendChild(tip);
+    var active = null;
+    function show(i) {
+      active = Math.max(1, Math.min(H, i));
+      var r = v.rows[active - 1], x = X(active);
+      cross.setAttribute('x1', x); cross.setAttribute('x2', x); cross.setAttribute('visibility', 'visible');
+      clear(tip); tip.hidden = false;
+      tip.appendChild(el('strong', null, dollars(r.cumNetFlow)));
+      tip.appendChild(el('div', null, 'Cumulative to ' + r.label));
+      [['Net cash flow this month', r.netFlow], ['Cost this month', r.investment], ['New ARR this month', r.newArr]].forEach(function (p) {
+        var row = el('div', { class: 'row' }); row.appendChild(el('span', null, p[0])); row.appendChild(el('b', null, dollars(p[1]))); tip.appendChild(row);
+      });
+      tip.style.left = Math.max(0, x + 12 + 210 > width ? x - 12 - 210 : x + 12) + 'px'; tip.style.top = m.t + 'px';
+    }
+    function hide() { tip.hidden = true; cross.setAttribute('visibility', 'hidden'); }
+    hit.addEventListener('pointermove', function (e) {
+      var rect = s.getBoundingClientRect(); show(Math.round(((e.clientX - rect.left) * width / rect.width - m.l) / pw * H));
+    });
+    hit.addEventListener('pointerleave', hide);
+    s.addEventListener('focus', function () { show(active || 1); });
+    s.addEventListener('blur', hide);
+    s.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowRight') { show((active || 0) + 1); e.preventDefault(); }
+      if (e.key === 'ArrowLeft') { show((active || 2) - 1); e.preventDefault(); }
+      if (e.key === 'Escape') hide();
+    });
+  }
+
+  // --- Words built from engine numbers --------------------------------------
+  var GUARD_NAMES = { objective: 'ARR objective', cashFloor: 'cash floor', covenant: 'covenant', runway: 'runway', cacPayback: 'CAC payback',
+    burnMultiple: 'burn multiple', grossMargin: 'gross margin' };
+  function listWords(items) { return items.length <= 1 ? items.join('') : items.slice(0, -1).join(', ') + ' and ' + items[items.length - 1]; }
+  function verdict(v) {
+    var r = v.returns, c = v.cost, parts = [];
+    var when = !c.firstMonth ? '' : c.firstMonth === c.lastMonth ? ' in ' + monthName(c.firstMonth)
+      : c.peakAmount / c.total > 0.5 ? ', mostly in ' + monthName(c.peakMonth) : ', spread from ' + monthName(c.firstMonth) + ' to ' + monthName(c.lastMonth);
+    parts.push('Costs ' + compact(c.total) + when + '.');
+    if (v.totals.deals > 1e-9) parts.push('Adds ' + count(v.totals.deals, 1) + ' deals and ' + compact(v.totals.newArr) + ' of new ARR, starting ' + monthName(v.pipeline.firstDealMonth) + '.');
+    else parts.push('Adds no deals within the model.');
+    var pb = r.payback;
+    parts.push(pb.status === 'paid_back' ? 'Pays back in cash by ' + monthPhrase(pb.month) + '.' : pb.status === 'not_within_horizon' ? 'Does not pay back within ' + v.H + ' months.' : '');
+    parts.push('NPV ' + compact(r.npv) + '.');
+    if (v.breaks.length) parts.push('Breaks the ' + listWords(v.breaks.map(function (k) { return GUARD_NAMES[k]; })) + (v.breaks.length > 1 ? ' guardrails.' : ' guardrail.'));
+    else parts.push(v.guardrailsPassed === v.guardrailsTotal ? 'Keeps all ' + v.guardrailsTotal + ' guardrails.' : 'Changes no guardrail result (' + v.guardrailsPassed + ' of ' + v.guardrailsTotal + ' pass).');
+    if (v.fixes.length) parts.push('Fixes the ' + listWords(v.fixes.map(function (k) { return GUARD_NAMES[k]; })) + '.');
+    return parts.filter(Boolean).join(' ');
+  }
+  function kpiValue(k, x, month) {
+    if (k.unit === 'money') return compact(x) + (month ? ' (' + monthName(month) + ')' : '');
+    if (k.unit === 'multiple') return x == null ? 'n/a' : !isNum(x) || x < 0 ? 'Not burning' : x.toFixed(2) + 'x';
+    return x === Infinity ? 'Not burning' : isNum(x) ? x.toFixed(1) + ' months' : 'n/a';
+  }
+  function kpiDelta(k) {
+    if (k.delta === null) return { text: 'n/a', cls: '' };
+    var shown = k.unit === 'money' ? Math.round(k.delta) : Number(k.delta.toFixed(k.unit === 'multiple' ? 2 : 1));
+    if (shown === 0) return { text: 'No change', cls: '' };
+    var txt = k.unit === 'money' ? compact(Math.abs(k.delta)) : k.unit === 'multiple' ? Math.abs(k.delta).toFixed(2) + 'x' : Math.abs(k.delta).toFixed(1) + ' months';
+    return { text: signed(txt, k.delta), cls: (k.delta > 0) === (k.better === 'up') ? 'good' : 'bad' };
+  }
+  function guardText(g) {
+    function val(x) {
+      if (g.key === 'objective' || g.key === 'cashFloor' || g.key === 'covenant') return compact(x);
+      if (g.key === 'grossMargin') return pct(x);
+      if (g.key === 'burnMultiple') return isNum(x) && x >= 0 ? x.toFixed(2) + 'x' : 'Not burning';
+      return x === Infinity ? 'Not burning' : isNum(x) ? x.toFixed(1) + ' months' : 'n/a';
+    }
+    var target = g.key === 'objective' || g.key === 'cashFloor' || g.key === 'covenant' ? compact(g.target) : g.key === 'grossMargin' ? pct(g.target, 0)
+      : g.key === 'burnMultiple' ? plain(g.target) + 'x' : plain(g.target) + ' months';
+    var op = g.key === 'cacPayback' || g.key === 'burnMultiple' ? 'at most ' : 'at least ';
+    return val(g.scenario) + ' with it, ' + val(g.baseline) + ' in the plan. Needs ' + op + target + '.';
+  }
+  var EFFECT = { passes: ['pass', 'Passes'], fails: ['fail', 'Still fails'], breaks: ['fail', 'Breaks'], fixes: ['pass', 'Fixes'] };
+
+  function calcNotes(v, it) {
+    var r = v.returns, t = v.totals, D = v.trace.drivers, c = v.cost, pb = r.payback, notes = [];
+    var costParts = [['program spend', t.programSpend], ['new payroll', t.payroll], ['vendor costs', t.vendor], ['capex', t.capex], ['existing staff time', t.allocated]]
+      .filter(function (p) { return Math.abs(p[1]) > 0.005; }).map(function (p) { return p[0] + ' ' + dollars(p[1]); });
+    notes.push(['Total cost', costParts.join(' + ') + ' = ' + dollars(c.total) + '. Commissions, hosting and software on the extra revenue are not counted as cost; they reduce the return.']);
+    notes.push(['New ARR', 'Each deal is booked at the channel ACV in the month it closes: ' + dollars(t.newArr) + ' in ' + v.H + ' months. The table below traces every lead to its deals.']);
+    notes.push(['Revenue', 'ARR is earned evenly through the month, so revenue is the average of opening and closing ARR divided by 12. The new ARR then grows by ' +
+      rate(D.retention.netMonthly) + ' a month (expansion ' + rate(D.retention.expansionRateMonthly) + ', less contraction ' + rate(D.retention.contractionRateMonthly) +
+      ' and churn ' + rate(D.retention.churnRateMonthly) + '), which is ' + rate(D.retention.netRetention) + ' net revenue retention a year.']);
+    notes.push(['Gross profit', 'Revenue less hosting ($' + plain(D.unitCosts.hostingCostPerCustomerPerMonth) + ' per new customer per month, up ' +
+      rate(D.unitCosts.hostingCostGrowthAnnual) + ' a year) and third-party software (' + rate(D.unitCosts.thirdPartyPctOfRevenue) + ' of revenue): ' + dollars(t.grossProfit) + ' in total.']);
+    notes.push(['EBITDA', 'Gross profit less the initiative’s costs and a ' + rate(D.unitCosts.commissionRate) + ' commission on new ARR: ' + dollars(t.ebitda) + ' in total.']);
+    notes.push(['Cash', rate(D.cashTiming.annualBillingShare) + ' of new ARR is invoiced a year upfront, customers pay in ' + plain(D.cashTiming.dsoDays) +
+      ' days, vendors are paid in ' + plain(D.cashTiming.dpoDays) + ' days, and payroll is paid in the month. Net cash flow is the change in free cash flow before interest, less staff time.']);
+    notes.push(['Payback', pb.status === 'paid_back' ? 'The first month the cumulative net cash flow is back to zero after going negative: ' + monthPhrase(pb.month) +
+      '. On earnings (EBITDA less staff time) it is ' + (r.earningsPayback.status === 'paid_back' ? monthPhrase(r.earningsPayback.month) : 'not within ' + v.H + ' months') + '.'
+      : 'Cumulative net cash flow is ' + dollars(r.cumNetFlowEnd) + ' in ' + monthName(v.H) + ', so it has not paid back.']);
+    notes.push(['NPV', 'The ' + v.H + ' monthly net cash flows discounted at ' + rate(r.discountRateAnnual) + ' a year (' + rate(r.monthlyDiscountRate) +
+      ' a month) to the start of ' + monthName(1) + ': ' + dollars(r.npv) + '. Nothing after ' + monthName(v.H) + ' is counted.']);
+    notes.push(['ROI', 'Cumulative net cash flow by ' + monthName(v.H) + ', ' + dollars(r.cumNetFlowEnd) + ', divided by the total cost of ' + dollars(c.total) + ': ' +
+      (r.roi == null ? 'n/a' : pct(r.roi)) + '.']);
+    notes.push(['New ARR per $1', dollars(t.newArr) + ' of new ARR divided by ' + dollars(c.total) + ': ' + (r.newArrPerDollar == null ? 'n/a' : '$' + r.newArrPerDollar.toFixed(2)) + '.']);
+    notes.push(['Guardrails', 'CAC payback, burn multiple and runway are measured over the first 12 months, the way the strategy measures them. The cash low point is the lowest month-end cash in all ' + v.H + ' months.']);
+    return notes;
+  }
+  function traceTable(v) {
+    var t = el('table', { class: 'fin compact trace' }), hr = el('tr');
+    ['Leads arrive', 'Channel', 'Leads', 'MQLs', 'Opportunities', 'Worked', 'Closes', 'Win rate', 'Deals', 'ACV', 'New ARR'].forEach(function (h) { hr.appendChild(el('th', { scope: 'col' }, h)); });
+    var th = el('thead'); th.appendChild(hr); t.appendChild(th);
+    var tb = el('tbody');
+    function cell(tr, main, small) { var td = el('td', null, main); if (small) td.appendChild(el('small', null, small)); tr.appendChild(td); }
+    v.trace.rows.forEach(function (r) {
+      var tr = el('tr', { 'data-trace': r.channel + ':' + r.month });
+      tr.appendChild(el('th', { scope: 'row' }, r.monthLabel));
+      cell(tr, r.channelName);
+      var src = [];
+      if (Math.abs(r.directLeads) > 1e-9) src.push(count(r.directLeads, 2) + ' badge scans or direct');
+      if (r.leadsFromSpend > 1e-9) src.push(count(r.leadsFromSpend, 2) + ' from ' + dollars(r.spendForLeads) + ' at $' + count(r.costPerLeadPaid, 2) + ' a lead');
+      if (Math.abs(r.leadsFromSdrs) > 1e-9) src.push(count(r.leadsFromSdrs, 2) + ' from ' + count(r.sdrsAdded, 2) + ' ramped SDRs');
+      if (r.spendWithoutLeads > 0) src.push(dollars(r.spendWithoutLeads) + ' spend buys no leads');
+      cell(tr, count(r.leads, 2), src.join('; '));
+      cell(tr, count(r.mqls, 2), Math.abs(r.leads) > 1e-9 ? rate(r.leadToMqlRate) + ' of leads' : '');
+      var opp = [];
+      if (Math.abs(r.sourcedOpps) > 1e-9) opp.push(rate(r.mqlToOppRate) + ' of MQLs');
+      if (Math.abs(r.aeOpps) > 1e-9) opp.push(count(r.aeOpps, 2) + ' sourced by ' + count(r.aesAdded, 2) + ' ramped AEs');
+      cell(tr, count(r.created, 2), opp.join('; '));
+      cell(tr, count(r.worked, 2), Math.abs(r.lostToCapacity) > 1e-9 ? 'AE capacity full: ' + rate(r.workShare) + ' worked' : 'All worked; ' + count(r.totalCreated, 1) + ' of ' + count(r.capacity, 1) + ' capacity used');
+      if (!r.closeMonth) { cell(tr, 'After ' + v.trace.lastMonthLabel, r.salesCycleMonths + '-month cycle'); cell(tr, ''); cell(tr, ''); cell(tr, ''); cell(tr, 'Not counted'); }
+      else {
+        cell(tr, r.closeLabel, r.salesCycleMonths + '-month cycle');
+        cell(tr, rate(r.winRate), Math.abs(r.winRate - r.baseWinRate) > 1e-12 ? 'includes product lift' : '');
+        cell(tr, count(r.deals, 3));
+        cell(tr, dollars(r.acv), Math.abs(r.acv - r.baseAcv) > 1e-9 ? 'includes product lift' : '');
+        cell(tr, money(r.newArr));
+      }
+      tb.appendChild(tr);
+    });
+    t.appendChild(tb);
+    var tf = el('tfoot'), fr = el('tr');
+    fr.appendChild(el('th', { scope: 'row' }, 'Total'));
+    [ '', '', '', '', '', '', '', count(v.trace.dealsTraced, 3), '', money(v.trace.newArrTraced)].forEach(function (x) { fr.appendChild(el('td', null, x)); });
+    tf.appendChild(fr); t.appendChild(tf);
+    return t;
+  }
+  function driverBlock(title, items) {
+    var dl = el('dl'); dl.appendChild(el('div', { class: 'dl-title' }, title));
+    items.forEach(function (i) {
+      var dt = el('dt', null, i[0]);
+      if (i[2]) { var type = E.assumptionType(i[2]); dt.appendChild(el('span', { class: 'tag ' + type.toLowerCase() }, type)); }
+      dl.appendChild(dt); dl.appendChild(el('dd', null, i[1]));
+    });
+    return dl;
+  }
+  function sourcesPanel(v, it) {
+    var box = el('div', { class: 'sources', 'data-sources': '' }), D = v.trace.drivers;
+    box.appendChild(el('h4', null, 'Where each number comes from'));
+    var ul = el('ul', { class: 'calc' });
+    calcNotes(v, it).forEach(function (n) { var li = el('li'); li.appendChild(el('b', null, n[0] + ': ')); li.appendChild(document.createTextNode(n[1])); ul.appendChild(li); });
+    box.appendChild(ul);
+    var sec = el('div', { class: 'd-section' });
+    sec.appendChild(el('h4', null, 'Every extra lead, step by step'));
+    if (v.trace.rows.length) {
+      var wrap = el('div', { class: 'table-wrap' }); wrap.style.maxHeight = '420px'; wrap.appendChild(traceTable(v)); sec.appendChild(wrap);
+      var notes = [];
+      if (v.trace.oppsAfterModel > 1e-9) notes.push(count(v.trace.oppsAfterModel, 2) + ' extra opportunities are still open in ' + v.trace.lastMonthLabel + '; their deals are not counted.');
+      if (v.pipeline.capacityBindingMonths.length) notes.push('AE capacity is full in ' + listWords(v.pipeline.capacityBindingMonths.map(monthName)) + ', so some opportunities in every channel go unworked.');
+      if (notes.length) sec.appendChild(el('p', { class: 'd-note' }, notes.join(' ')));
+    } else sec.appendChild(el('p', { class: 'd-note' }, 'This initiative adds no leads or opportunities.'));
+    box.appendChild(sec);
+    var dsec = el('div', { class: 'd-section' });
+    dsec.appendChild(el('h4', null, 'Drivers used'));
+    var grid = el('div', { class: 'drivers' });
+    D.channels.forEach(function (ch) {
+      var p = 'channels.' + ch.id + '.';
+      grid.appendChild(driverBlock(ch.name + ' funnel', [
+        ['Cost per lead', ch.costPerLead == null ? 'from SDRs' : '$' + plain(ch.costPerLead), p + 'costPerLead'],
+        ['Lead to MQL', rate(ch.leadToMqlRate), p + 'leadToMqlRate'], ['MQL to opportunity', rate(ch.mqlToOppRate), p + 'mqlToOppRate'],
+        ['Win rate', rate(ch.winRate), p + 'winRate'], ['Sales cycle', ch.salesCycleMonths + ' months', p + 'salesCycleMonths'], ['ACV', '$' + plain(ch.acv), p + 'acv']]));
+    });
+    grid.appendChild(driverBlock('Sales capacity', [
+      ['Opportunities an AE can work a month', plain(D.capacity.oppCapacityPerAePerMonth), 'oppCapacityPerAePerMonth'],
+      ['Opportunities an AE sources a month', plain(D.capacity.selfSourcedOppsPerAePerMonth), 'selfSourcedOppsPerAePerMonth'],
+      ['Leads per ramped SDR a month', plain(D.capacity.leadsPerSdrPerMonth), 'leadsPerSdrPerMonth'],
+      ['AE ramp', plain(D.capacity.aeRampMonths) + ' months', 'aeRampMonths'], ['SDR ramp', plain(D.capacity.sdrRampMonths) + ' months', 'sdrRampMonths']]));
+    grid.appendChild(driverBlock('Retention', [
+      ['Churn a month', rate(D.retention.churnRateMonthly), 'churnRateMonthly'], ['Contraction a month', rate(D.retention.contractionRateMonthly), 'contractionRateMonthly'],
+      ['Expansion a month', rate(D.retention.expansionRateMonthly), 'expansionRateMonthly'], ['Net growth a month', rate(D.retention.netMonthly)],
+      ['Gross revenue retention a year', rate(D.retention.grossRetention)], ['Net revenue retention a year', rate(D.retention.netRetention)]]));
+    grid.appendChild(driverBlock('Costs that come with revenue', [
+      ['Hosting per customer a month', '$' + plain(D.unitCosts.hostingCostPerCustomerPerMonth), 'hostingCostPerCustomerPerMonth'],
+      ['Hosting cost growth a year', rate(D.unitCosts.hostingCostGrowthAnnual), 'hostingCostGrowthAnnual'],
+      ['Third-party software', rate(D.unitCosts.thirdPartyPctOfRevenue) + ' of revenue', 'thirdPartyPctOfRevenue'],
+      ['Commission', rate(D.unitCosts.commissionRate) + ' of new ARR', 'commissionRate']]));
+    grid.appendChild(driverBlock('Cash timing and value', [
+      ['Billed a year upfront', rate(D.cashTiming.annualBillingShare) + ' of ARR', 'annualBillingShare'],
+      ['Days to collect', plain(D.cashTiming.dsoDays), 'dsoDays'], ['Days to pay vendors', plain(D.cashTiming.dpoDays), 'dpoDays'],
+      ['Discount rate', rate(D.valuation.discountRateAnnual) + ' a year', 'discountRateAnnual']]));
+    if (D.milestones.length) {
+      var effects = { winRateLift: 'win rate', acvLift: 'ACV', churnReduction: 'churn', hostingCostReduction: 'hosting cost' };
+      grid.appendChild(driverBlock('Product milestones in the plan', D.milestones.map(function (ms) {
+        var e = Object.keys(ms.effects || {}).map(function (k) { return (k === 'churnReduction' || k === 'hostingCostReduction' ? '-' : '+') + rate(ms.effects[k]) + ' ' + (effects[k] || k); }).join(', ');
+        return [ms.name + ', ships ' + (ms.shipLabel || 'after the model') + ', ramps over ' + ms.rampMonths + ' months', e, 'milestones.' + ms.id + '.effects'];
+      })));
+    }
+    dsec.appendChild(grid);
+    box.appendChild(dsec);
+    return box;
+  }
+  function monthTable(v, pbMonth) {
+    var showAe = v.rows.some(function (r) { return Math.abs(r.rampedAe) > 1e-9; }), showSdr = v.rows.some(function (r) { return Math.abs(r.rampedSdr) > 1e-9; });
+    var cols = [['Cost', 'investment', 'money']];
+    if (showAe) cols.push(['Ramped AEs added', 'rampedAe', 2]);
+    if (showSdr) cols.push(['Ramped SDRs added', 'rampedSdr', 2]);
+    cols = cols.concat([['Leads', 'leads', 1], ['Opportunities worked', 'oppsWorked', 2], ['Deals', 'deals', 3], ['New ARR', 'newArr', 'money'], ['ARR change', 'arr', 'money'],
+      ['Revenue', 'revenue', 'money'], ['Gross profit', 'grossProfit', 'money'], ['EBITDA', 'ebitda', 'money'], ['Net cash flow', 'netFlow', 'money'],
+      ['Cumulative net cash flow', 'cumNetFlow', 'money'], ['Cash balance change', 'cash', 'money']]);
+    var t = el('table', { class: 'fin compact', 'data-months': '' }), hr = el('tr');
+    hr.appendChild(el('th', { scope: 'col' }, 'Month'));
+    cols.forEach(function (c) { hr.appendChild(el('th', { scope: 'col' }, c[0])); });
+    var th = el('thead'); th.appendChild(hr); t.appendChild(th);
+    var tb = el('tbody');
+    function fmt(x, kind) { return kind === 'money' ? money(x) : count(x, kind); }
+    v.rows.forEach(function (r) {
+      var tr = el('tr', { 'data-month': r.m, class: r.m === pbMonth ? 'highlight' : '' });
+      tr.appendChild(el('th', { scope: 'row' }, r.label + (r.m === pbMonth ? ' (payback)' : '')));
+      cols.forEach(function (c) { tr.appendChild(el('td', null, fmt(r[c[1]], c[2]))); });
+      tb.appendChild(tr);
+    });
+    t.appendChild(tb);
+    var tf = el('tfoot'), fr = el('tr'), T = v.totals, last = v.rows[v.rows.length - 1];
+    fr.appendChild(el('th', { scope: 'row' }, 'Total or end'));
+    var totals = { investment: T.investment, leads: T.leads, oppsWorked: T.oppsWorked, deals: T.deals, newArr: T.newArr, revenue: T.revenue, grossProfit: T.grossProfit,
+      ebitda: T.ebitda, arr: last.arr, cumNetFlow: last.cumNetFlow, cash: last.cash, netFlow: last.cumNetFlow };
+    cols.forEach(function (c) { fr.appendChild(el('td', null, c[1] in totals ? fmt(totals[c[1]], c[2]) : '')); });
+    tf.appendChild(fr); t.appendChild(tf);
+    return t;
+  }
+  function tile(label, value, note, key) {
+    var li = el('li', { class: 'tile', 'data-tile': key });
+    li.appendChild(el('span', { class: 't-label' }, label)); li.appendChild(el('span', { class: 't-value' }, value));
+    if (note) li.appendChild(el('span', { class: 't-note' }, note));
+    return li;
+  }
+  function decisionCard(it, A1) {
+    var v = A1.view, r = v.returns, t = v.totals, ui = TEMPLATE_UI[it.template], pb = paybackText(r.payback);
+    var card = el('article', { class: 'card decision', 'data-init': it.uid, 'aria-labelledby': it.uid + '-title' });
+    var head = el('div', { class: 'decision-head' }), hl = el('div');
+    hl.appendChild(el('h3', { id: it.uid + '-title' }, it.params.name));
+    var ch = it.params.channel ? ' · ' + (state.A.channels[it.params.channel] ? state.A.channels[it.params.channel].name : it.params.channel) + ' funnel' : '';
+    hl.appendChild(el('p', { class: 'meta' }, ui.title + ch + ' · measured alone against the plan' + (it.include ? '' : ' · not in the scenario')));
+    head.appendChild(hl);
+    var acts = el('div', { class: 'card-actions' });
+    var inc = el('label'), cb = el('input', { type: 'checkbox', 'data-include': it.uid });
+    cb.checked = it.include; inc.appendChild(cb); inc.appendChild(document.createTextNode('In scenario'));
+    cb.addEventListener('change', function () { it.include = cb.checked; recalc(); });
+    acts.appendChild(inc);
+    var edit = el('button', { type: 'button', class: 'btn', 'data-edit': it.uid }, 'Edit');
+    edit.addEventListener('click', function () { startDraft(it.template, it.uid); $('builder').scrollIntoView({ block: 'start', behavior: 'smooth' }); });
+    var rm = el('button', { type: 'button', class: 'btn', 'data-remove': it.uid }, 'Remove');
+    rm.addEventListener('click', function () {
+      state.initiatives = state.initiatives.filter(function (x) { return x !== it; });
+      if (state.draft.editing === it.uid) startDraft(state.draft.template, null);
+      recalc();
+    });
+    acts.appendChild(edit); acts.appendChild(rm);
+    head.appendChild(acts);
+    card.appendChild(head);
+    var probs = A1.problems.filter(function (p) { return p.level === 'error'; });
+    if (probs.length) card.appendChild(el('p', { class: 'banner-inline pill fail' }, 'Check this initiative: ' + probs.map(function (p) { return p.field + ': ' + p.message; }).join('; ')));
+    var bad = A1.checks.filter(function (c) { return !c.pass; });
+    if (bad.length) card.appendChild(el('p', { class: 'pill fail' }, 'Integrity ' + (A1.checks.length - bad.length) + '/' + A1.checks.length + ': ' + bad.map(function (c) { return c.id + ' ' + c.reason; }).join('; ')));
+    card.appendChild(el('p', { class: 'verdict', 'data-verdict': '' }, verdict(v)));
+    var tiles = el('ul', { class: 'tiles' });
+    var costNote = v.cost.allocated > 0.005 ? 'Includes ' + compact(v.cost.allocated) + ' of existing staff time' : 'All cash';
+    tiles.appendChild(tile('Total cost', compact(v.cost.total), costNote, 'cost'));
+    tiles.appendChild(tile('NPV', compact(r.npv), 'At ' + rate(r.discountRateAnnual) + ' a year, ' + v.H + ' months', 'npv'));
+    tiles.appendChild(tile('Cash payback', pb.main, pb.note + (r.earningsPayback.status === 'paid_back' ? '. Earnings: month ' + r.earningsPayback.month : ''), 'payback'));
+    tiles.appendChild(tile('ROI', r.roi == null ? 'n/a' : pct(r.roi, 0), 'Net cash return per $1 by ' + monthName(v.H), 'roi'));
+    tiles.appendChild(tile('New ARR per $1', r.newArrPerDollar == null ? 'n/a' : '$' + r.newArrPerDollar.toFixed(2), compact(t.newArr) + ' of new ARR in ' + v.H + ' months', 'arrPerDollar'));
+    tiles.appendChild(tile('ARR change, ' + monthName(v.arr.objectiveMonth), signedCompact(v.arr.atObjective), signedCompact(v.arr.atEnd) + ' by ' + monthName(v.H), 'arr'));
+    card.appendChild(tiles);
+
+    var g = el('div', { class: 'd-grid d-section' });
+    var c1 = el('div'); c1.appendChild(el('h4', null, 'When the money goes out'));
+    var leg = el('ul', { class: 'legend' });
+    var l1 = el('li'); l1.appendChild(el('span', { class: 'key-box', style: 'background:var(--accent)' })); l1.appendChild(document.createTextNode('Cash spent')); leg.appendChild(l1);
+    if (v.cost.allocated > 0.005) { var l2 = el('li'); l2.appendChild(el('span', { class: 'key-box', style: 'background:var(--series-2)' })); l2.appendChild(document.createTextNode('Staff time (already paid)')); leg.appendChild(l2); }
+    c1.appendChild(leg);
+    var cc = el('div', { class: 'chart', 'data-chart': 'cost' }); c1.appendChild(cc);
+    var c2 = el('div'); c2.appendChild(el('h4', null, 'Cumulative net cash flow'));
+    var cm = el('div', { class: 'chart', 'data-chart': 'cumulative' }); c2.appendChild(cm);
+    c2.appendChild(el('p', { class: 'd-note' }, 'Change in free cash flow before interest, less staff time, added up month by month.'));
+    g.appendChild(c1); g.appendChild(c2); card.appendChild(g);
+
+    var p = el('div', { class: 'd-section' });
+    p.appendChild(el('h4', null, 'Pipeline it should create (' + v.H + ' months)'));
+    var pt = el('ul', { class: 'tiles' });
+    pt.appendChild(tile('Leads', count(t.leads, 0), null, 'leads'));
+    pt.appendChild(tile('Opportunities worked', count(t.oppsWorked, 1), Math.abs(t.oppsCreated - t.oppsWorked) > 0.05 ? count(t.oppsCreated, 1) + ' created' : null, 'opps'));
+    pt.appendChild(tile('Deals', count(t.deals, 1), v.pipeline.firstDealMonth ? 'First in ' + monthName(v.pipeline.firstDealMonth) : null, 'deals'));
+    pt.appendChild(tile('New ARR', compact(t.newArr), null, 'newArr'));
+    p.appendChild(pt);
+    var pn = [];
+    if (v.pipeline.capacityBindingMonths.length) pn.push('AE capacity runs out in ' + listWords(v.pipeline.capacityBindingMonths.map(monthName)) + ', so some opportunities are lost.');
+    if (v.trace.oppsAfterModel > 1e-9) pn.push(count(v.trace.oppsAfterModel, 1) + ' more opportunities would close after ' + monthName(v.H) + ' and are not counted.');
+    if (pn.length) p.appendChild(el('p', { class: 'd-note' }, pn.join(' ')));
+    card.appendChild(p);
+
+    var k = el('div', { class: 'd-grid d-section' }), kl = el('div');
+    kl.appendChild(el('h4', null, 'Effect on the strategy measures'));
+    var kt = el('table', { class: 'kpi-table' }), khr = el('tr');
+    ['Measure', 'Plan', 'With it', 'Change'].forEach(function (h) { khr.appendChild(el('th', { scope: 'col' }, h)); });
+    var kth = el('thead'); kth.appendChild(khr); kt.appendChild(kth);
+    var ktb = el('tbody');
+    v.kpis.forEach(function (x) {
+      var tr = el('tr', { 'data-kpi-row': x.id }), dd = kpiDelta(x);
+      tr.appendChild(el('td', null, x.label + (x.unit === 'money' ? '' : ' (' + monthName(x.month) + ')')));
+      tr.appendChild(el('td', null, kpiValue(x, x.baseline, x.baselineMonth)));
+      tr.appendChild(el('td', null, kpiValue(x, x.scenario, x.scenarioMonth)));
+      tr.appendChild(el('td', { class: dd.cls }, dd.text));
+      ktb.appendChild(tr);
+    });
+    kt.appendChild(ktb); kl.appendChild(kt); k.appendChild(kl);
+    var gr = el('div'); gr.appendChild(el('h4', null, 'Strategy guardrails'));
+    var gl = el('ul', { class: 'guard-list' });
+    v.guardrails.forEach(function (x) {
+      var li = el('li', { 'data-guard-effect': x.key + ':' + x.effect });
+      li.appendChild(el('span', { class: 'gl-label' }, x.key === 'objective' ? 'ARR objective, ' + monthName(x.scenarioMonth) : x.label));
+      var e = x.key === 'objective' ? (x.pass ? ['pass', x.baselinePass ? 'Met' : 'Now met'] : ['fail', 'Not met']) : EFFECT[x.effect];
+      li.appendChild(el('span', { class: 'pill ' + e[0] }, e[1]));
+      li.appendChild(el('span', { class: 'gl-note' }, guardText(x)));
+      gl.appendChild(li);
+    });
+    gr.appendChild(gl); k.appendChild(gr); card.appendChild(k);
+
+    var det = el('details', { class: 'more' });
+    det.appendChild(el('summary', null, 'Month by month'));
+    var tw = el('div', { class: 'table-wrap' }); tw.style.maxHeight = '420px';
+    tw.appendChild(monthTable(v, r.payback.status === 'paid_back' ? r.payback.month : null));
+    det.appendChild(tw);
+    card.appendChild(det);
+    if (state.showSources) card.appendChild(sourcesPanel(v, it));
+    return { card: card, draw: function () { costChart(v, cc); cumChart(v, r.payback, cm); } };
+  }
+
+  function renderTogether() {
+    var box = clear($('together')), inc = included();
+    if (state.view !== 'initiatives' || inc.length < 2) { box.hidden = true; return; }
+    box.hidden = false;
+    var alones = inc.map(function (it) { return state.alone[it.uid].x; });
+    var T = E.togetherSummary(state.res, alones), v = E.decisionView(state.res), pb = paybackText(v.returns.payback);
+    var head = el('div', { class: 'section-head' }), hd = el('div');
+    hd.appendChild(el('h2', null, 'All ' + inc.length + ' initiatives in the scenario, together'));
+    hd.appendChild(el('p', null, 'One run with every included initiative, so they share AE capacity. This is what "Where we stand" shows.'));
+    head.appendChild(hd); box.appendChild(head);
+    var tiles = el('ul', { class: 'tiles' });
+    tiles.appendChild(tile('Total cost', compact(T.totalInvestment), null, 'cost'));
+    var gap = Math.abs(T.interaction) >= 0.5 ? (T.interaction < 0 ? compact(-T.interaction) + ' less than the sum alone, because they compete for AE capacity'
+      : compact(T.interaction) + ' more than the sum alone') : 'Same as the sum of each alone';
+    tiles.appendChild(tile('NPV', compact(T.npv), gap, 'npv'));
+    tiles.appendChild(tile('Cash payback', pb.main, pb.note, 'payback'));
+    tiles.appendChild(tile('New ARR', compact(T.newArr), null, 'newArr'));
+    tiles.appendChild(tile('ARR change, ' + monthName(v.arr.objectiveMonth), signedCompact(v.arr.atObjective), null, 'arr'));
+    tiles.appendChild(tile('Guardrails', v.guardrailsPassed + ' of ' + v.guardrailsTotal + ' pass',
+      v.breaks.length ? 'Breaks the ' + listWords(v.breaks.map(function (k) { return GUARD_NAMES[k]; })) : 'None broken', 'guardrails'));
+    box.appendChild(tiles);
+  }
+  function renderInitiatives() {
+    var n = state.initiatives.length, c = $('init-count');
+    c.textContent = String(n); c.hidden = n === 0;
+    if (state.view !== 'initiatives') return;
+    if (!state.draft) startDraft('tradeShow', null); else renderBuilder();
+    $('show-sources').checked = state.showSources;
+    renderTogether();
+    var box = clear($('init-cards')), draws = [];
+    if (!n) { var e = el('div', { class: 'card empty' }, 'No initiatives yet. Pick a template above, check the inputs and press Add initiative.'); box.appendChild(e); return; }
+    state.initiatives.forEach(function (it) {
+      var built = decisionCard(it, state.alone[it.uid]);
+      box.appendChild(built.card); draws.push(built.draw);
+    });
+    draws.forEach(function (f) { f(); });
+  }
+  function applyView() {
+    document.querySelectorAll('[data-view-tab]').forEach(function (b) { b.setAttribute('aria-selected', String(b.getAttribute('data-view-tab') === state.view)); });
+    document.querySelectorAll('main [data-view]').forEach(function (s) { s.hidden = s.getAttribute('data-view') !== state.view; });
+  }
+  function setView(v) {
+    state.view = v;
+    applyView();
+    if (v === 'initiatives') renderInitiatives(); else { renderKpis(); renderBridge(); renderCash13(); }
+  }
+
+  // ------------------------------------------------------------------
   // Wiring
   // ------------------------------------------------------------------
   function wire() {
@@ -4274,6 +5440,23 @@ window.TestSuite = (function () {
     $('scrim').addEventListener('click', function () { openPanel(false); });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && $('assumptions').classList.contains('open')) openPanel(false); });
     $('assumption-search').addEventListener('input', applySearch);
+    document.querySelectorAll('[data-view-tab]').forEach(function (b) {
+      b.addEventListener('click', function () { setView(b.getAttribute('data-view-tab')); });
+      b.addEventListener('keydown', function (e) {
+        if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+        var next = state.view === 'stand' ? 'initiatives' : 'stand';
+        setView(next); document.querySelector('[data-view-tab="' + next + '"]').focus();
+      });
+    });
+    $('show-sources').addEventListener('change', function (e) { state.showSources = e.target.checked; renderInitiatives(); });
+    $('init-form').addEventListener('submit', submitDraft);
+    $('init-defaults').addEventListener('click', function () {
+      var d = state.draft, name = d.editing ? d.params.name : null;
+      d.params = defaultsFor(d.template);
+      if (name) d.params.name = name; else d.nameTouched = false;
+      renderBuilder();
+    });
+    $('init-cancel').addEventListener('click', function () { startDraft(state.draft.template, null); });
     $('reset-assumptions').addEventListener('click', function () {
       state.A = E.defaultAssumptions(); state.invalid = {};
       buildPanel(); recalc();
@@ -4282,7 +5465,7 @@ window.TestSuite = (function () {
     window.addEventListener('resize', function () {
       if (Math.abs(window.innerWidth - lastW) < 8 || !state.res) return;
       lastW = window.innerWidth;
-      clearTimeout(wire.t); wire.t = setTimeout(function () { renderKpis(); renderBridge(); renderCash13(); }, 120);
+      clearTimeout(wire.t); wire.t = setTimeout(function () { if (state.view === 'initiatives') renderInitiatives(); else { renderKpis(); renderBridge(); renderCash13(); } }, 120);
     });
   }
 
@@ -4302,6 +5485,7 @@ window.TestSuite = (function () {
     wire();
     buildPanel();
     recalc();
+    if (params.get('view') === 'initiatives') setView('initiatives');
     window.__APP__ = { state: state, recalc: recalc };
   }
   try { main(); }

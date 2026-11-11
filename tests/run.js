@@ -152,9 +152,112 @@ const PAGE = 'file://' + path.join(ROOT, 'index.html');
     check('Phone: no horizontal page scroll', pw.sw <= 390 && pw.right <= 390, JSON.stringify(pw));
     check('Phone: eight cards', pw.cards === 8);
 
+    // 5. Initiative Evaluator (Step 3), on a fresh page.
+    const ev = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    ev.on('pageerror', e => errors.push(String(e)));
+    await ev.goto(PAGE);
+    await ev.click('[data-view-tab="initiatives"]');
+    const tpls = await ev.$$eval('[data-template]', els => els.map(e => e.getAttribute('data-template') + ':' + e.querySelector('b').textContent));
+    check('Five templates', tpls.join('|') === 'tradeShow:Trade show or event|hireSdrs:Hire SDRs|hireAes:Hire AEs|paidCampaign:Paid campaign|partnerProgram:Partner program', tpls.join('|'));
+    const fieldsOf = () => ev.$$eval('#init-fields [data-param]', els => els.map(e => e.getAttribute('data-param')));
+    check('Trade show asks for booth, travel, staff days and cost, leads, funnel and month',
+      (await fieldsOf()).join(',') === 'name,month,channel,booth,travel,staffDays,dayCost,expectedLeads', (await fieldsOf()).join(','));
+    const tsDefaults = await ev.$$eval('#init-fields [data-param]', els => Object.fromEntries(els.map(e => [e.getAttribute('data-param'), e.value])));
+    check('Trade show defaults come from SPEC 1.17', tsDefaults.month === '4' && tsDefaults.channel === 'events' && tsDefaults.booth === '48,000' &&
+      tsDefaults.travel === '12,000' && tsDefaults.staffDays === '20' && tsDefaults.dayCost === '800' && tsDefaults.expectedLeads === '200' &&
+      tsDefaults.name === 'Trade show, Apr 2027', JSON.stringify(tsDefaults));
+    const everyField = [];
+    for (const t of ['hireSdrs', 'hireAes', 'paidCampaign', 'partnerProgram', 'tradeShow']) {
+      await ev.click('[data-template="' + t + '"]');
+      const want = await ev.evaluate(k => ['name'].concat(Object.keys(Engine.TEMPLATE_PARAMS[k])).sort().join(','), t);
+      const got = (await fieldsOf()).sort().join(',');
+      if (want !== got) everyField.push(t + ': ' + got + ' vs ' + want);
+    }
+    check('Every template asks for exactly its inputs', everyField.length === 0, everyField.join('; '));
+    await ev.waitForTimeout(200);
+    check('Preview shows the trade show NPV before adding', /NPV \$202\.2K/.test(await ev.textContent('#init-preview')), await ev.textContent('#init-preview'));
+    await ev.click('#init-submit');
+    await ev.waitForTimeout(200);
+    const tiles = async uidIndex => ev.$$eval('.decision', (cards, i) => Object.fromEntries(Array.from(cards[i].querySelectorAll(':scope > .tiles [data-tile]'))
+      .map(e => [e.getAttribute('data-tile'), e.querySelector('.t-value').textContent])), uidIndex);
+    const ts = await tiles(0);
+    check('Trade show card: cost, NPV, payback, ROI, new ARR per $1, ARR change (SPEC 4.3)', ts.cost === '$76.0K' && ts.npv === '$202.2K' &&
+      ts.payback === 'Month 14' && ts.roi === '351%' && ts.arrPerDollar === '$1.71' && ts.arr === '+$133.1K', JSON.stringify(ts));
+    const verdict = await ev.textContent('.decision [data-verdict]');
+    check('Trade show verdict in plain English', verdict === 'Costs $76.0K in Apr 2027. Adds 2.5 deals and $130.0K of new ARR, starting Sep 2027. Pays back in cash by Month 14, Feb 2028. NPV $202.2K. Keeps all 5 guardrails.', verdict);
+    const effects = await ev.$$eval('.decision [data-guard-effect]', els => els.map(e => e.getAttribute('data-guard-effect')).join(','));
+    check('Trade show guardrails: all five pass, objective still not met', effects === 'objective:fails,cashFloor:passes,covenant:passes,runway:passes,cacPayback:passes,burnMultiple:passes,grossMargin:passes', effects);
+    const kpiRows = await ev.$$eval('.decision [data-kpi-row]', els => els.map(e => Array.from(e.children).map(c => c.textContent).join('|')));
+    check('Trade show effect on CAC payback, burn multiple, runway, cash low point', kpiRows.join(' / ') ===
+      'Blended CAC payback (Dec 2027)|18.0 months|17.9 months|-0.2 months / Burn multiple (Dec 2027)|1.76x|1.72x|-0.04x / ' +
+      'Lowest runway, first 12 months (Dec 2027)|34.4 months|33.7 months|-0.7 months / Cash low point|$18.0M (Oct 2029)|$18.2M (Sep 2029)|+$214.1K', kpiRows.join(' / '));
+    const costBars = await ev.$$eval('.decision [data-chart="cost"] [data-cost-month]', els => els.map(e => e.getAttribute('data-cost-month')));
+    check('Cost chart: one bar, in April 2027', costBars.join(',') === '4', costBars.join(','));
+    await ev.click('.decision details.more summary');
+    const monthRows = await ev.$$eval('.decision [data-months] tbody tr', trs => ({ n: trs.length, hi: trs.filter(t => t.classList.contains('highlight')).map(t => t.getAttribute('data-month')) }));
+    check('Month-by-month table: 36 months, payback month marked', monthRows.n === 36 && monthRows.hi.join(',') === '14', JSON.stringify(monthRows));
+    const m9 = await ev.$eval('.decision [data-months] tr[data-month="9"]', tr => Array.from(tr.children).map(c => c.textContent).join('|'));
+    check('Month 9 row: 2.5 deals, $130,000 new ARR, -$13,000 net flow (SPEC 4.3)', /\|2\.5\|130,000\|130,000\|5,417\|4,750\|\(8,250\)\|\(13,000\)\|\(89,000\)\|/.test(m9), m9);
+    check('Sources hidden until asked', (await ev.$$('[data-sources]')).length === 0);
+    await ev.check('#show-sources');
+    const trace = await ev.$eval('[data-trace="events:4"]', tr => Array.from(tr.children).map(c => c.firstChild.textContent).join('|'));
+    check('Trace: 200 leads, 50 MQLs, 10 opportunities, Sep 2027, 25%, 2.5 deals, $52,000, $130,000',
+      trace === 'Apr 2027|Events and trade shows|200|50|10|10|Sep 2027|25%|2.5|$52,000|130,000', trace);
+    const srcText = await ev.textContent('[data-sources]');
+    check('Sources name the drivers: funnel rates, sales cycle, ACV, retention', ['5 months', '$52,000', 'Lead to MQL', 'Net revenue retention a year', '110.03%', 'Win rate', 'Discount rate']
+      .every(w => srcText.includes(w)), srcText.slice(0, 200));
+    check('Sources explain NPV with its number', srcText.includes('$202,197') && srcText.includes('0.95% a month'));
+    await ev.click('[data-view-tab="stand"]');
+    const standDelta = await ev.textContent('[data-kpi="arr"] [data-delta]');
+    check('Where we stand includes the initiative: ARR +$133.1K vs plan', standDelta === '▲ +$133.1K vs plan' && (await ev.textContent('#badge')).trim() === 'Integrity 16/16', standDelta);
+    await ev.click('[data-view-tab="initiatives"]');
+    await ev.click('[data-template="hireAes"]');
+    check('Hire AEs asks for the ramp, default 4 months', (await ev.inputValue('#init-fields [data-param="rampMonths"]')) === '4');
+    await ev.click('#init-submit'); await ev.waitForTimeout(200);
+    const ae = await tiles(1);
+    check('Two-AE card: cost, NPV, payback, ROI, new ARR per $1, ARR change (SPEC 4.4)', ae.cost === '$932.3K' && ae.npv === '$191.4K' &&
+      ae.payback === 'Month 30' && ae.roi === '35%' && ae.arrPerDollar === '$1.09' && ae.arr === '+$148.0K', JSON.stringify(ae));
+    const both = await ev.$$eval('#together [data-tile]', els => Object.fromEntries(els.map(e => [e.getAttribute('data-tile'), e.querySelector('.t-value').textContent])));
+    check('Together: NPV $393.6K and ARR +$281.2K (SPEC T43)', both.npv === '$393.6K' && both.arr === '+$281.2K', JSON.stringify(both));
+    check('Badge still 16/16 with both', (await ev.textContent('#badge')).trim() === 'Integrity 16/16');
+    // Edit the trade show: 400 badge scans.
+    await ev.click('.decision[data-init="init1"] [data-edit]');
+    check('Edit loads the trade show into the form', (await ev.inputValue('#init-fields [data-param="expectedLeads"]')) === '200' && (await ev.textContent('#init-submit')) === 'Save changes');
+    await ev.fill('#init-fields [data-param="expectedLeads"]', '400');
+    await ev.waitForTimeout(200);
+    await ev.click('#init-submit'); await ev.waitForTimeout(200);
+    const expected400 = await ev.evaluate(() => { const A = Engine.defaultAssumptions(); return Engine.applyInitiatives(A, [Engine.templates.tradeShow(A, { expectedLeads: 400 })]).returns.npv; });
+    const ts400 = await tiles(0);
+    const fmt = x => '$' + (x / 1000).toFixed(1) + 'K';
+    check('Saving an edit recalculates the card (400 scans)', ts400.npv === fmt(expected400) && (await ev.$$('.decision')).length === 2, ts400.npv + ' vs ' + fmt(expected400));
+    // A bad input is caught before it reaches the model.
+    await ev.click('[data-template="tradeShow"]');
+    await ev.fill('#init-fields [data-param="booth"]', '-5'); await ev.waitForTimeout(200);
+    check('A negative cost is flagged and blocks Add', (await ev.isDisabled('#init-submit')) && /0 or more/.test(await ev.textContent('#init-fields [data-field="booth"] .err')));
+    await ev.click('#init-defaults'); await ev.waitForTimeout(200);
+    check('Restore defaults clears it', !(await ev.isDisabled('#init-submit')) && (await ev.inputValue('#init-fields [data-param="booth"]')) === '48,000');
+    // Leave the AEs out of the scenario, then remove everything.
+    await ev.uncheck('.decision[data-init="init2"] [data-include]'); await ev.waitForTimeout(100);
+    check('Out of the scenario: no "together" summary', await ev.$eval('#together', e => e.hidden));
+    await ev.click('[data-view-tab="stand"]');
+    const delta400 = await ev.textContent('[data-kpi="arr"] [data-delta]');
+    await ev.click('[data-view-tab="initiatives"]');
+    const expectedDelta = await ev.evaluate(() => { const A = Engine.defaultAssumptions(); const x = Engine.applyInitiatives(A, [Engine.templates.tradeShow(A, { expectedLeads: 400 })]);
+      return x.scenario.arr.arr[12] - x.baseline.arr.arr[12]; });
+    check('Where we stand counts only included initiatives', delta400 === '▲ +$' + (expectedDelta / 1000).toFixed(1) + 'K vs plan', delta400);
+    await ev.click('[data-remove="init1"]'); await ev.click('[data-remove="init2"]'); await ev.waitForTimeout(100);
+    check('Removing every initiative leaves the empty state', (await ev.$$('.decision')).length === 0 && (await ev.$eval('#init-count', e => e.hidden)));
+    // Phone width on the evaluator with a card and its sources open.
+    const evp = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    evp.on('pageerror', e => errors.push(String(e)));
+    await evp.goto(PAGE);
+    await evp.click('[data-view-tab="initiatives"]'); await evp.click('#init-submit'); await evp.check('#show-sources'); await evp.waitForTimeout(200);
+    const evw = await evp.evaluate(() => ({ sw: document.documentElement.scrollWidth, right: Math.max(...Array.from(document.querySelectorAll('.card, .tile')).map(e => e.getBoundingClientRect().right)) }));
+    check('Phone: evaluator has no horizontal page scroll', evw.sw <= 390 && evw.right <= 390, JSON.stringify(evw));
+
     const text = await app.evaluate(() => document.body.innerText);
     const src = require('fs').readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-    check('No em dashes in the page or the file', !text.includes('—') && !src.includes('—'));
+    check('No em dashes in the page or the file', !text.includes('\u2014') && !src.includes('\u2014'));
     check('Labeled as a fictional company', text.includes('Fictional company, for demonstration.'));
     failed += ui.filter(ok => !ok).length;
 
