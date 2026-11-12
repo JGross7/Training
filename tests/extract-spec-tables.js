@@ -26,7 +26,20 @@ const TABLES = {
   hostMonthly: '| m | Month | Cost | Δ Hosting |',
   hostOutcomes: '| Slip k | Ship month | Probability (fraction) | Probability | Months gained | Cost | Benefit NPV | NPV | Hosting saved',
   hostSide: '| Hosting optimization, on target |',
-  hostExpected: '| Measure | On target (k = 0, also the planning case) | Expected case |'
+  hostExpected: '| Measure | On target (k = 0, also the planning case) | Expected case |',
+  // Section 11: strategy, scoring and portfolio selection
+  stubPlan: '| | `margin_expansion` | `cash_runway` | `efficient_growth` |',
+  fourRows: '| Set | Initiatives in the set | Budget cost | ARR at month 12 |',
+  fourSelections: '| Budget (the four) | Risk setting |',
+  eightScores: '| # | Initiative | Contribution | Share of gap |',
+  eightFrontier: '| Budget needed | Set | Initiatives in the set |',
+  eightFrontierPlan: '| Budget needed (plan case) |',
+  eightSelections: '| Budget (the eight) | Risk setting |',
+  eightExplain: '| Initiative | In the plan | Alone |',
+  strategyChoices: '| Strategy | Objective value in the plan |',
+  strategyContributions: '| Initiative | Growth: ARR at month 12 |',
+  fifteen: '| # | Initiative | Built from | Contribution | Budget cost |',
+  fifteenSelections: '| Budget (the fifteen) | Risk setting |'
 };
 
 function splitRow(line) {

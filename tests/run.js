@@ -20,8 +20,9 @@ const PAGE = 'file://' + path.join(ROOT, 'index.html');
     const errors = [];
     page.on('pageerror', e => errors.push(String(e)));
     page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
-    await page.goto(PAGE + '?test=1');
-    await page.waitForFunction(() => window.__TEST_RESULTS__, null, { timeout: 120000 });
+    // The suite runs while the page loads (about two minutes with the section 11 searches and stress tests).
+    await page.goto(PAGE + '?test=1', { timeout: 0, waitUntil: 'commit' });
+    await page.waitForFunction(() => window.__TEST_RESULTS__, null, { timeout: 900000, polling: 1000 });
     const rep = await page.evaluate(() => window.__TEST_RESULTS__);
     if (rep.error) {
       console.log('ENGINE ERROR\n' + rep.error);
@@ -40,13 +41,13 @@ const PAGE = 'file://' + path.join(ROOT, 'index.html');
     console.log((t00 ? 'PASS' : 'FAIL') + ' T00 Reference tables in index.html match SPEC.md');
     if (!t00) failed++;
 
-    // 3. Normal page: renders, badge reads Integrity 20/20, no errors
+    // 3. Normal page: renders, badge reads Integrity 24/24, no errors
     const app = await browser.newPage();
     app.on('pageerror', e => errors.push(String(e)));
     await app.goto(PAGE);
     const badge = (await app.textContent('#badge')).trim();
     const rows = await app.$$eval('#app table tr', trs => trs.length);
-    const badgeOk = badge === 'Integrity 20/20' && rows > 36;
+    const badgeOk = badge === 'Integrity 24/24' && rows > 36;
     console.log((badgeOk ? 'PASS' : 'FAIL') + ' PAGE Header badge "' + badge + '", ' + rows + ' table rows rendered');
     if (!badgeOk) failed++;
 
@@ -125,7 +126,7 @@ const PAGE = 'file://' + path.join(ROOT, 'index.html');
       stored: await app.evaluate(() => window.__APP__.state.A.churnRateMonthly) };
     check('Churn of 1.2% is stored as 0.012', after.stored === 0.012, String(after.stored));
     check('Editing churn recalculates ARR and shows change vs plan', after.arr === '$28.1M' && /▼ -\$1\.9M vs plan/.test(after.delta), JSON.stringify(after));
-    check('The change is counted and integrity still passes', after.count === '1' && after.badge === 'Integrity 20/20', JSON.stringify(after));
+    check('The change is counted and integrity still passes', after.count === '1' && after.badge === 'Integrity 24/24', JSON.stringify(after));
     await app.fill('[data-path="openingArr"]', '');
     await app.waitForTimeout(400);
     const err = { badge: (await app.textContent('#badge')).trim(), msg: await app.textContent('#input-error'), arr: await app.textContent('[data-kpi="arr"] .kpi-value') };
@@ -135,12 +136,12 @@ const PAGE = 'file://' + path.join(ROOT, 'index.html');
     const reset = { badge: (await app.textContent('#badge')).trim(), arr: await app.textContent('[data-kpi="arr"] .kpi-value'),
       delta: await app.textContent('[data-kpi="arr"] [data-delta]'), hidden: await app.$eval('#change-count', e => e.hidden),
       churn: await app.inputValue('[data-path="churnRateMonthly"]'), err: (await app.textContent('#input-error')).trim() };
-    check('Reset restores the plan', reset.badge === 'Integrity 20/20' && reset.arr === '$30.0M' && reset.delta === 'Same as plan' && reset.hidden &&
+    check('Reset restores the plan', reset.badge === 'Integrity 24/24' && reset.arr === '$30.0M' && reset.delta === 'Same as plan' && reset.hidden &&
       reset.churn === '0.6' && reset.err === '', JSON.stringify(reset));
     await app.click('details[data-group="Debt, covenant and cash"] > summary');
     await app.fill('[data-path="cashFloor"]', '30,000,000'); await app.waitForTimeout(400);
     const floor = await app.evaluate(() => [window.__APP__.state.A.cashFloor, window.__APP__.state.A.guardrails.cashFloor]);
-    check('The cash floor input sets both floors', floor[0] === 30000000 && floor[1] === 30000000 && (await app.textContent('#badge')).trim() === 'Integrity 20/20', JSON.stringify(floor));
+    check('The cash floor input sets both floors', floor[0] === 30000000 && floor[1] === 30000000 && (await app.textContent('#badge')).trim() === 'Integrity 24/24', JSON.stringify(floor));
     await app.click('#reset-assumptions');
 
     // Phone width: no sideways scrolling of the page, and the cards are on screen.
@@ -210,7 +211,7 @@ const PAGE = 'file://' + path.join(ROOT, 'index.html');
     check('Sources explain NPV with its number', srcText.includes('$202,197') && srcText.includes('0.95% a month'));
     await ev.click('[data-view-tab="stand"]');
     const standDelta = await ev.textContent('[data-kpi="arr"] [data-delta]');
-    check('Where we stand includes the initiative: ARR +$133.1K vs plan', standDelta === '▲ +$133.1K vs plan' && (await ev.textContent('#badge')).trim() === 'Integrity 20/20', standDelta);
+    check('Where we stand includes the initiative: ARR +$133.1K vs plan', standDelta === '▲ +$133.1K vs plan' && (await ev.textContent('#badge')).trim() === 'Integrity 24/24', standDelta);
     await ev.click('[data-view-tab="initiatives"]');
     await ev.click('[data-template="hireAes"]');
     check('Hire AEs asks for the ramp, default 4 months', (await ev.inputValue('#init-fields [data-param="rampMonths"]')) === '4');
@@ -220,7 +221,7 @@ const PAGE = 'file://' + path.join(ROOT, 'index.html');
       ae.payback === 'Month 30' && ae.roi === '35%' && ae.arrPerDollar === '$1.09' && ae.arr === '+$148.0K', JSON.stringify(ae));
     const both = await ev.$$eval('#together [data-tile]', els => Object.fromEntries(els.map(e => [e.getAttribute('data-tile'), e.querySelector('.t-value').textContent])));
     check('Together: NPV $393.6K and ARR +$281.2K (SPEC T43)', both.npv === '$393.6K' && both.arr === '+$281.2K', JSON.stringify(both));
-    check('Badge still 20/20 with both', (await ev.textContent('#badge')).trim() === 'Integrity 20/20');
+    check('Badge still 20/20 with both', (await ev.textContent('#badge')).trim() === 'Integrity 24/24');
     // Edit the trade show: 400 badge scans.
     await ev.click('.decision[data-init="init1"] [data-edit]');
     check('Edit loads the trade show into the form', (await ev.inputValue('#init-fields [data-param="expectedLeads"]')) === '200' && (await ev.textContent('#init-submit')) === 'Save changes');
@@ -316,7 +317,7 @@ const PAGE = 'file://' + path.join(ROOT, 'index.html');
     check('Hosting card: side-by-side hosting row', hostSide === 'Hosting cost, 36 months|9,119,131|(1,379,930)|(1,493,829)|(113,899)', hostSide);
     const both2 = await ac.$$eval('#together [data-tile]', els => Object.fromEntries(els.map(e => [e.getAttribute('data-tile'), e.querySelector('.t-value').textContent])));
     check('Together: hub and hosting in the planning case break a guardrail (SPEC T113)', both2.cost === '$2.0M' && both2.npv === '-$1.5M' && both2.guardrails === '4 of 5 pass', JSON.stringify(both2));
-    check('Badge 20/20 with both pull-ins', (await ac.textContent('#badge')).trim() === 'Integrity 20/20');
+    check('Badge 20/20 with both pull-ins', (await ac.textContent('#badge')).trim() === 'Integrity 24/24');
     await ac.click('[data-view-tab="stand"]');
     check('Where we stand includes the planning case', (await ac.textContent('[data-kpi="arr"] [data-delta]')) === '▲ +$97.8K vs plan', await ac.textContent('[data-kpi="arr"] [data-delta]'));
     await ac.click('[data-view-tab="initiatives"]');
@@ -377,7 +378,7 @@ const PAGE = 'file://' + path.join(ROOT, 'index.html');
     await un.waitForTimeout(500);
     const ck = { value: await un.textContent('[data-ck-value="winRate"]'), sub: await un.textContent('#cockpit-sub'), stored: await un.evaluate(() => window.__APP__.state.A.cockpit.winRate),
       badge: (await un.textContent('#badge')).trim(), count: await un.textContent('#change-count') };
-    check('Moving the win rate slider to 1.10x is stored and counted', ck.value === '1.10x' && ck.stored === 1.1 && /^1 driver moved/.test(ck.sub) && ck.count === '1' && ck.badge === 'Integrity 20/20', JSON.stringify(ck));
+    check('Moving the win rate slider to 1.10x is stored and counted', ck.value === '1.10x' && ck.stored === 1.1 && /^1 driver moved/.test(ck.sub) && ck.count === '1' && ck.badge === 'Integrity 24/24', JSON.stringify(ck));
     const expNpv = await un.evaluate(() => { const A = Engine.defaultAssumptions(); A.cockpit.winRate = 1.1; return Engine.applyInitiatives(A, [Engine.templates.tradeShow(A)]).returns.npv; });
     const tsNpv = await un.$eval('.decision [data-tile="npv"] .t-value', e => e.textContent);
     check('The trade show card recalculates with the cockpit', tsNpv === '$' + (expNpv / 1000).toFixed(1) + 'K', tsNpv + ' vs ' + expNpv);
@@ -413,6 +414,86 @@ const PAGE = 'file://' + path.join(ROOT, 'index.html');
     await evp.click('[data-view-tab="initiatives"]'); await evp.click('#init-submit'); await evp.check('#show-sources'); await evp.waitForTimeout(200);
     const evw = await evp.evaluate(() => ({ sw: document.documentElement.scrollWidth, right: Math.max(...Array.from(document.querySelectorAll('.card, .tile')).map(e => e.getBoundingClientRect().right)) }));
     check('Phone: evaluator has no horizontal page scroll', evw.sw <= 390 && evw.right <= 390, JSON.stringify(evw));
+
+    // 5. Strategy view (Step 6b, SPEC.md 11.13 UI row)
+    const st = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    st.on('pageerror', e => errors.push(String(e)));
+    st.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
+    await st.goto(PAGE);
+    await st.click('[data-view-tab="strategy"]');
+    const ready = () => st.waitForFunction(() => document.getElementById('strategy-portfolio').getAttribute('data-status') === 'ready', null, { timeout: 180000 });
+    const chosen = async () => Number(await st.getAttribute('#strategy-portfolio', 'data-chosen-set'));
+    const opts = await st.$$eval('#strategy-select option', os => os.map(o => o.textContent));
+    check('Strategy selector lists four strategies, three labelled Draft', opts.length === 4 && opts.filter(o => /\(Draft\)$/.test(o)).length === 3 && !/Draft/.test(opts[0]), opts.join(' | '));
+    check('Empty strategy view offers the example list', await st.isVisible('#load-examples'));
+    await st.click('#load-examples');
+    await ready();
+    check('Badge 24/24 with the eight loaded', (await st.textContent('#badge')).trim() === 'Integrity 24/24', await st.textContent('#badge'));
+    const obj = await st.evaluate(() => ({ target: document.querySelector('[data-obj="target"] .t-value').textContent, plan: document.querySelector('[data-obj="plan"] .t-value').textContent,
+      withP: document.querySelector('[data-obj="with"] .t-value').textContent, gap: document.querySelector('[data-obj="gap"] .t-value').textContent,
+      progress: document.querySelector('[data-progress]').textContent, guards: Array.from(document.querySelectorAll('[data-sguard]')).map(li => li.getAttribute('data-sguard') + ':' + li.querySelector('.pill').textContent) }));
+    check('Objective with progress to target: $31.2M target, plan $30.0M, with set 51 $30.5M, gap $696.2K',
+      obj.target === '$31.2M' && obj.plan === '$30.0M' && obj.withP === '$30.5M' && obj.gap === '$696.2K' && /84% of the way.*90%/.test(obj.progress), JSON.stringify(obj));
+    check('Five guardrails and the covenant watch line, all passing', obj.guards.join(',') === 'cashFloor:Pass,runway:Pass,cacPayback:Pass,burnMultiple:Pass,grossMargin:Pass,covenant:Pass', obj.guards.join(','));
+    const ranked = await st.$$eval('[data-ranked] tbody tr', trs => trs.map(tr => ({ name: tr.querySelector('th').firstChild.textContent,
+      score: tr.querySelector('[data-col="score"]').textContent, cost: tr.querySelector('[data-col="budgetCost"]').firstChild.textContent,
+      arr: tr.querySelector('[data-col="extraNewArr"]').textContent, g: tr.querySelector('[data-col="guardrails"]').textContent })));
+    check('Ranked list in SPEC 11.12 order', ranked.map(r => r.name).join(', ') === 'Trade show, Partner program, Hire 2 SDRs, Paid search campaign, Paid social test, Hire 2 AEs, Hub pull-in, Hosting pull-in',
+      ranked.map(r => r.name).join(', '));
+    check('Ranked list shows score, budget cost, extra new ARR and guardrail status', ranked[0].score === '1.60' && ranked[0].cost === '$60.0K' && /^\+\$/.test(ranked[0].arr) &&
+      ranked[2].cost === '$223.2K' && ranked.every(r => r.g === '5 of 5'), JSON.stringify(ranked.slice(0, 3)));
+    const engineArr = await st.evaluate(() => { const S = window.__APP__.state.strat; return S.scores.filter(s => s.name === 'Trade show')[0].extraNewArr; });
+    check('Extra new ARR comes from the engine', ranked[0].arr === '+$' + (engineArr / 1000).toFixed(1) + 'K', ranked[0].arr + ' vs ' + engineArr);
+    check('Default budget $500K picks set 51', await chosen() === 51);
+    const fc = await st.evaluate(() => ({ gap: Number(document.getElementById('forecast-summary').getAttribute('data-gap')), label: document.querySelector('[data-gap-label]').textContent,
+      plan: !!document.querySelector('#forecast-chart [data-series="plan"]'), withP: !!document.querySelector('#forecast-chart [data-series="withPlan"]'), target: !!document.querySelector('#forecast-chart [data-ref="target"]') }));
+    check('Combined forecast: plan against plan plus set 51, gap $696.2K to the target', fc.plan && fc.withP && fc.target && Math.abs(fc.gap - 696236.22) < 0.01 && fc.label === 'Gap $696.2K', JSON.stringify(fc));
+    // The budget slider picks again from the stored table: no new combinations are run.
+    await st.evaluate(() => { const E = window.Engine; window.__runs = 0; ['portfolioRows', 'portfolioSetup', 'buildPortfolio'].forEach(k => { const f = E[k]; E[k] = function () { window.__runs++; return f.apply(this, arguments); }; }); });
+    const picks = [];
+    for (const [budget, want] of [[100000, 1], [285000, 49], [500000, 51], [600000, 45], [900000, 63], [3000000, 127]]) {
+      await st.fill('#budget-input', String(budget)); await st.press('#budget-input', 'Enter');
+      await st.waitForTimeout(150);
+      picks.push(budget + ':' + (await chosen()) + (await chosen() === want ? '' : ' (want ' + want + ')'));
+    }
+    check('Budget input reproduces the SPEC 11.12 risk-adjusted selections', picks.every(x => !/want/.test(x)), picks.join(' '));
+    check('Moving the budget runs no new combinations', await st.evaluate(() => window.__runs) === 0, String(await st.evaluate(() => window.__runs)));
+    await st.evaluate(() => { const r = document.getElementById('budget-range'); r.value = '500000'; r.dispatchEvent(new Event('input')); });
+    await st.waitForTimeout(200);
+    check('The slider moves the budget too', await chosen() === 51 && (await st.inputValue('#budget-input')) === '500,000');
+    const ex = await st.evaluate(() => ({ text: document.querySelector('[data-explain]').textContent,
+      reasons: Array.from(document.querySelectorAll('[data-left-out] [data-reason]')).map(td => td.getAttribute('data-reason')).join(','),
+      members: Array.from(document.querySelectorAll('[data-member]')).map(tr => tr.getAttribute('data-member')).length }));
+    check('The explanation names the search and the pick', /^We ran all 256 combinations and 248 keep every guardrail\./.test(ex.text) && ex.members === 4 && ex.reasons === 'over_budget,over_budget,over_budget,over_budget', JSON.stringify(ex));
+    check('Badge still 24/24 after the budget moves', (await st.textContent('#badge')).trim() === 'Integrity 24/24');
+    // Stress test of set 51 (SPEC.md 11.9): main risk is the cash floor.
+    await st.click('#stress-run');
+    await st.waitForFunction(() => document.querySelector('[data-stress] .tiles'), null, { timeout: 120000 });
+    const stress = await st.evaluate(() => ({ risk: document.querySelector('[data-tile="stressRisk"] .t-value') ? document.querySelector('[data-tile="stressRisk"] .t-value').textContent : document.querySelector('[data-stress]').textContent,
+      met: document.querySelector('[data-stress]').textContent }));
+    check('Stress test of set 51: main risk is the cash floor, target met in 0.7% of runs', /Cash floor/.test(stress.risk) && /0\.7%/.test(stress.met), stress.risk);
+    // Switching strategies reproduces T142 (budget 550,000, plan case).
+    await st.fill('#budget-input', '550000'); await st.press('#budget-input', 'Enter');
+    const t142 = [];
+    for (const [id, want] of [['arr_growth_30', 43], ['margin_expansion', 43], ['cash_runway', 1], ['efficient_growth', 6]]) {
+      await st.selectOption('#strategy-select', id);
+      await st.waitForTimeout(300);
+      if (await st.isChecked('#risk-toggle')) await st.uncheck('#risk-toggle');
+      await ready();
+      t142.push(id + ':' + (await chosen()) + (await chosen() === want ? '' : ' (want ' + want + ')'));
+    }
+    check('Switching strategy reproduces T142', t142.every(x => !/want/.test(x)), t142.join(' '));
+    check('A draft strategy is labelled Draft in the view', /Draft/.test(await st.textContent('#strategy-summary')));
+    check('Badge 24/24 under another strategy', (await st.textContent('#badge')).trim() === 'Integrity 24/24', await st.textContent('#badge'));
+    const stText = await st.evaluate(() => document.body.innerText);
+    check('No em dashes in the Strategy view', !stText.includes('—'));
+    const sp = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    sp.on('pageerror', e => errors.push(String(e)));
+    await sp.goto(PAGE);
+    await sp.click('[data-view-tab="strategy"]'); await sp.click('#load-examples');
+    await sp.waitForFunction(() => document.getElementById('strategy-portfolio').getAttribute('data-status') === 'ready', null, { timeout: 180000 });
+    const spw = await sp.evaluate(() => ({ sw: document.documentElement.scrollWidth, right: Math.max(...Array.from(document.querySelectorAll('.card, .tile, .guards li')).map(e => e.getBoundingClientRect().right)) }));
+    check('Phone: Strategy view has no horizontal page scroll', spw.sw <= 390 && spw.right <= 390, JSON.stringify(spw));
 
     const text = await app.evaluate(() => document.body.innerText);
     const src = require('fs').readFileSync(path.join(ROOT, 'index.html'), 'utf8');
