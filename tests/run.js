@@ -495,6 +495,82 @@ const PAGE = 'file://' + path.join(ROOT, 'index.html');
     const spw = await sp.evaluate(() => ({ sw: document.documentElement.scrollWidth, right: Math.max(...Array.from(document.querySelectorAll('.card, .tile, .guards li')).map(e => e.getBoundingClientRect().right)) }));
     check('Phone: Strategy view has no horizontal page scroll', spw.sw <= 390 && spw.right <= 390, JSON.stringify(spw));
 
+    // 6. Briefing, learning loop, scenarios and the overlay (Step 7, SPEC.md 12.4 UI row)
+    const bp = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    bp.on('pageerror', e => errors.push(String(e)));
+    bp.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
+    await bp.goto(PAGE);
+    await bp.evaluate(() => { try { localStorage.clear(); } catch (e) {} });
+    await bp.click('#open-howto');
+    const howto = await bp.evaluate(() => ({ open: !document.getElementById('howto').hidden, text: document.getElementById('howto').innerText, focus: document.activeElement.id }));
+    check('"How to read this" opens with the check count from the engine', howto.open && /24 of them/.test(howto.text) && /Four tabs/.test(howto.text) && howto.focus === 'close-howto', JSON.stringify(howto).slice(0, 200));
+    await bp.keyboard.press('Escape');
+    check('Escape closes it', await bp.evaluate(() => document.getElementById('howto').hidden));
+    await bp.click('[data-view-tab="briefing"]');
+    const b0 = await bp.$$eval('[data-brief]', els => els.map(e => e.getAttribute('data-brief') + ':' + e.innerText));
+    check('Briefing has four sections in order', b0.map(x => x.split(':')[0]).join(',') === 'happened,why,decide,recommend', b0.map(x => x.split(':')[0]).join(','));
+    check('On the plan it says so and asks for initiatives', /This is the plan/.test(b0[0]) && /nothing to decide yet/.test(b0[2]), b0[0].slice(0, 160));
+    await bp.click('[data-view-tab="strategy"]'); await bp.click('#load-examples');
+    await bp.waitForFunction(() => document.getElementById('strategy-portfolio').getAttribute('data-status') === 'ready', null, { timeout: 180000 });
+    await bp.click('[data-view-tab="briefing"]');
+    await bp.waitForFunction(() => /Main risk: cash floor/.test(document.getElementById('briefing-body').innerText), null, { timeout: 180000 });
+    const b1 = await bp.textContent('#briefing-body');
+    check('Briefing recommends set 51 with the cash floor as the main risk', /Approve Trade show, Hire 2 SDRs, Paid social test and Partner program for \$483\.2K of the \$500\.0K budget/.test(b1) &&
+      /keeps it in 99\.1% of them, and meets the target in 0\.7%/.test(b1), b1.slice(0, 300));
+    await bp.click('[data-view-tab="strategy"]');
+    await bp.fill('#budget-input', '600000'); await bp.press('#budget-input', 'Enter');
+    await bp.click('[data-view-tab="briefing"]');
+    const b2 = await bp.textContent('#briefing-body');
+    check('Briefing rewrites itself when the budget moves', /for \$595\.0K of the \$600\.0K budget/.test(b2) && b2 !== b1, b2.slice(0, 300));
+    // Learning loop on the trade show
+    const uid = await bp.evaluate(() => window.__APP__.state.initiatives[0].uid);
+    const L = '[data-learn="' + uid + '"]';
+    await bp.click('[data-view-tab="initiatives"]');
+    await bp.check('[data-complete="' + uid + '"]');
+    await bp.waitForSelector(L + ' [data-actual="leads"]');
+    for (const [k, v] of [['leads', '160'], ['deals', '1'], ['arr', '48000']]) { await bp.fill(L + ' [data-actual="' + k + '"]', v); await bp.press(L + ' [data-actual="' + k + '"]', 'Tab'); }
+    const lr = await bp.evaluate(sel => ({ rows: Array.from(document.querySelectorAll(sel + ' [data-learn-row]')).map(tr => Array.from(tr.children).map(c => c.textContent).join('|')),
+      ups: Array.from(document.querySelectorAll(sel + ' [data-update]')).map(tr => tr.lastChild.textContent) }), L);
+    check('Actual vs expected: leads, deals and new ARR', lr.rows[0] === 'Leads|200|160|80%' && lr.rows[1] === 'Deals|2.5|1|40%' && lr.rows[2] === 'New ARR|$130.0K|$48.0K|37%', lr.rows.join(' ; '));
+    check('Proposed events rates and ACV (SPEC.md 12.1)', lr.ups.join(',') === '23.75%,19.00%,23.75%,$51,636', lr.ups.join(','));
+    await bp.click('[data-apply-learning="' + uid + '"]');
+    await bp.waitForSelector(L + ' [data-applied]');
+    const ap = await bp.evaluate(() => ({ wr: window.__APP__.state.A.channels.events.winRate, hint: document.querySelector('#assumption-groups [data-row="channels.events.winRate"] .hint').textContent,
+      changed: document.querySelector('#assumption-groups [data-row="channels.events.winRate"]').classList.contains('changed'), count: document.getElementById('change-count').textContent, badge: document.getElementById('badge').textContent }));
+    check('Applying updates the events assumptions, visibly', Math.abs(ap.wr - 0.237479) < 1e-6 && ap.changed && /Updated from the actuals of Trade show/.test(ap.hint) && ap.count === '5', JSON.stringify(ap)); // the four events inputs plus the budget moved above
+    check('Badge 24/24 after learning', ap.badge.trim() === 'Integrity 24/24', ap.badge);
+    await bp.click('[data-view-tab="briefing"]');
+    const b3 = await bp.textContent('#briefing-body');
+    check('The briefing reports the completed trade show', /Trade show is complete: 160 leads against 200 expected/.test(b3) && /conversion assumptions now reflect these actuals/.test(b3), b3.slice(0, 400));
+    check('A completed initiative leaves the search', !/Approve Trade show/.test(b3));
+    // Scenarios: save, reload, compare, load
+    await bp.fill('#scenario-name', 'Learned from the show'); await bp.click('#scenario-save');
+    check('Saved scenario is listed', (await bp.$$('[data-scenario]')).length === 1);
+    await bp.click('[data-view-tab="initiatives"]');
+    await bp.click('[data-undo-learning="' + uid + '"]');
+    check('Undo restores the events win rate', await bp.evaluate(() => window.__APP__.state.A.channels.events.winRate) === 0.25);
+    await bp.reload();
+    await bp.click('[data-view-tab="briefing"]');
+    check('The saved scenario survives a reload', (await bp.$$('[data-scenario]')).length === 1);
+    await bp.check('[data-compare]');
+    const cmp = await bp.evaluate(() => ({ cols: document.querySelectorAll('[data-compare-table] thead th').length,
+      arr: Array.from(document.querySelectorAll('[data-compare-row="arr12"] td')).map(td => td.textContent) }));
+    check('Compare shows the plan, the screen and the saved scenario', cmp.cols === 4 && cmp.arr[0] === '$30.0M' && cmp.arr.length === 3, JSON.stringify(cmp));
+    await bp.click('[data-load]');
+    const ld = await bp.evaluate(() => ({ n: window.__APP__.state.initiatives.length, wr: window.__APP__.state.A.channels.events.winRate, done: !!window.__APP__.state.initiatives[0].completed }));
+    check('Loading brings back the initiatives and the learned rates', ld.n === 8 && Math.abs(ld.wr - 0.237479) < 1e-6 && ld.done, JSON.stringify(ld));
+    const bText = await bp.evaluate(() => document.body.innerText);
+    check('No em dashes in the briefing, scenarios or overlay', !bText.includes('—') && !howto.text.includes('—'));
+    const bph = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    bph.on('pageerror', e => errors.push(String(e)));
+    await bph.goto(PAGE);
+    await bph.click('[data-view-tab="briefing"]');
+    const bw = await bph.evaluate(() => ({ sw: document.documentElement.scrollWidth, right: Math.max(...Array.from(document.querySelectorAll('.card, .scn-list li')).map(e => e.getBoundingClientRect().right)) }));
+    check('Phone: briefing and scenarios have no horizontal page scroll', bw.sw <= 390 && bw.right <= 390, JSON.stringify(bw));
+    await bph.click('#open-howto');
+    const hw = await bph.evaluate(() => { const r = document.getElementById('howto').getBoundingClientRect(); return { l: r.left, r: r.right }; });
+    check('Phone: the overlay fits the screen', hw.l >= 0 && hw.r <= 390, JSON.stringify(hw));
+
     const text = await app.evaluate(() => document.body.innerText);
     const src = require('fs').readFileSync(path.join(ROOT, 'index.html'), 'utf8');
     check('No em dashes in the page or the file', !text.includes('\u2014') && !src.includes('\u2014'));

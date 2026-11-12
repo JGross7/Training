@@ -3253,3 +3253,79 @@ Engine interface (names are suggestions, behavior is required; this extends sect
 - `selectPortfolio(table, haircuts, budget)` returns the chosen row, the explanation of 11.8 and the frontier. It runs no model, so the budget slider calls it directly. Haircuts are an argument so a test can pass stated values.
 - `simulatePortfolio(assumptions, strategy, initiatives, set, { runs, seed })` (11.9), chunked like `simulate`.
 - `runChecks` returns 22 checks for a model result; `portfolioChecks(result)` returns C23 and C24, and the badge shows all 24.
+
+## 12. CFO briefing, learning loop and scenarios
+
+This section adds three things on top of sections 1 to 11. None of them changes a formula of the model: with no completed initiative and no saved scenario loaded, every value and test of sections 1 to 11 is unchanged.
+
+### 12.1 Learning loop: actuals replace assumptions
+
+A trade show, a paid campaign or a partner program can be marked **completed** once it has run. Hires and pull-ins cannot: they have no end date to measure at. A completed initiative leaves the portfolio search, because its money is spent.
+
+**Expected snapshot.** When it is marked completed, the engine records what it expected from that initiative alone, in its own channel `c` (the event's or campaign's channel, `partners` for a partner program), over the whole horizon:
+
+```
+ExpLeads = Σ_m (Leads_c,m of S − Leads_c,m of B)        S = plan with the initiative alone, B = plan
+ExpDeals = Σ_m (Deals_c,m of S − Deals_c,m of B)
+ExpArr   = Σ_m (NewArr_c,m of S − NewArr_c,m of B)
+ExpRate  = ExpDeals / ExpLeads                            deals per lead
+ExpAcv   = ExpArr / ExpDeals
+```
+
+plus the channel's rates at that moment. The snapshot is kept, so applying what was learned does not change what the actuals are compared with.
+
+**Actuals.** The user enters three totals: leads, deals and new ARR (each zero or more; new ARR above zero needs at least one deal).
+
+**What moves.** Two new inputs say how much evidence the planned rates count as: `learning.priorLeads` = 400 and `learning.priorDeals` = 10 (both Assumptions, above zero).
+
+```
+f   = (ActDeals / ActLeads) / ExpRate          observed conversion against expected      (needs ActLeads > 0 and ExpRate > 0)
+w   = ActLeads / (ActLeads + priorLeads)       weight of the actuals
+cf  = 1 + w × (f − 1)                          new conversion as a share of the planned one
+sf  = cf^(1/3)                                 split evenly over the three funnel rates
+leadToMqlRate_c, mqlToOppRate_c, winRate_c  ←  min(1, rate × sf)
+
+g   = (ActArr / ActDeals) / ExpAcv             observed ACV against expected             (needs ActDeals > 0)
+wd  = ActDeals / (ActDeals + priorDeals)
+acv_c  ←  acv_c × (1 + wd × (g − 1))
+```
+
+Lead volume against expected is shown but changes no channel rate: it is about that one event or campaign, not the channel. The proposed values are shown as "was" and "now" before anything changes; applying writes them into the assumptions, where they show as changed with the name of the initiative they came from, and can be undone.
+
+**Hand-calculated example (test T150).** The trade show with its defaults. Expected: 200 leads, 2.5 deals, 130,000.00 of new ARR (2.5 deals at 52,000, closing in September 2027), so 0.0125 deals per lead and ACV 52,000. Actuals: 160 leads, 1 deal, 48,000.
+
+```
+f  = (1 / 160) / 0.0125 = 0.5            w  = 160 / 560 = 0.285714        cf = 1 − 0.285714 × 0.5 = 0.857143
+sf = 0.857143^(1/3) = 0.949914
+Events: lead to MQL 25% → 23.7479%, MQL to opportunity 20% → 18.9983%, win rate 25% → 23.7479%
+g  = 48,000 / 52,000 = 0.923077          wd = 1 / 11 = 0.090909           ACV 52,000 → 51,636.36
+```
+
+After applying: the same trade show is expected to bring 2.142857 deals and 110,649.35 of new ARR (113,326.24 of ARR at month 12), and the plan's own ARR at month 12 falls from 30,048,489.36 to 29,977,142.70, because the plan's events funnel uses the same rates.
+
+More cases: actuals equal to the expected snapshot change nothing; 160 leads and 0 deals give `cf` = 0.714286 and no ACV change; the paid campaign template expects 312.5 leads, 1.6875 deals and 50,625.00 of new ARR; negative actuals, or new ARR with no deals, stop with a reason.
+
+### 12.2 CFO briefing
+
+The briefing is a pure function of engine results: the plan (default assumptions), the current run, the active strategy's rows, the portfolio selection of section 11.8, the stress test of 11.9 when it has run for the chosen set, and the completed initiatives' actuals. It has four sections, in this order:
+
+1. **What happened:** the objective against its target, the change against the plan and what caused it (changed assumptions, initiatives in the scenario), the cash low point against the floor, which guardrails hold, and each completed initiative's actuals against expected.
+2. **Why:** the ARR bridge to the objective month (new, expansion, churn and contraction), the channel that brings the most new ARR, the largest move against the plan, and the tightest guardrail (smallest headroom as a share of its limit).
+3. **What to decide:** which initiatives to approve and for how much of the budget, what they add (plan case and risk-adjusted) and what gap is left, the next frontier step, the cheapest left-out initiative to force in and what that costs, and any member with NPV below zero.
+4. **Recommended portfolio and main risk:** each member with its budget cost and marginal, the set's cost and NPV, and the main risk: from the stress test when it has run (the guardrail with the lowest pass share, its pass share and the chance of meeting the target), otherwise the guardrail closest to its limit, labelled as such.
+
+Rule: **every number in the text is an engine value**, formatted once and recorded in the briefing's list of facts. The test (T151) finds every number in the text and requires each to be one of the facts. The briefing is rebuilt on every recalculation, budget move and finished simulation.
+
+### 12.3 Scenarios
+
+A scenario is the assumptions object plus the initiative list (with statuses, completion snapshots and actuals) and the record of learned assumptions, saved in the browser's local storage under one key. Loading replaces the working copy and reruns everything. When storage is not available, scenarios last for the page session and the app says so. Comparing runs each scenario from its own inputs (`scenarioSummary`): the strategy, objective value and gap, guardrails kept, ARR at month 12 and at the end, cash low point and month, burn multiple at month 12, and the cost and NPV of the initiatives it included. Nothing is stored as a result: a loaded scenario is recalculated.
+
+### 12.4 Tests
+
+| Test | Scenario | Expected |
+|---|---|---|
+| T150 | Learning loop | The example of 12.1, value for value; the identity, zero-deal, paid campaign and input-check cases; applying writes only the four channel inputs and every model check still passes |
+| T151 | Briefing | Four sections in order; every number in the text is a recorded fact; on the plan it says the plan has no initiatives and that all five guardrails hold; with the eight at 500,000 (set 51) it recommends trade show, SDRs, paid social and partner program for 483.2K, names the next step, and with the stress test of set 51 gives cash floor as the main risk at 99.1% and the target at 0.7% |
+| T152 | Briefing rewrites | Changing the budget to 600,000 changes the recommendation to set 45; a completed trade show with the actuals of 12.1 is reported under "What happened" |
+| T153 | Scenario summary | Equals the values of `applyInitiatives` for the same inputs; the plan's summary shows 30,048,489.36 at month 12 and a cash low point of 18,008,506.93 |
+| UI | Briefing, learning loop, scenarios, overlay | The briefing tab shows the four sections and rewrites when the budget moves; marking the trade show completed and entering 160, 1 and 48,000 shows actual against expected and the four proposed values, applying them marks them changed in Assumptions and undo restores them; a saved scenario survives a reload, loads back and appears in the compare table; "How to read this" opens and closes with Escape; no em dashes; no sideways scrolling at 390px |
