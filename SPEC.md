@@ -17,6 +17,7 @@ Contents
 8. Baseline reference tables
 9. Product development acceleration
 10. Uncertainty: simulation, sensitivity and the scenario cockpit
+11. Strategy, scoring and portfolio selection
 
 ---
 
@@ -321,7 +322,7 @@ Section 9 adds two more effect kinds (`expansionLift`, `thirdPartyCostReduction`
 | `guardrails.maxBurnMultiple` | 2.0 | Assumption |
 | `guardrails.minGrossMargin` | 72% | Assumption |
 
-How each guardrail is measured is in section 2.18. The strategy layer (scoring, portfolio selection) is specified later in the playbook.
+How each guardrail is measured is in section 2.18. The strategy layer (strategies as configuration objects, scoring, portfolio selection) is in section 11. The keys above are the inputs the growth strategy of section 11.2 refers to.
 
 ### 1.16 Uncertainty ranges (used by the simulation, section 10)
 
@@ -404,7 +405,7 @@ other channels:  Leads_c,m = BaseSpend_c,m / CPL_c,m
                              + DirectLeads_c,m
 ```
 
-If `CPL` is zero or missing, spend buys no leads. Initiative spend with `leads: "none"` buys no leads.
+If `CPL` is zero or missing, spend buys no leads. Initiative spend with `leads: "none"` buys no leads. When two or more initiatives add leads to the same channel in the same month, section 11.4 replaces the plain sum of their leads with the shared-leads rule. With one initiative it is the formula above.
 
 Qualified leads and opportunities:
 
@@ -705,7 +706,7 @@ Rules:
 
 1. For a driver in a month, `value = base × (product of all multipliers) + (sum of all adds)`. Rates are then clamped to 0 to 1 and other drivers to 0 or more. The result does not depend on the order of effects.
 2. Lead-stage drivers (`costPerLead`, `leadToMqlRate`, `mqlToOppRate`) use the month the leads arrive. `winRate` and `acv` use the month the deal closes. Others use the month they are applied.
-3. Several initiatives are applied together in one run. They interact only through shared drivers, in practice through AE capacity.
+3. Several initiatives are applied together in one run. They interact only through shared drivers, in practice through AE capacity. Section 11.4 lists every interaction and adds one: campaigns in the same channel and month share leads.
 4. The engine never changes the assumptions object it is given.
 5. The engine checks its inputs before it runs. Every numeric assumption and every amount in an initiative must be a finite number, `salesCycleMonths` must be a whole number of 0 or more, `dsoDays` and `dpoDays` must be 0 or more, and a `headcount` effect must have a `startMonth`. If not, the run stops with a plain reason that names the input. A missing or non-numeric input is never read as zero. Amounts in months after the horizon are ignored.
 
@@ -786,7 +787,7 @@ Names are suggestions; the behavior is required.
 
 ## 3. Integrity checks
 
-The engine runs every check on every recalculation, for the baseline and for the current scenario. The header badge shows "Integrity N/16" (a check that is missing counts as failed). A failed check is shown in red with its name, the first month that fails and the size of the difference. Section 9.10 adds checks C17 to C20 for product acceleration; once that section is built the badge shows "Integrity N/20".
+The engine runs every check on every recalculation, for the baseline and for the current scenario. The header badge shows "Integrity N/16" (a check that is missing counts as failed). A failed check is shown in red with its name, the first month that fails and the size of the difference. Section 9.10 adds checks C17 to C20 for product acceleration; once that section is built the badge shows "Integrity N/20". Section 11.10 adds checks C21 to C24 for the strategy layer; once that is built the badge shows "Integrity N/24".
 
 Tolerance: a dollar check passes when the absolute difference is at most 0.01. A count check passes at 1e-6.
 
@@ -2506,3 +2507,749 @@ Every run applies the cockpit first, using the same function as a simulation dra
 44. **One draw per run, held for 36 months.** A channel's win rate is either high or low for the whole run. Real rates drift month to month, which would narrow the spread of totals but widen month-to-month cash swings.
 45. **The plan's own drivers are not in doubt beyond these ranges.** Churn, expansion, hosting cost and costs are fixed in every run; the cockpit can move churn and expansion, but the simulation does not.
 46. **The plan sits below its own median.** Ranges skew (cost per lead up to +30%, milestone effects down to −50%) and sales cycles and planned dates slip on average, so P50 is usually a little below the deterministic plan.
+
+---
+
+## 11. Strategy, scoring and portfolio selection
+
+This section defines the strategy layer: what a strategy is, how one initiative is scored against it, how guardrails are tested on a whole plan, and how the best set of initiatives is chosen for a budget. It adds to sections 1 to 10. It changes one formula (how initiative leads add up when two or more initiatives feed the same channel in the same month, 11.4) and none of the numbers: with no initiative, or one initiative at a time, every value in sections 1 to 10 and every test T01 to T127 is unchanged (test T147).
+
+The short version:
+
+1. **A strategy is data, not code.** One objective (a metric, a date, a direction, a target) plus a list of guardrails (a metric, a date or window, a limit). The engine reads metrics from a fixed catalog. A new strategy is a new object (11.1, 11.2).
+2. **An initiative's score is how much of the gap it closes per budget dollar, after a haircut for risk** (11.5).
+3. **Guardrails are tested on the combined plan in one model run.** An initiative that passes alone can fail in a set, and the other way round (11.6).
+4. **The portfolio is found by running every combination.** With up to 15 candidates that is at most 32,768 model runs. Nothing is estimated, so every interaction the model knows about is in the answer, and "we tried them all" is the whole explanation (11.7).
+5. **Interactions live inside the run.** Campaigns in the same channel share leads, everything that creates opportunities shares AE capacity, and a pulled-in milestone lifts the deals other initiatives bring (11.4).
+6. **Risk enters twice.** Each initiative takes a haircut from its own simulation before it is ranked, and the chosen plan is then simulated as a whole to show how often it holds (11.9).
+
+### 11.1 A strategy is a configuration object
+
+```
+strategy = {
+  id, name, summary,
+  status: "active" | "stub",
+  objective:  { label, metric, month  or  fromMonth and toMonth, direction: "up" | "down", target },
+  guardrails: [ { id, label, metric, month  or  fromMonth and toMonth, pass: "at_least" | "at_most", limit } ],
+  watch:      [ same fields as a guardrail ],
+  risk:       { method: "downside_percentile" | "none", percentile }
+}
+```
+
+Rules:
+
+- There is exactly **one** objective. `direction` says which way is better: "up" for ARR, "down" for burn.
+- A **guardrail** is a limit the plan must not break. A **watch** line is reported with pass or fail in the same way but is never used to accept or reject a plan (the covenant is a watch line, because the cash floor above it is the guardrail).
+- `target`, `limit`, `month`, `fromMonth` and `toMonth` are each either a number or a reference to an existing input, written `{ input: "guardrails.cashFloor" }`. A reference is read from the assumptions object on every run, so a limit that already exists as an input stays **one number in one place**. Check C10 (`guardrails.cashFloor = cashFloor`) still applies.
+- A month after the horizon is read as the horizon.
+- `summary` and `label` are plain text and contain no numbers. Any number shown beside them comes from the engine.
+- `status: "stub"` means the object is complete enough to run but its target and limits are placeholders nobody has agreed. The app labels a stub "Draft" (11.2).
+- All strategies live in `strategies`, in the order `strategyOrder`. `activeStrategy` names the one in use. Adding a strategy means adding one object. No formula, check or screen is written for it.
+
+**The metric catalog.** A strategy can only name a metric from this list. Each is a pure function of one model result. Adding a metric means adding one row here and one function.
+
+| Metric id | Read | Formula | Unit |
+|---|---|---|---|
+| `arr` | at `month` | `ARR_m` | dollars |
+| `arrGrowth` | at `month` | `ArrGrowth_m` (section 2.15) | ratio |
+| `cash` | at `month` | `Cash_m` | dollars |
+| `cashLow` | over `fromMonth … toMonth` | lowest `Cash_m` in the window | dollars |
+| `runwayLow` | over `fromMonth … toMonth` | lowest `Runway_m` in the window ("not burning" counts as plus infinity) | months |
+| `netBurnTotal` | over `fromMonth … toMonth` | `Σ NetBurn_m` over the window | dollars |
+| `burnMultiple` | at `month` | `BurnMultiple_m` (section 2.15) | ratio |
+| `blendedCacPayback` | at `month` | `BlendedCacPayback_m` (section 2.15) | months |
+| `newLogoCacPayback` | at `month` | `NewLogoCacPayback_m` (section 2.15) | months |
+| `grossMarginTrailing` | at `month` | `GrossMarginTrailing_m` (section 2.15) | ratio |
+| `ebitdaMarginTrailing` | at `month` | `Σ_W EBITDA / Σ_W Revenue` | ratio |
+| `fcfMarginTrailing` | at `month` | `Σ_W FCF / Σ_W Revenue`, with `FCF` from section 2.13 (before interest) | ratio |
+| `ruleOf40` | at `month` | `100 × (ArrGrowth_m + FcfMarginTrailing_m)` | points |
+
+`Σ_W` is the trailing window of section 2.15 (`W = min(12, m)` months). A metric that is not meaningful (a burn multiple with no net new ARR, a CAC payback with no ARR added) **fails** any guardrail it is used in, with one exception kept from section 2.18: a burn multiple that is not meaningful passes when net burn over the trailing window is zero or less. A run whose **objective** metric is not meaningful is never allowed (11.6).
+
+**Evaluating a strategy on one model result `R`:**
+
+```
+d            = +1 if direction is "up", −1 if "down"
+Value(R)     = the objective metric on R
+Distance(R)  = d × (target − Value(R))            how far R is from the target. Zero or less means the target is met
+Gap(R)       = max(0, Distance(R))
+Met(R)       = Distance(R) ≤ 0
+
+for each guardrail and watch line g:
+Value_g(R)    = its metric on R
+Pass_g(R)     = Value_g(R) ≥ limit_g  if pass is "at_least";   Value_g(R) ≤ limit_g  if "at_most"
+Headroom_g(R) = Value_g(R) − limit_g  if "at_least";           limit_g − Value_g(R)  if "at_most"      negative when broken
+```
+
+`evaluateStrategy(assumptions, strategy, R)` returns these. It replaces nothing: `guardrails(R)` of section 2.19 stays, and for the growth strategy the two must agree line for line (check C21). Wherever the app shows "objective and guardrails" it shows the rows of the active strategy.
+
+### 11.2 The four strategies
+
+**The current strategy, in full.** This is the brief's "grow ARR 30% in 12 months" with its five guardrails. Every number in it is a reference to an input of section 1.15 or 1.11, so sections 1.15 and 2.18 and this object can never disagree.
+
+```
+strategies.arr_growth_30 = {
+  id: "arr_growth_30",
+  name: "Grow ARR 30% in 12 months",
+  summary: "Grow ARR to the target while cash, runway, payback, burn and margin stay inside their limits.",
+  status: "active",
+  objective: { label: "ARR at the target date", metric: "arr", month: { input: "objective.month" },
+               direction: "up", target: { input: "objective.arrTarget" } },
+  guardrails: [
+    { id: "cashFloor",    label: "Cash floor",          metric: "cashLow",   fromMonth: 1, toMonth: { input: "horizonMonths" },
+      pass: "at_least", limit: { input: "guardrails.cashFloor" } },
+    { id: "runway",       label: "Runway",              metric: "runwayLow", fromMonth: 1, toMonth: 12,
+      pass: "at_least", limit: { input: "guardrails.minRunwayMonths" } },
+    { id: "cacPayback",   label: "Blended CAC payback", metric: "blendedCacPayback",   month: 12,
+      pass: "at_most",  limit: { input: "guardrails.maxBlendedCacPaybackMonths" } },
+    { id: "burnMultiple", label: "Burn multiple",       metric: "burnMultiple",        month: 12,
+      pass: "at_most",  limit: { input: "guardrails.maxBurnMultiple" } },
+    { id: "grossMargin",  label: "Gross margin",        metric: "grossMarginTrailing", month: 12,
+      pass: "at_least", limit: { input: "guardrails.minGrossMargin" } }
+  ],
+  watch: [
+    { id: "covenant", label: "Covenant", metric: "cashLow", fromMonth: 1, toMonth: { input: "horizonMonths" },
+      pass: "at_least", limit: { input: "minCashCovenant" } }
+  ],
+  risk: { method: "downside_percentile", percentile: 0.10 }
+}
+```
+
+On the plan (the baseline): value 30,048,489.36, target 31,200,000, distance and gap 1,151,510.64, not met. Guardrail values 18,008,506.93, 34.44, 18.03, 1.7556 and 77.45%, all passing, with headroom 3,008,506.93, 16.44 months, 5.97 months, 0.2444 and 5.45 points. These are the values of section 2.18.
+
+**Three stubs for later.** Each is a complete object with the same shape. Targets and limits are typed numbers and are placeholders. The "Plan" column is what the default plan scores today, so a reader can see how far away each target is.
+
+| | `margin_expansion` | `cash_runway` | `efficient_growth` |
+|---|---|---|---|
+| Name | Margin expansion | Cash preservation and runway | Efficient growth (Rule of 40) |
+| Status | stub | stub | stub |
+| Objective metric | `ebitdaMarginTrailing` at month 24 | `netBurnTotal` over months 1 to 12 | `ruleOf40` at month 36 |
+| Direction and target | up, −15.0% | down, 9,500,000 | up, 40 points |
+| Plan value | −23.1235% | 10,618,508.78 | 19.7994 |
+| Gap | 8.1235 points | 1,118,508.78 | 20.2006 points |
+| Guardrail 1 | `arrGrowth` at month 24 at least 20% (plan 25.10%) | `runwayLow` over months 1 to 12 at least 30 (plan 34.44) | `burnMultiple` at month 24 at most 1.5 (plan 0.9245) |
+| Guardrail 2 | `cashLow` over months 1 to 36 at least `guardrails.cashFloor` (plan 18,008,506.93) | `cashLow` over months 1 to 36 at least `guardrails.cashFloor` | `blendedCacPayback` at month 24 at most 18 (plan 15.32) |
+| Guardrail 3 | `grossMarginTrailing` at month 24 at least 78% (plan 80.42%) | `arrGrowth` at month 12 at least 20% (plan 25.20%) | `cashLow` over months 1 to 36 at least `guardrails.cashFloor` |
+| Guardrail 4 | none | `grossMarginTrailing` at month 12 at least `guardrails.minGrossMargin` (plan 77.45%) | `grossMarginTrailing` at month 24 at least 75% (plan 80.42%) |
+| Watch | covenant, as above | covenant, as above | covenant, as above |
+| Risk | downside percentile, 0.10 | downside percentile, 0.10 | downside percentile, 0.10 |
+
+What makes these stubs and not strategies: nobody has agreed the targets, there are no hand-calculated test cases for them, and section 11.15 lists what is wrong with each. They do run (test T142), which is the proof that a new strategy needs no new code. Making one active means agreeing its numbers, adding test cases like 11.11 and 11.12, and setting `status` to "active".
+
+### 11.3 New inputs
+
+All are in the one assumptions object, editable in the Assumptions panel, type Assumption.
+
+| Key | Value | Meaning |
+|---|---|---|
+| `activeStrategy` | `arr_growth_30` | The strategy every score and portfolio uses |
+| `strategies`, `strategyOrder` | the four objects of 11.2, in that order | The strategy configurations |
+| `portfolio.budget` | 500,000 | Money available for new initiatives inside the budget window |
+| `portfolio.budgetFromMonth`, `portfolio.budgetToMonth` | 1, 12 | The budget window. By default the 12 months to the objective date |
+| `portfolio.maxCandidates` | 15 | The most candidates the exact search accepts. It cannot be set above 15 |
+| `sameChannelLeadOverlap` | 25% | Share of a smaller initiative's leads that duplicate a larger one's, when both add leads to the same channel in the same month (11.4) |
+
+Each initiative gains an optional block. Without it an initiative is a candidate with no rules.
+
+```
+initiative.portfolio = {
+  status: "candidate" | "committed" | "excluded",     default "candidate"
+  exclusiveGroup: "name",                               at most one initiative of a group can be in a plan
+  requires: [ ids ]                                     it can only be in a plan together with all of these
+}
+```
+
+- **Committed** initiatives are in every plan (already approved or already under way). Their cost counts against the budget.
+- **Excluded** initiatives are in no plan. They are still scored and listed.
+- **Candidates** are what the search chooses from.
+
+### 11.4 How initiatives interact
+
+Section 2.16 rule 3 stands: several initiatives are applied together in **one** model run, and they affect each other only through the model's own drivers. Nothing is added or netted off after the run. This is the full list of the ways they interact.
+
+**(a) Campaigns in the same channel share leads (new).** Two campaigns aimed at the same channel in the same month reach some of the same buyers. For channel `c` and month `m`, let `L_i` be the leads initiative `i` adds:
+
+```
+L_i,c,m = Σ over i's program_spend with leads "from_cpl" on c:  amount_m / (CPL_c,m × cplMultiplier)
+        + Σ over i's direct_leads on c:                          amount_m
+
+Sort the initiatives with L > 0 from largest to smallest:  L_(1) ≥ L_(2) ≥ L_(3) …        ties keep listing order
+InitiativeLeads_c,m = L_(1) + (1 − sameChannelLeadOverlap) × (L_(2) + L_(3) + …)
+Kept_i,c,m          = L_i,c,m                                   for the largest
+                    = (1 − sameChannelLeadOverlap) × L_i,c,m    for every other
+LeadsLostToOverlap  = Σ over c, m of (Σ_i L_i,c,m − InitiativeLeads_c,m)
+```
+
+`InitiativeLeads_c,m` replaces the two initiative terms in the leads formula of section 2.3:
+
+```
+outbound:        Leads_c,m = RampedSDR_m × leadsPerSdrPerMonth + InitiativeLeads_c,m
+other channels:  Leads_c,m = BaseSpend_c,m / CPL_c,m           + InitiativeLeads_c,m
+```
+
+Notes:
+
+- With one initiative in a channel-month, or with an overlap of 0, this is exactly section 2.3. So no single-initiative result changes.
+- The spend is unchanged. The smaller campaign pays the same and gets fewer new leads, which is the point.
+- Leads from **hiring SDRs** are not initiative leads. They come from capacity (section 2.3) and never overlap. Two SDR hires are one bigger team.
+- The plan's own leads (baseline spend) do not overlap with initiative leads. That is what `cplMultiplier` is for.
+- The result does not depend on the order of the initiatives. Only the split of a tie between two equal campaigns does, and the total is the same either way.
+- In a simulation run the rule is applied after the draws, with that run's cost per lead and direct-lead multipliers.
+- The lead trace of section 4.9 follows `Kept_i,c,m`, so a combined run still traces to its total new ARR.
+
+**(b) Everything that creates opportunities shares AE capacity (section 2.3, unchanged).** If the team cannot work every opportunity created in a month, every channel loses the same share, including the plan's own pipeline. So a campaign, a trade show and an SDR hire that all land in the same month can together lose deals that none loses alone. Hiring AEs adds capacity, so an AE hire is worth more inside such a plan than on its own decision card. The engine reports:
+
+```
+OppsLostToCapacity = Σ_m TotalCreated_m × (1 − WorkShare_m)        scenario minus plan
+```
+
+**(c) A pulled-in milestone lifts other initiatives' deals (section 9.6, unchanged).** If the integrations hub ships sooner, deals brought by a trade show or a new SDR close at the lifted win rate and ACV sooner (test T113).
+
+**(d) Pull-ins can compete for planned seats (section 9.5, unchanged)**, and two pull-ins of the same milestone cannot be in one run (section 9.7).
+
+**(e) Business rules** (`exclusiveGroup`, `requires`, section 11.3). These do not change any run. They only say which combinations are not real choices: two sizes of the same hire, or an add-on without the program it adds to.
+
+Because every plan is one real run, the search of 11.7 needs no formula for any of these. It also means **the value of a set is not the sum of its parts**:
+
+```
+Interaction(S) = Contribution(S) − Σ_{i in S} Contribution_i        (11.5, 11.6)
+```
+
+### 11.5 Scoring one initiative against the objective
+
+Each initiative is scored **alone against the plan**, like its decision card. `B` is the plan (`runModel(assumptions, [])`). `S_i` is the plan with initiative `i` only, with a pull-in at its planning ship month (section 9.7).
+
+```
+Contribution_i  = d × (Value(S_i) − Value(B))                 what it adds to the objective, in the objective's unit
+GapShare_i      = Contribution_i / Gap(B)                     share of the gap it closes (not shown when Gap(B) = 0)
+
+BudgetCost_i    = Σ_{m = budgetFromMonth}^{budgetToMonth} (Investment_m − AllocatedCost_m)     of S_i, section 2.17
+ContributionPerDollar_i = Contribution_i / BudgetCost_i
+
+Downside_i      = the `risk.percentile` point (nearest rank, section 10.2) of d × (Value(S_i,r) − Value(B_r))
+                  over the runs r of the initiative's own simulation (section 10.1)
+Haircut_i       = max(0, Contribution_i − Downside_i)         0 when risk.method is "none"
+RiskAdjusted_i  = Contribution_i − Haircut_i
+
+Score_i         = RiskAdjusted_i / BudgetCost_i               risk-adjusted contribution per budget dollar
+```
+
+In words, for the growth strategy: `Contribution` is the extra ARR at month 12. `GapShare` is how much of the $1.15M gap that is. `Score` is "dollars of month-12 ARR we can count on, per dollar of this year's budget".
+
+Notes:
+
+- **Budget cost is new cash inside the budget window.** It leaves out the cost of existing staff time (`allocated_cost`), which is not new money, and it leaves out cost after the window. Both still count in `TotalInvestment`, NPV and every guardrail, and the ranked list shows `TotalInvestment` beside the budget cost so a hire's later cost is never hidden.
+- **The haircut uses the same runs as the card.** The simulation of section 10 records one more number per run, the contribution `d × (Value(S_r) − Value(B_r))`. With the default seed and 1,000 runs the score and the card's P10 come from the same 1,000 worlds.
+- **The downside is P10 by default:** the contribution that nine runs in ten beat. A strategy can choose another percentile or no haircut.
+- A risk-adjusted contribution is never above the plan-case contribution.
+- The ranked list sorts by `Score`, highest first, ties in listing order. An initiative with no cost in the window is listed first if its risk-adjusted contribution is above zero ("no cost in the budget window") and last otherwise.
+- The list also carries, per initiative: extra new ARR, NPV and payback (section 2.17), and how many guardrails the plan passes with that initiative alone. The guardrail result alone is information only. It is never used to accept or reject a plan (11.6).
+- The score ranks. It does not choose. Section 11.12 shows a budget at which the best plan drops the third-ranked initiative and keeps the sixth.
+
+### 11.6 The combined plan and its guardrails
+
+Let `C` be the committed initiatives, `K` the candidates (at most 15) and `S` any subset of `K`.
+
+```
+Run(S)          = runModel(assumptions, C ∪ S)             one run, initiatives in listing order, pull-ins at their planning ship months
+Ref             = Run(∅)                                   the plan with the committed initiatives only (the plan itself if none are committed)
+
+Contribution(S) = d × (Value(Run(S)) − Value(B))
+BudgetCost(S)   = Σ_{m = budgetFromMonth}^{budgetToMonth} (Investment_m − AllocatedCost_m)      of Run(S)
+Haircut(S)      = Σ_{i in C ∪ S} Haircut_i
+RiskAdjusted(S) = Contribution(S) − Haircut(S)
+Shortfall(S)    = max(0, Distance(B) − RiskAdjusted(S))    what is still missing, counting only what can be relied on
+GapClosed(S)    = Gap(B) − Shortfall(S)                    never more than the gap
+NPV(S)          = NPV of Run(S) against B (section 2.17)
+
+Broken(S)       = the number of guardrails g with Pass_g(Run(S)) false
+Allowed(S)      = for every guardrail g:  Pass_g(Run(S)),
+                  or  ( Pass_g(Ref) is false  and  Headroom_g(Run(S)) ≥ Headroom_g(Ref) )
+```
+
+Notes:
+
+- **Guardrails are read from `Run(S)` only.** The guardrail results of the members alone are never combined, added or looked at. Two initiatives that each pass can fail together (the two pull-ins of test T113 have burn multiples of 1.9707 and 1.8220 alone and 2.0360 together), and an initiative that fails alone can pass in a set that carries it (test T139).
+- **All five guardrails keep the windows of section 2.18.** Cash is tested over all 36 months, so a hire's cost in years two and three is policed even though it is outside the budget window.
+- **If the plan already breaks a guardrail** (`Ref` fails it), a set is still allowed as long as it does not make that guardrail worse. Otherwise nothing could ever be chosen. The ranking of 11.7 then puts sets that repair the guardrail first. A value that is not meaningful counts as worse than any number.
+- **Budget cost is taken from the run, never by adding the members' costs.** They are equal except when two pull-ins compete for the same planned seats (section 9.5).
+- **The haircut of a set is the sum of its members' haircuts.** No credit is taken for risks that offset each other. This is deliberate and conservative (11.15 item 50). The stress test of 11.9 shows the real spread.
+- **`GapClosed` stops at the gap.** Beating the target by more does not make a plan better. Once the target is met on a risk-adjusted basis the cheaper plan wins (11.7).
+
+### 11.7 Portfolio selection
+
+**Method: run every combination, keep the allowed ones that fit the budget, take the best.**
+
+1. **List the combinations.** With `n` candidates there are `2^n` subsets. Number them 0 to `2^n − 1`: the first candidate in the list counts 1, the second 2, the third 4, and so on, and a set's number is the sum for its members. Set 0 is "none of the candidates".
+2. **Drop the ones that are not real choices** (11.4 e): two members of one `exclusiveGroup`, a member whose `requires` are not all in `C ∪ S`, or two pull-ins of the same milestone. They are counted and reported as "not a valid combination".
+3. **Run each remaining set once** and store one row: `BudgetCost`, `Value`, `Contribution`, `NPV`, every guardrail value with pass and headroom, `Broken`, `Allowed`, `LeadsLostToOverlap` and `OppsLostToCapacity`. This table depends on the assumptions, the strategy and the initiative list. It does **not** depend on the budget or on the haircuts.
+4. **Add the risk columns** `Haircut`, `RiskAdjusted`, `Shortfall` and `GapClosed` to each row, from the members' haircuts (11.5).
+5. **Select.** Among rows that are valid, allowed and have `BudgetCost(S) ≤ budget + 0.01`, take the one that ranks first:
+
+   | Order | Rule | Why |
+   |---|---|---|
+   | 1 | Fewest broken guardrails | Only matters when the plan itself breaks one: repairing it comes before growth |
+   | 2 | Smallest `Shortfall` | The objective |
+   | 3 | Lowest `BudgetCost` | Same result for less money |
+   | 4 | Highest `NPV` | Same result, same money, more value |
+   | 5 | Lowest set number | So the answer is always the same |
+
+   Two shortfalls are equal when they differ by no more than 0.01 for a dollar metric and 1e-9 for any other unit. Costs and NPVs are equal within 0.01.
+6. **If the committed initiatives alone cost more than the budget**, no row fits. The answer is set 0, marked "committed initiatives exceed the budget", with the amount over.
+
+**The budget slider.** Moving the budget only repeats step 5 on the stored table, so it is instant. The table is rebuilt only when an assumption, the strategy or the initiative list changes.
+
+**The frontier.** The selection at every budget level, as a short table:
+
+```
+Frontier = the distinct selections Select(b) as b rises from 0, each listed at the smallest b that gives it (its own BudgetCost)
+ExtraPerDollar(step) = (GapClosed(step) − GapClosed(previous step)) / (BudgetCost(step) − BudgetCost(previous step))
+```
+
+Along the frontier `BudgetCost` rises and the rank never gets worse. It answers "what does the next dollar of budget buy", and its flat stretches show where more money stops helping.
+
+**Why this method.**
+
+- It is **exact**. Every combination is a real model run, so shared leads, AE capacity, milestone lifts and guardrails that depend on the whole plan are all in the answer. A ranked list filled from the top cannot see any of them (test T138), and a formula-based optimizer would need the interactions written as equations, which they are not.
+- It is **explainable**. The explanation is one sentence: "we ran all 256 combinations, 248 keep every guardrail, and this is the best one that fits the budget". Every row can be opened and rerun.
+- It is **bounded**. 15 candidates are 32,768 runs. At about half a millisecond a run that is under half a minute, done once and in chunks so the page stays responsive (as the simulation does). Each extra candidate doubles the work, which is why the limit is an input check and not a slowdown: with more than `portfolio.maxCandidates` candidates the search stops and says "choose at most 15 candidates: commit or exclude the rest". It never falls back to an approximate answer without saying so.
+
+### 11.8 Explaining the choice
+
+For the chosen set `S*` the engine also returns, all from the stored table:
+
+```
+for each member i of S*:
+  Marginal_i     = Contribution(S*) − Contribution(S* without i)        what the plan loses if this one is dropped
+  Interaction_i  = Marginal_i − Contribution_i                          negative: it overlaps with the others. Positive: it helps them
+
+for each candidate j not in S*, the first reason that applies:
+  "excluded"            the user excluded it
+  "conflict"            S* with j is not a valid combination (names the member or the missing requirement)
+  "over_budget"         BudgetCost(S* with j) is above the budget
+  "breaks_guardrail"    S* with j fits the budget but is not allowed (names each guardrail and its value)
+  "no_gain"             S* with j fits and is allowed but does not rank higher
+  and always:
+  BestWith_j     = the selection of 11.7 restricted to sets that contain j        (none if no such set fits)
+  ForcingCost_j  = GapClosed(S*) − GapClosed(BestWith_j)                           what insisting on j would cost
+
+for the plan as a whole:
+  Interaction(S*), LeadsLostToOverlap, OppsLostToCapacity
+  Unspent        = budget − BudgetCost(S*)
+  NextStep       = the next frontier row above the budget: how much more money, and how much more gap it closes
+  every guardrail: plan value, value with S*, limit, headroom, pass
+  the members with NPV below zero, listed as "in the plan for the objective, does not pay back within the model"
+```
+
+`Marginal_i` is not shown when `S*` without `i` is not a valid combination. The marginals of a plan do not add up to its contribution: an interaction between two members is counted in both.
+
+### 11.9 Stress test of the chosen plan
+
+Selection uses the plan case and the haircuts. The chosen plan is then simulated as a whole, to show what the haircut cannot: how the risks combine, and how often the guardrails hold.
+
+`simulatePortfolio` runs `simulation.runs` runs with seed `simulation.seed`, exactly as section 10.1, with three differences:
+
+1. **Draws are made for the whole initiative list**, in listing order, whatever each initiative's status and whether or not it is in the set: one direct-lead multiplier per initiative (step 3 of section 10.1) and one uniform number per initiative for its ship-date slip (step 5; only pull-ins use it). So two sets simulated with the same seed see the same 1,000 worlds, and a list of one initiative reproduces that initiative's own simulation run for run.
+2. **The scenario of each run is `Run(S*)`** on that run's assumptions: direct leads multiplied, each pull-in shipped at `T + k + planned-date slip` (section 9.9), and the lead overlap rule applied inside the run.
+3. **Per run it records** `Value` for the plan and for the scenario, the contribution, `Met`, and pass or fail of every guardrail for both.
+
+Reported: P10, P50 and P90 of the objective value and of the contribution; the probability of meeting the target; for each guardrail the share of runs that pass, for the plan alone and with the set; the share of runs that pass every guardrail; and the **main risk**, which is the guardrail with the lowest pass share if that share is below 100% (ties in guardrail order), otherwise none. A low pass share is a business warning. It does not change the selection and it is not an integrity failure.
+
+The stress test is run for the chosen set only, when it is asked for. It is not part of the search.
+
+### 11.10 Integrity checks C21 to C24
+
+These follow the rules of section 3. Once this section is built the badge reads "Integrity N/24". C21 and C22 run on every model result. C23 and C24 run on every portfolio result. With no candidates they run on the **null portfolio**: one candidate, the null initiative of check C7, which gives two rows that must both equal the plan and set 0 as the choice. While a table is being rebuilt the badge shows the last complete result and says it is updating.
+
+| # | Check | Passes when |
+|---|---|---|
+| C21 | Strategy rows tie to the model | For the active strategy: every objective, guardrail and watch value equals the metric rebuilt by `runChecks` from the monthly series (cash, ARR, net burn, P&L lines), not from a stored KPI. `Distance`, `Gap`, `Met`, `Pass` and `Headroom` follow from value, direction and limit. Every `{ input }` reference equals the current input. When the active strategy is `arr_growth_30`, its objective, its five guardrails and the covenant line equal the rows of section 2.18 value for value and pass for pass |
+| C22 | Shared leads tie | For every channel and month: stored `InitiativeLeads` equals `L_(1) + (1 − overlap) × (the rest)` rebuilt from the initiative inputs and the cost per lead used; each `Kept_i` is `L_i` or `(1 − overlap) × L_i`, exactly one initiative keeps all, and `Σ Kept_i = InitiativeLeads`; `0 ≤ InitiativeLeads ≤ Σ L_i`; with fewer than two initiatives in the channel-month the two are equal; `Leads_c,m` equals baseline leads plus `InitiativeLeads_c,m` |
+| C23 | The portfolio table ties | (a) There are exactly `2^n` rows, each either run or marked not valid, and the count of valid rows equals a recount from the rules of 11.7 step 2. (b) Row 0 equals `Ref`; with nothing committed it equals the plan (contribution 0, budget cost 0, NPV 0). (c) For every candidate that is valid alone, the row of that single-member set has the contribution and budget cost of its standalone score (11.5), computed by `applyInitiatives`. (d) The chosen row, every frontier row and the last valid row, rerun from scratch, give the stored value, budget cost, NPV and guardrail values, and pass checks C1 to C22. (e) `BudgetCost` equals the amount rebuilt from the initiative inputs over the budget window, without allocated cost. (f) `Haircut`, `RiskAdjusted`, `Shortfall` and `GapClosed` follow their formulas from the members' haircuts |
+| C24 | The chosen set is the best | (a) The chosen row is valid, allowed and within the budget (or is set 0 marked as over budget). (b) A plain scan of every row by `runChecks`, written separately from the selection code, finds no valid, allowed row within the budget that ranks above it. (c) Along the frontier budget cost rises, no step ranks below the one before, and each step is the selection at its own budget cost. (d) Every `Marginal_i` equals the difference of two table rows, every reason matches the row of `S*` with `j`, and no valid, allowed row within the budget that contains `j` ranks above `BestWith_j` |
+
+A plan that breaks a guardrail in some simulated runs, or a target that no set reaches, is a business result, not an integrity failure.
+
+### 11.11 Worked example: four initiatives, all 16 combinations
+
+Small enough to check by hand, and it shows both named interactions. Default assumptions, growth strategy, budget window months 1 to 12. The candidates, in listing order:
+
+| # | Counts | Initiative | Built from |
+|---|---|---|---|
+| 1 | 1 | Trade show (`show`) | The trade show template with its defaults (section 4.3) |
+| 2 | 2 | Hire 2 AEs (`aes`) | The Hire AEs template with its defaults (section 4.4) |
+| 3 | 4 | Paid search campaign (`paid`) | The paid campaign template with its defaults: 30,000 a month in months 2, 3 and 4, `cplMultiplier` 1.2 (test T47) |
+| 4 | 8 | Paid social test (`social`) | The paid campaign template with budget 60,000, 3 months, start month 3: 20,000 a month in months 3, 4 and 5, `cplMultiplier` 1.2 |
+
+**Budget cost.** Trade show: booth and travel 60,000 (the 16,000 of staff time is not new money). Two AEs: 11 months of pay at 25,000 plus 30,000 recruiting = 305,000 (of 932,270 over 36 months). Paid search 90,000. Paid social 60,000.
+
+**Each one alone.** New ARR that lands in month `t` is worth `1.008^(12 − t)` times as much at month 12 (the net monthly rate of section 4.3). The powers used below: `1.008^3 = 1.024193`, `^4 = 1.032386`, `^5 = 1.040645`, `^6 = 1.048970`, `^7 = 1.057362`, `^8 = 1.065821`.
+
+```
+show:    133,145.03                                                    (section 4.3)
+aes:     148,021.43                                                    (section 4.4)
+paid:    leads 30,000 / (240 × 1.2) = 104.1667 a month in months 2, 3, 4
+         opps × 0.20 × 0.15 = 3.125;  deals × 0.18 = 0.5625;  new ARR × 30,000 = 16,875 in months 4, 5, 6
+         16,875 × (1.065821 + 1.057362 + 1.048970) = 53,530.09
+social:  leads 20,000 / 288 = 69.4444 a month in months 3, 4, 5
+         opps 2.0833;  deals 0.375;  new ARR 11,250 in months 5, 6, 7
+         11,250 × (1.057362 + 1.048970 + 1.040645) = 35,403.50
+```
+
+**Shared leads: paid search and paid social together (set 12).** They overlap in months 3 and 4. Paid search is the larger (104.1667 against 69.4444), so it keeps every lead and paid social keeps 75%:
+
+```
+months 3 and 4:  paid social keeps 0.75 × 69.4444 = 52.0833 leads;  17.3611 are duplicates each month, 34.7222 in all
+                 paid channel leads = 250 + 104.1667 + 52.0833 = 406.25        (354.1667 in month 2, 319.4444 in month 5)
+paid social new ARR = 0.75 × 11,250 = 8,437.50 in months 5 and 6, and 11,250 in month 7
+paid social, in the set = 8,437.50 × (1.057362 + 1.048970) + 11,250 × 1.040645 = 29,479.44
+Contribution(12) = 53,530.09 + 29,479.44 = 83,009.52          (full precision)
+Interaction(12)  = 83,009.52 − (53,530.09 + 35,403.50) = −5,924.06
+```
+
+Capacity is not the cause: the two create 34.19 opportunities in month 4 against capacity for 42.
+
+**AE capacity: the trade show and paid search together (set 5).** No shared channel, so no leads overlap. But in April 2027 (month 4) the plan creates 29.5 opportunities, the show 10 and the campaign 3.125:
+
+```
+TotalCreated_4 = 29.5 + 10 + 3.125 = 42.625 > Capacity_4 = 42
+WorkShare_4    = 42 / 42.625 = 0.985337;   0.625 opportunities are lost, spread over every channel
+
+What the month-4 opportunities are worth at month 12 (deals × ACV, then grown from the close month):
+  outbound   13.5   × 0.24 × 45,000 = 145,800.00, closes month 8:  × 1.032386 = 150,521.89
+  paid       10.625 × 0.18 × 30,000 =  57,375.00, closes month 6:  × 1.048970 =  60,184.67
+  events     14     × 0.25 × 52,000 = 182,000.00, closes month 9:  × 1.024193 = 186,403.04
+  partners    4.5   × 0.30 × 38,000 =  51,300.00, closes month 7:  × 1.040645 =  53,385.10
+                                                                       total     450,494.69
+Interaction(5)  = −450,494.69 × (0.625 / 42.625) = −6,605.49
+Contribution(5) = 133,145.03 + 53,530.09 − 6,605.49 = 180,069.62
+```
+
+**Both at once: show, paid search and paid social (set 13).**
+
+```
+TotalCreated_4 = 29.5 + 10 + 3.125 + 0.75 × 2.0833 = 44.1875;   WorkShare_4 = 42 / 44.1875 = 0.950495;   2.1875 lost
+paid opportunities in month 4 = 7.5 + 3.125 + 1.5625 = 12.1875 → 65,812.50 → × 1.048970 = 69,035.36
+value of month-4 opportunities at month 12 = 150,521.89 + 69,035.36 + 186,403.04 + 53,385.10 = 459,345.39
+capacity loss = 459,345.39 × (2.1875 / 44.1875) = 22,739.87
+Interaction(13)  = −5,924.06 − 22,739.87 = −28,663.93
+Contribution(13) = 133,145.03 + 53,530.09 + 35,403.50 − 28,663.93 = 193,414.68
+```
+
+**Add the two AEs (set 15).** In month 4 they are at 50%, so capacity is `(6 + 1) × 7 = 49` and they source 1.5 opportunities themselves: 45.6875 created, all worked. The capacity loss disappears and only the shared leads remain:
+
+```
+Contribution(15) = 133,145.03 + 148,021.43 + 53,530.09 + 35,403.50 − 5,924.06 = 364,175.98
+Marginal_aes     = Contribution(15) − Contribution(13) = 364,175.98 − 193,414.68 = 170,761.30
+Interaction_aes  = 170,761.30 − 148,021.43 = +22,739.87          the AEs are worth more in this plan than alone
+```
+
+**All 16 rows** (reference values from the same model run for each set; the hand figures above are in it). Every set passes all five guardrails with the default limits; the burn multiple is shown because test T139 moves its limit. Haircuts are the P10 haircuts of section 11.12.
+
+| Set | Initiatives in the set | Budget cost | ARR at month 12 | Contribution | Sum of the parts | Interaction | Leads lost to overlap | Opportunities lost to capacity | Haircut | Risk-adjusted | Burn multiple | NPV |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 0 | none | 0.00 | 30,048,489.36 | 0.00 | 0.00 | 0.00 | 0.0000 | 0.0000 | 0.00 | 0.00 | 1.7556 | 0.00 |
+| 1 | show | 60,000.00 | 30,181,634.39 | 133,145.03 | 133,145.03 | 0.00 | 0.0000 | 0.0000 | 37,417.45 | 95,727.57 | 1.7161 | 202,196.90 |
+| 2 | aes | 305,000.00 | 30,196,510.79 | 148,021.43 | 148,021.43 | 0.00 | 0.0000 | 0.0000 | 53,924.17 | 94,097.26 | 1.7560 | 191,401.37 |
+| 3 | show + aes | 365,000.00 | 30,329,655.82 | 281,166.46 | 281,166.46 | 0.00 | 0.0000 | 0.0000 | 91,341.62 | 189,824.84 | 1.7174 | 393,598.27 |
+| 4 | paid | 90,000.00 | 30,102,019.45 | 53,530.09 | 53,530.09 | 0.00 | 0.0000 | 0.0000 | 13,851.61 | 39,678.48 | 1.7500 | 26,163.11 |
+| 5 | show + paid | 150,000.00 | 30,228,558.98 | 180,069.62 | 186,675.11 | −6,605.49 | 0.0000 | 0.6250 | 51,269.06 | 128,800.56 | 1.7133 | 214,659.86 |
+| 6 | aes + paid | 395,000.00 | 30,250,040.88 | 201,551.52 | 201,551.52 | 0.00 | 0.0000 | 0.0000 | 67,775.78 | 133,775.74 | 1.7505 | 217,564.47 |
+| 7 | show + aes + paid | 455,000.00 | 30,383,185.91 | 334,696.55 | 334,696.55 | 0.00 | 0.0000 | 0.0000 | 105,193.23 | 229,503.31 | 1.7124 | 419,761.37 |
+| 8 | social | 60,000.00 | 30,083,892.86 | 35,403.50 | 35,403.50 | 0.00 | 0.0000 | 0.0000 | 9,161.12 | 26,242.38 | 1.7520 | 16,242.90 |
+| 9 | show + social | 120,000.00 | 30,217,037.89 | 168,548.52 | 168,548.52 | 0.00 | 0.0000 | 0.0000 | 46,578.57 | 121,969.95 | 1.7128 | 218,439.79 |
+| 10 | aes + social | 365,000.00 | 30,231,914.29 | 183,424.93 | 183,424.93 | 0.00 | 0.0000 | 0.0000 | 63,085.29 | 120,339.64 | 1.7526 | 207,644.26 |
+| 11 | show + aes + social | 425,000.00 | 30,365,059.32 | 316,569.95 | 316,569.95 | 0.00 | 0.0000 | 0.0000 | 100,502.74 | 216,067.22 | 1.7143 | 409,841.16 |
+| 12 | paid + social | 150,000.00 | 30,131,498.89 | 83,009.52 | 88,933.58 | −5,924.06 | 34.7222 | 0.0000 | 23,012.73 | 59,996.80 | 1.7487 | 30,016.18 |
+| 13 | show + paid + social | 210,000.00 | 30,241,904.04 | 193,414.68 | 222,078.61 | −28,663.93 | 34.7222 | 2.1875 | 60,430.18 | 132,984.50 | 1.7182 | 185,048.87 |
+| 14 | aes + paid + social | 455,000.00 | 30,279,520.32 | 231,030.96 | 236,955.02 | −5,924.06 | 34.7222 | 0.0000 | 76,936.90 | 154,094.06 | 1.7494 | 221,417.55 |
+| 15 | show + aes + paid + social | 515,000.00 | 30,412,665.34 | 364,175.98 | 370,100.04 | −5,924.06 | 34.7222 | 0.0000 | 114,354.35 | 249,821.63 | 1.7114 | 423,614.45 |
+
+**Test T135, expected selections** (`risk.method` "none" and the default "downside_percentile"; here both choose the same sets):
+
+| Budget (the four) | Risk setting | Chosen set | Initiatives | Budget cost | Contribution | Gap closed | Shortfall |
+|---|---|---|---|---|---|---|---|
+| 50,000.00 | none | 0 | none | 0.00 | 0.00 | 0.00 | 1,151,510.64 |
+| 100,000.00 | none | 1 | show | 60,000.00 | 133,145.03 | 133,145.03 | 1,018,365.61 |
+| 150,000.00 | none | 5 | show + paid | 150,000.00 | 180,069.62 | 180,069.62 | 971,441.02 |
+| 250,000.00 | none | 13 | show + paid + social | 210,000.00 | 193,414.68 | 193,414.68 | 958,095.96 |
+| 400,000.00 | none | 3 | show + aes | 365,000.00 | 281,166.46 | 281,166.46 | 870,344.18 |
+| 520,000.00 | none | 15 | show + aes + paid + social | 515,000.00 | 364,175.98 | 364,175.98 | 787,334.66 |
+| 50,000.00 | downside | 0 | none | 0.00 | 0.00 | 0.00 | 1,151,510.64 |
+| 100,000.00 | downside | 1 | show | 60,000.00 | 133,145.03 | 95,727.57 | 1,055,783.06 |
+| 150,000.00 | downside | 5 | show + paid | 150,000.00 | 180,069.62 | 128,800.56 | 1,022,710.08 |
+| 250,000.00 | downside | 13 | show + paid + social | 210,000.00 | 193,414.68 | 132,984.50 | 1,018,526.14 |
+| 400,000.00 | downside | 3 | show + aes | 365,000.00 | 281,166.46 | 189,824.84 | 961,685.80 |
+| 520,000.00 | downside | 15 | show + aes + paid + social | 515,000.00 | 364,175.98 | 249,821.63 | 901,689.01 |
+
+At a budget of 520,000 the members' marginals are 133,145.03 (show), 170,761.30 (aes), 47,606.03 (paid) and 29,479.44 (social). At 250,000 (set 13) they are 110,405.16 (show), 24,866.16 (paid) and 13,345.06 (social): each is well below its standalone figure because the three crowd the same month.
+
+### 11.12 Reference case: eight initiatives
+
+The seven templates with their defaults plus the second paid campaign, in this order. 256 combinations. Default assumptions, growth strategy, default seed and 1,000 runs for the haircuts.
+
+**Scores (test T133).** `Gap(B)` = 1,151,510.64.
+
+| # | Initiative | Contribution | Share of gap | Budget cost | Contribution per dollar | Downside (P10) | Haircut | Risk-adjusted contribution | Score | Total investment | NPV | Guardrails alone |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | Trade show (`show`) | 133,145.03 | 11.56% | 60,000.00 | 2.2191 | 95,727.57 | 37,417.45 | 95,727.57 | 1.5955 | 76,000.00 | 202,196.90 | 5 of 5 |
+| 2 | Hire 2 SDRs (`sdrs`) | 181,471.27 | 15.76% | 223,166.67 | 0.8132 | 119,577.99 | 61,893.28 | 119,577.99 | 0.5358 | 692,437.67 | 466,556.62 | 5 of 5 |
+| 3 | Hire 2 AEs (`aes`) | 148,021.43 | 12.85% | 305,000.00 | 0.4853 | 94,097.26 | 53,924.17 | 94,097.26 | 0.3085 | 932,270.00 | 191,401.37 | 5 of 5 |
+| 4 | Paid search campaign (`paid`) | 53,530.09 | 4.65% | 90,000.00 | 0.5948 | 39,678.48 | 13,851.61 | 39,678.48 | 0.4409 | 90,000.00 | 26,163.11 | 5 of 5 |
+| 5 | Paid social test (`social`) | 35,403.50 | 3.07% | 60,000.00 | 0.5901 | 26,242.38 | 9,161.12 | 26,242.38 | 0.4374 | 60,000.00 | 16,242.90 | 5 of 5 |
+| 6 | Partner program (`partner`) | 153,264.26 | 13.31% | 140,000.00 | 1.0947 | 103,886.35 | 49,377.91 | 103,886.35 | 0.7420 | 160,000.00 | 305,207.18 | 5 of 5 |
+| 7 | Hub pull-in (`hub`) | 97,812.69 | 8.49% | 1,481,166.67 | 0.0660 | 19,996.09 | 77,816.60 | 19,996.09 | 0.0135 | 1,481,166.67 | −1,082,747.69 | 5 of 5 |
+| 8 | Hosting pull-in (`host`) | 0.00 | 0.00% | 525,000.00 | 0.0000 | 0.00 | 0.00 | 0.00 | 0.0000 | 525,000.00 | −379,237.48 | 5 of 5 |
+
+Budget costs: SDRs `11 × 15,833.33` pay + 16,000 recruiting + `11 × 3,000` tools = 223,166.67. Partner program 40,000 setup + 10 months of 10,000 inside the window = 140,000 (two more months fall in 2028). Hub pull-in 1,481,166.67 and hosting pull-in 525,000.00, both at their planning ship months (sections 9.11 and 9.12). Ranked by score: show, partner, sdrs, paid, social, aes, hub, host.
+
+**What the search finds.** Eight of the 256 sets are not allowed: every set that holds both pull-ins and no trade show, SDR hire or partner program, because the burn multiple goes above 2.0 (2.0360 for the two alone, as in test T113; 2.0161 at best, with AEs and both paid campaigns added). The frontier, risk-adjusted:
+
+| Budget needed | Set | Initiatives in the set | Contribution | Interaction | Haircut | Gap closed | Shortfall | Extra gap closed per extra dollar | NPV |
+|---|---|---|---|---|---|---|---|---|---|
+| 0.00 | 0 | none | 0.00 | 0.00 | 0.00 | 0.00 | 1,151,510.64 | n/a | 0.00 |
+| 60,000.00 | 1 | show | 133,145.03 | 0.00 | 37,417.45 | 95,727.57 | 1,055,783.06 | 1.5955 | 202,196.90 |
+| 120,000.00 | 17 | show + social | 168,548.52 | 0.00 | 46,578.57 | 121,969.95 | 1,029,540.68 | 0.4374 | 218,439.79 |
+| 150,000.00 | 9 | show + paid | 180,069.62 | −6,605.49 | 51,269.06 | 128,800.56 | 1,022,710.08 | 0.2277 | 214,659.86 |
+| 200,000.00 | 33 | show + partner | 286,409.29 | 0.00 | 86,795.36 | 199,613.93 | 951,896.71 | 1.4163 | 507,404.08 |
+| 260,000.00 | 49 | show + social + partner | 306,147.08 | −15,665.71 | 95,956.48 | 210,190.60 | 941,320.04 | 0.1763 | 491,144.80 |
+| 290,000.00 | 41 | show + paid + partner | 313,381.04 | −26,558.34 | 100,646.97 | 212,734.06 | 938,776.58 | 0.0848 | 478,465.53 |
+| 343,166.67 | 19 | show + sdrs + social | 322,320.07 | −27,699.72 | 108,471.85 | 213,848.22 | 937,662.42 | 0.0210 | 627,533.34 |
+| 350,000.00 | 57 | show + paid + social + partner | 326,944.87 | −48,398.00 | 109,808.09 | 217,136.78 | 934,373.86 | 0.4813 | 449,297.51 |
+| 363,166.67 | 34 | sdrs + partner | 334,735.54 | 0.00 | 111,271.20 | 223,464.34 | 928,046.30 | 0.4806 | 771,763.80 |
+| 423,166.67 | 35 | show + sdrs + partner | 441,736.22 | −26,144.34 | 148,688.65 | 293,047.57 | 858,463.07 | 1.1597 | 919,707.86 |
+| 483,166.67 | 51 | show + sdrs + social + partner | 455,274.42 | −48,009.64 | 157,849.77 | 297,424.66 | 854,085.98 | 0.0730 | 890,577.40 |
+| 513,166.67 | 43 | show + sdrs + paid + partner | 462,799.43 | −58,611.22 | 162,540.26 | 300,259.17 | 851,251.47 | 0.0945 | 878,497.92 |
+| 565,000.00 | 53 | show + aes + social + partner | 469,834.22 | 0.00 | 149,880.65 | 319,953.57 | 831,557.07 | 0.3800 | 715,048.34 |
+| 595,000.00 | 45 | show + aes + paid + partner | 487,960.81 | 0.00 | 154,571.14 | 333,389.67 | 818,120.97 | 0.4479 | 724,968.56 |
+| 648,166.67 | 23 | show + sdrs + aes + social | 498,041.23 | 0.00 | 162,396.02 | 335,645.20 | 815,865.44 | 0.0424 | 876,397.78 |
+| 655,000.00 | 61 | show + aes + paid + social + partner | 517,440.25 | −5,924.06 | 163,732.26 | 353,707.98 | 797,802.65 | 2.6433 | 728,821.63 |
+| 728,166.67 | 39 | show + sdrs + aes + partner | 615,901.99 | 0.00 | 202,612.82 | 413,289.17 | 738,221.46 | 0.8143 | 1,165,362.06 |
+| 788,166.67 | 55 | show + sdrs + aes + social + partner | 651,305.49 | 0.00 | 211,773.94 | 439,531.55 | 711,979.09 | 0.4374 | 1,181,604.96 |
+| 818,166.67 | 47 | show + sdrs + aes + paid + partner | 669,432.08 | 0.00 | 216,464.43 | 452,967.65 | 698,542.99 | 0.4479 | 1,191,525.17 |
+| 878,166.67 | 63 | show + sdrs + aes + paid + social + partner | 682,478.79 | −22,356.79 | 225,625.55 | 456,853.24 | 694,657.40 | 0.0648 | 1,161,275.33 |
+| 2,209,333.33 | 103 | show + sdrs + aes + partner + hub | 747,653.96 | 33,939.27 | 280,429.42 | 467,224.54 | 684,286.10 | 0.0078 | 189,307.56 |
+| 2,269,333.33 | 119 | show + sdrs + aes + social + partner + hub | 783,057.46 | 33,939.27 | 289,590.54 | 493,466.92 | 658,043.72 | 0.4374 | 205,550.45 |
+| 2,299,333.33 | 111 | show + sdrs + aes + paid + partner + hub | 801,184.05 | 33,939.27 | 294,281.03 | 506,903.02 | 644,607.62 | 0.4479 | 215,470.66 |
+| 2,359,333.33 | 127 | show + sdrs + aes + paid + social + partner + hub | 813,843.52 | 11,195.25 | 303,442.15 | 510,401.37 | 641,109.27 | 0.0583 | 184,400.53 |
+
+Reading it:
+
+- **Membership is not monotone.** The SDR hire is in the best plan at 513,166.67, out at 565,000.00 and 595,000.00, in at 648,166.67, out again at 655,000.00 and in from 728,166.67. Between those budgets the plan can afford AEs or SDRs but not both, and with a trade show, a campaign and the partner program already filling April 2027, AEs (who add capacity) beat SDRs (who add more opportunities to a full team).
+- **Interactions are large.** At 513,166.67 the plan gives up 58,611.22 of ARR to lost opportunities. From 565,000.00 the AE hire brings that to zero.
+- **The last step is expensive.** The step after 878,166.67 needs 2,209,333.33. It brings in the hub pull-in in place of the two paid campaigns and closes 10,371.30 more of the gap, less than one cent per extra dollar, while NPV falls by 971,967.77. The plan is "best for the objective" and still allowed. Section 11.15 item 48 says why a CFO may refuse it.
+- **The target is out of reach.** Even with everything allowed, the risk-adjusted shortfall is 641,109.27.
+
+The plan-case frontier (`risk.method` "none") for the same list:
+
+| Budget needed (plan case) | Set | Initiatives in the set | Contribution | Interaction | Shortfall | Extra contribution per extra dollar | NPV |
+|---|---|---|---|---|---|---|---|
+| 0.00 | 0 | none | 0.00 | 0.00 | 1,151,510.64 | n/a | 0.00 |
+| 60,000.00 | 1 | show | 133,145.03 | 0.00 | 1,018,365.61 | 2.2191 | 202,196.90 |
+| 120,000.00 | 17 | show + social | 168,548.52 | 0.00 | 982,962.11 | 0.5901 | 218,439.79 |
+| 150,000.00 | 9 | show + paid | 180,069.62 | −6,605.49 | 971,441.02 | 0.3840 | 214,659.86 |
+| 200,000.00 | 33 | show + partner | 286,409.29 | 0.00 | 865,101.35 | 2.1268 | 507,404.08 |
+| 260,000.00 | 49 | show + social + partner | 306,147.08 | −15,665.71 | 845,363.56 | 0.3290 | 491,144.80 |
+| 283,166.67 | 3 | show + sdrs | 309,131.09 | −5,485.21 | 842,379.55 | 0.1288 | 657,374.55 |
+| 290,000.00 | 41 | show + paid + partner | 313,381.04 | −26,558.34 | 838,129.60 | 0.6219 | 478,465.53 |
+| 343,166.67 | 19 | show + sdrs + social | 322,320.07 | −27,699.72 | 829,190.56 | 0.1681 | 627,533.34 |
+| 350,000.00 | 57 | show + paid + social + partner | 326,944.87 | −48,398.00 | 824,565.77 | 0.6768 | 449,297.51 |
+| 363,166.67 | 34 | sdrs + partner | 334,735.54 | 0.00 | 816,775.10 | 0.5917 | 771,763.80 |
+| 423,166.67 | 35 | show + sdrs + partner | 441,736.22 | −26,144.34 | 709,774.42 | 1.7833 | 919,707.86 |
+| 483,166.67 | 51 | show + sdrs + social + partner | 455,274.42 | −48,009.64 | 696,236.22 | 0.2256 | 890,577.40 |
+| 513,166.67 | 43 | show + sdrs + paid + partner | 462,799.43 | −58,611.22 | 688,711.21 | 0.2508 | 878,497.92 |
+| 565,000.00 | 53 | show + aes + social + partner | 469,834.22 | 0.00 | 681,676.42 | 0.1357 | 715,048.34 |
+| 573,166.67 | 59 | show + sdrs + paid + social + partner | 476,750.79 | −80,063.36 | 674,759.85 | 0.8469 | 850,128.12 |
+| 595,000.00 | 45 | show + aes + paid + partner | 487,960.81 | 0.00 | 663,549.83 | 0.5134 | 724,968.56 |
+| 648,166.67 | 23 | show + sdrs + aes + social | 498,041.23 | 0.00 | 653,469.41 | 0.1896 | 876,397.78 |
+| 655,000.00 | 61 | show + aes + paid + social + partner | 517,440.25 | −5,924.06 | 634,070.39 | 2.8389 | 728,821.63 |
+| 728,166.67 | 39 | show + sdrs + aes + partner | 615,901.99 | 0.00 | 535,608.65 | 1.3457 | 1,165,362.06 |
+| 788,166.67 | 55 | show + sdrs + aes + social + partner | 651,305.49 | 0.00 | 500,205.15 | 0.5901 | 1,181,604.96 |
+| 818,166.67 | 47 | show + sdrs + aes + paid + partner | 669,432.08 | 0.00 | 482,078.56 | 0.6042 | 1,191,525.17 |
+| 878,166.67 | 63 | show + sdrs + aes + paid + social + partner | 682,478.79 | −22,356.79 | 469,031.85 | 0.2174 | 1,161,275.33 |
+| 2,209,333.33 | 103 | show + sdrs + aes + partner + hub | 747,653.96 | 33,939.27 | 403,856.68 | 0.0490 | 189,307.56 |
+| 2,269,333.33 | 119 | show + sdrs + aes + social + partner + hub | 783,057.46 | 33,939.27 | 368,453.18 | 0.5901 | 205,550.45 |
+| 2,299,333.33 | 111 | show + sdrs + aes + paid + partner + hub | 801,184.05 | 33,939.27 | 350,326.59 | 0.6042 | 215,470.66 |
+| 2,359,333.33 | 127 | show + sdrs + aes + paid + social + partner + hub | 813,843.52 | 11,195.25 | 337,667.12 | 0.2110 | 184,400.53 |
+
+**Test T137, expected selections.**
+
+| Budget (the eight) | Risk setting | Chosen set | Initiatives | Budget cost | Contribution | Haircut | Gap closed | Shortfall | NPV |
+|---|---|---|---|---|---|---|---|---|---|
+| 100,000.00 | none | 1 | show | 60,000.00 | 133,145.03 | 0.00 | 133,145.03 | 1,018,365.61 | 202,196.90 |
+| 285,000.00 | none | 3 | show + sdrs | 283,166.67 | 309,131.09 | 0.00 | 309,131.09 | 842,379.55 | 657,374.55 |
+| 500,000.00 | none | 51 | show + sdrs + social + partner | 483,166.67 | 455,274.42 | 0.00 | 455,274.42 | 696,236.22 | 890,577.40 |
+| 600,000.00 | none | 45 | show + aes + paid + partner | 595,000.00 | 487,960.81 | 0.00 | 487,960.81 | 663,549.83 | 724,968.56 |
+| 900,000.00 | none | 63 | show + sdrs + aes + paid + social + partner | 878,166.67 | 682,478.79 | 0.00 | 682,478.79 | 469,031.85 | 1,161,275.33 |
+| 3,000,000.00 | none | 127 | show + sdrs + aes + paid + social + partner + hub | 2,359,333.33 | 813,843.52 | 0.00 | 813,843.52 | 337,667.12 | 184,400.53 |
+| 100,000.00 | downside | 1 | show | 60,000.00 | 133,145.03 | 37,417.45 | 95,727.57 | 1,055,783.06 | 202,196.90 |
+| 285,000.00 | downside | 49 | show + social + partner | 260,000.00 | 306,147.08 | 95,956.48 | 210,190.60 | 941,320.04 | 491,144.80 |
+| 500,000.00 | downside | 51 | show + sdrs + social + partner | 483,166.67 | 455,274.42 | 157,849.77 | 297,424.66 | 854,085.98 | 890,577.40 |
+| 600,000.00 | downside | 45 | show + aes + paid + partner | 595,000.00 | 487,960.81 | 154,571.14 | 333,389.67 | 818,120.97 | 724,968.56 |
+| 900,000.00 | downside | 63 | show + sdrs + aes + paid + social + partner | 878,166.67 | 682,478.79 | 225,625.55 | 456,853.24 | 694,657.40 | 1,161,275.33 |
+| 3,000,000.00 | downside | 127 | show + sdrs + aes + paid + social + partner + hub | 2,359,333.33 | 813,843.52 | 303,442.15 | 510,401.37 | 641,109.27 | 184,400.53 |
+
+The haircut changes the choice at 285,000: in the plan case the trade show and the SDR hire together (309,131.09) beat the trade show, paid social and partner program (306,147.08). After haircuts the order flips (209,820.36 against 210,190.60), because an SDR hire that has to ramp and then sell through a four-month cycle has more ways to arrive late.
+
+**The explanation at the default budget of 500,000** (set 51, risk-adjusted):
+
+| Initiative | In the plan | Alone | In the plan (marginal) | Interaction | Reason if left out | Best allowed set with it | Gap closed lost by forcing it in |
+|---|---|---|---|---|---|---|---|
+| `show` | yes | 133,145.03 | 85,135.39 | −48,009.64 |  |  |  |
+| `sdrs` | yes | 181,471.27 | 149,127.34 | −32,343.93 |  |  |  |
+| `aes` | no | 148,021.43 |  |  | over budget | 13 (show + aes + paid) | 67,921.34 |
+| `paid` | no | 53,530.09 |  |  | over budget | 42 (sdrs + paid + partner) | 34,281.84 |
+| `social` | yes | 35,403.50 | 13,538.20 | −21,865.29 |  |  |  |
+| `partner` | yes | 153,264.26 | 132,954.35 | −20,309.92 |  |  |  |
+| `hub` | no | 97,812.69 |  |  | over budget | none within budget | n/a |
+| `host` | no | 0.00 |  |  | over budget | none within budget | n/a |
+
+Plan-level figures for set 51: ARR at month 12 = 30,503,763.78; interaction −48,009.64; opportunities lost to capacity 4.4583 (April 2027: 46.4583 created against 42); leads lost to overlap 0; unspent budget 16,833.33; total investment over 36 months 988,437.67; NPV 890,577.40; next step 513,166.67 (set 43, 2,834.51 more of the gap). Guardrails with the set: cash low point 18,894,433.69 (plan 18,008,506.93), lowest runway 31.65 months (34.44), blended CAC payback 17.99 (18.03), burn multiple 1.6762 (1.7556), gross margin 77.4971% (77.4538%). All pass.
+
+**Test T138, the ranked list is not the method.** At a budget of 600,000, filling the budget from the top of the ranked list (take each initiative in score order if the plan still fits and is allowed) gives show, partner, sdrs, paid, social: set 59, budget cost 573,166.67, gap closed 305,049.41. The exact search gives set 45 (show, aes, paid, partner), budget cost 595,000.00, gap closed 333,389.67: 28,340.25 better, by dropping the third-ranked and fifth-ranked initiatives for the sixth-ranked one. In the plan case the difference is 11,210.02 (476,750.79 against 487,960.81).
+
+### 11.13 More test cases
+
+Reference values unless marked. Every model run inside these tests must pass checks C1 to C22, and every portfolio result C23 and C24. "The eight" is the list of 11.12 and "the four" the list of 11.11.
+
+| Test | Scenario | Expected |
+|---|---|---|
+| T130 | Strategy objects (11.1, 11.2) | Four strategies in `strategyOrder`; `arr_growth_30` is active and the others are stubs. On the plan, `evaluateStrategy` for the growth strategy returns the section 2.18 rows (value 30,048,489.36, gap 1,151,510.64, guardrails 18,008,506.93 / 34.44 / 18.03 / 1.7556 / 77.45%, covenant watch line passing). Each stub returns the plan value, gap and guardrail values of the table in 11.2, all guardrails passing. Editing `guardrails.maxBurnMultiple` to 1.5 makes the growth strategy's burn multiple guardrail fail with limit 1.5 and headroom −0.2556, with no edit to the strategy object. **A strategy added at run time:** a copy of the growth strategy with objective `cash` at month 12, direction up, target 28,000,000 evaluates with no other change: plan value 27,381,491.22, gap 618,508.78; the trade show contributes +10,354.18 and the two AEs −262,683.33 (the ΔCash at month 12 of tests T40 and T41) |
+| T131 | Metric catalog on the plan | `arr` at 12: 30,048,489.36. `arrGrowth` at 12, 24, 36: 25.2020%, 25.0964%, 24.3861%. `cash` at 12: 27,381,491.22. `cashLow` over 1 to 36: 18,008,506.93. `runwayLow` over 1 to 12: 34.4367. `netBurnTotal` over 1 to 12: 10,618,508.78; over 13 to 24: 6,971,711.38. `burnMultiple` at 12, 24, 36: 1.7556, 0.9245, 0.2483. `blendedCacPayback`: 18.0280, 15.3224, 13.6236. `newLogoCacPayback`: 36.1423, 31.0514, 29.5403. `grossMarginTrailing`: 77.4538%, 80.4171%, 81.5381%. `ebitdaMarginTrailing`: −42.3214%, −23.1235%, −7.5476%. `fcfMarginTrailing`: −40.1517%, −20.2731%, −4.5867%. `ruleOf40`: −14.9497, 4.8233, 19.7994. By hand from section 8.2 for 2028: EBITDA margin −7,781,407.44 / 33,651,467.02; FCF = −6,491,711.38 − 480,000.00 − 950,484.73 + 1,100,000.00 = −6,822,196.11. An unknown metric id, or a month below 1, stops with a reason that names it |
+| T132 | Shared leads (11.4 a) | (a) paid and social together: paid channel leads in months 2 to 5 = 354.1667 / 406.2500 / 406.2500 / 319.4444; leads lost 34.7222; ΔARR at month 12 = 83,009.52. The same with the two listed in the other order. (b) Three in one month: add a 45,000 paid campaign in month 4 only (156.25 leads, the largest). Month 4 leads = 250 + 156.25 + 0.75 × (104.1667 + 69.4444) = 536.4583; month 3 stays 406.2500; leads lost 60.7639; ΔARR at month 12 = 105,136.24. (c) A tie: paid and an exact copy of it. Leads 432.2917 in months 2 to 4 (250 + 1.75 × 104.1667); ΔARR at month 12 = 1.75 × 53,530.09 = 93,677.65. (d) Direct leads and bought leads overlap: the trade show plus 14,000 of events program spend in month 4 with `from_cpl` (40 leads). Events leads in month 4 = 80 + 200 + 0.75 × 40 = 310; ΔARR at month 12 = 153,116.78 (the two alone: 133,145.03 and 26,629.01). (e) `sameChannelLeadOverlap` 0: months 3 and 4 = 423.6111 and ΔARR = 88,933.58, the sum of the two alone. Overlap 1: months 3 and 4 = 354.1667 and ΔARR = 65,237.35. (f) Each initiative alone, and tests T43, T44 and T113, are unchanged. (g) Two SDR hires do not overlap |
+| T133 | Scores of the eight | Every cell of the scores table in 11.12, and the ranked order. With `risk.method` "none" every haircut is 0 and the score equals contribution per dollar |
+| T134 | The four, all combinations | Every cell of the 16-row table in 11.11 |
+| T135 | Selection on the four | The selections table in 11.11 and the marginals below it |
+| T136 | Frontier of the eight | Every cell of both frontier tables in 11.12 (25 and 27 steps). Budget cost rises and gap closed never falls along each |
+| T137 | Selection on the eight | The selections table in 11.12; the explanation table and plan-level figures for 500,000; at 600,000 (set 45) marginals 133,145.03 (show), 174,579.77 (aes), 53,530.09 (paid), 153,264.26 (partner), with `BestWith` sets 7 for sdrs, 53 for social, 129 for host and none for hub, and forcing costs 23,986.84, 13,436.10 and 237,662.09 |
+| T138 | Ranked list against exact search | As in 11.12 |
+| T139 | Guardrails are tested on the combined plan | (a) Candidates hub and host, budget 3,000,000: set 3 is not allowed (burn multiple 2.0360; the other four guardrails pass), the choice is set 1 (hub alone, 1,481,166.67), and the reason for host is "breaks_guardrail: burn multiple". (b) `guardrails.maxBurnMultiple` 1.95, candidates show and hub: hub alone is **not** allowed (1.9707) but show with hub is (1.9250). At 2,000,000 the choice is set 3 (budget cost 1,541,166.67, contribution 236,786.51, NPV −868,254.59); at 1,500,000 it is set 1. (c) The plan already breaks a guardrail: `guardrails.maxBurnMultiple` 1.715 (plan 1.755564), the four, `risk.method` "none". Passing sets are 5, 7, 9, 11 and 15. Set 2 (aes alone, 1.756019) is not allowed because it is worse than the plan; the other ten are allowed with one guardrail still broken. Choice at 50,000: set 0, flagged as breaking the burn multiple. At 100,000: set 1 (1.716076, still broken, better than the plan). At 400,000: set 5 (show and paid, 1.713341, contribution 180,069.62), **not** set 3 (show and aes, contribution 281,166.46, 1.717445, still broken). At 520,000: set 15. (d) The eight sets of the eight that are not allowed are 192, 196, 200, 204, 208, 212, 216 and 220 |
+| T140 | A target within reach | `objective.arrTarget` 30,300,000: gap 251,510.64. The eight, plan case: at 150,000 set 9 (shortfall 71,441.02); at 200,000, 500,000 and 3,000,000 set 33 (show and partner): contribution 286,409.29, gap closed 251,510.64, shortfall 0, budget cost 200,000.00 whatever the budget, and every reason for a left-out candidate that fits is "no_gain". Risk-adjusted: at 200,000 set 33 (shortfall 51,896.71); at 400,000 set 34 (28,046.30); at 500,000 and 3,000,000 set 35 (show, sdrs, partner; budget cost 423,166.67; shortfall 0). **Target already met:** `objective.arrTarget` 30,000,000 gives distance −48,489.36 and gap 0, and the choice is set 0 at every budget |
+| T141 | Committed, excluded and business rules | The eight, `risk.method` "none". (a) `aes` committed: `Ref` has budget cost 305,000.00 and contribution 148,021.43. At 300,000 the answer is set 0 marked over budget by 5,000.00. At 500,000: show and paid are added (budget cost 455,000.00, contribution 334,696.55). At 600,000: show, paid and partner (595,000.00, 487,960.81). (b) `partner` excluded, budget 500,000: show, sdrs, paid, social (433,166.67, 343,451.04), and partner is listed with reason "excluded". (c) `hub` committed, budget 500,000: over budget by 981,166.67. (d) Rules are input-checked: an unknown id in `requires`, an initiative that requires itself, a committed initiative that requires an excluded one, and two committed members of one `exclusiveGroup` each stop with a reason |
+| T142 | Another strategy, same code | The eight, budget 550,000, `risk.method` "none", one run per strategy with only `activeStrategy` changed. Expected choices and contributions are in the two tables below. Under `cash_runway` every initiative except the trade show makes the objective worse, the hub pull-in alone breaks that strategy's runway guardrail (27.06 against 30), and the choice at any budget is the trade show alone |
+| T143 | Fifteen candidates | The list and expected results below. 32,768 rows, 18,432 valid, 18,331 allowed (the other 101 break the burn multiple). Sixteen candidates stop with "choose at most 15 candidates" |
+| T144 | Stress test (11.9) | (a) A list of one initiative reproduces that initiative's own simulation run for run (trade show and hub pull-in). (b) Same seed, same result; chunks give the same runs. (c) With every range collapsed and no slips, every run equals the plan-case row of the set. (d) Reference values for the eight, default seed, 1,000 runs. Set 51: ARR at month 12 P10 / P50 / P90 = 30,077,844.03 / 30,437,671.41 / 30,837,146.33; contribution 380,342.74 / 440,271.47 / 498,617.04; probability of meeting the target 0.7%; guardrail pass shares with the set (plan alone): cash floor 99.1% (96.2%), burn multiple 99.6% (98.3%), the other three 100%; all guardrails 99.1% (96.1%); main risk: cash floor. Set 127 (everything but hosting): contribution 622,448.41 / 750,981.75 / 888,315.07; target met in 10.5% of runs; cash floor 91.7%, burn multiple 76.4%, all guardrails 76.4%; main risk: burn multiple. The plan alone: ARR at month 12 29,676,149.26 / 30,001,184.73 / 30,356,795.70 |
+| T145 | Tamper tests, as in section 4.2 | On the set 51 result of the eight: add 1.00 to the stored objective value: C21. Flip one stored guardrail pass flag: C21. Change the growth strategy's cash floor limit to a typed 14,000,000 while `guardrails.cashFloor` stays 15,000,000: C21. On the paid and social run: add 1.00 to the stored `InitiativeLeads` of paid in month 3: C22. Set the stored kept leads of social in month 3 to all of its leads: C22. On the table: delete a row: C23. Add 1.00 to the stored contribution of set 1: C23. Add 1.00 to the stored budget cost of the chosen row: C23. Replace the chosen set by set 43 (over budget at 500,000): C24. Replace it by set 35 (allowed, within budget, ranks lower): C24. Add 1.00 to a stored marginal: C24. Swap two frontier rows: C24 |
+| T146 | Input checks | Each stops and names the input: `activeStrategy` unknown; an objective with no target; `direction` "sideways"; `pass` "about"; a guardrail limit that references a missing input; two guardrails with one id; `risk.percentile` 0 or 0.6 (allowed: above 0, at most 0.5); `portfolio.budget` negative; `budgetFromMonth` after `budgetToMonth`; `portfolio.maxCandidates` 16; `sameChannelLeadOverlap` 1.2; `portfolio.status` "maybe" |
+| T147 | Nothing else moved | With the default inputs and no initiatives, every test T01 to T127 passes unchanged, the null portfolio gives two equal rows and set 0, and the badge reads "Integrity 24/24" |
+| UI (in `tests/run.js`, written in Step 6b) | The Strategy view | Objective and guardrails with progress to target; the ranked list with score, budget cost, extra new ARR and guardrail status; the budget slider reproduces the selections table of 11.12 without rerunning the model; the combined forecast shows plan against plan plus set 51 and the remaining gap; the strategy selector lists four strategies, three labelled Draft, and switching reproduces T142; no em dashes; no sideways scrolling on a 390px phone |
+
+**Test T142, expected results.**
+
+| Strategy | Objective value in the plan | Chosen set at 550,000 | Initiatives | Budget cost | Objective value with the set | Contribution |
+|---|---|---|---|---|---|---|
+| `arr_growth_30` | 30,048,489.36 | 43 | show + sdrs + paid + partner | 513,166.67 | 30,511,288.79 | 462,799.43 |
+| `margin_expansion` | −23.1235% | 43 | show + sdrs + paid + partner | 513,166.67 | −21.4366% | 1.6870 |
+| `cash_runway` | 10,618,508.78 | 1 | show | 60,000.00 | 10,608,154.60 | 10,354.18 |
+| `efficient_growth` | 19.7994 | 6 | sdrs + aes | 528,166.67 | 24.5573 | 4.7580 |
+
+| Initiative | Growth: ARR at month 12 | Margin expansion: EBITDA margin points | Cash preservation: net burn saved | Efficient growth: Rule of 40 points |
+|---|---|---|---|---|
+| `show` | 133,145.03 | 0.4674 | 10,354.18 | 0.3054 |
+| `sdrs` | 181,471.27 | 0.5323 | −157,422.56 | 2.5545 |
+| `aes` | 148,021.43 | 0.1899 | −262,683.33 | 2.2941 |
+| `paid` | 53,530.09 | 0.1818 | −59,808.95 | 0.1179 |
+| `social` | 35,403.50 | 0.1202 | −40,566.00 | 0.0779 |
+| `partner` | 153,264.26 | 0.7358 | −68,854.29 | 0.5884 |
+| `hub` | 97,812.69 | 0.6254 | −1,494,057.93 (breaks runway) | 0.4644 |
+| `host` | 0.00 | 0.0000 | −401,550.29 | 0.0000 |
+
+Contributions are in the objective's own unit: dollars of ARR, percentage points of EBITDA margin, dollars of net burn saved (negative means more burn) and Rule of 40 points.
+
+**Test T143, the fifteen.** The eight, then seven more. All built from the templates of section 1.17 except the partner boost.
+
+| # | Initiative | Built from | Contribution | Budget cost | Downside (P10) | Haircut | Score |
+|---|---|---|---|---|---|---|---|
+| 1 | Trade show (`show`) | Trade show template, defaults | 133,145.03 | 60,000.00 | 95,727.57 | 37,417.45 | 1.5955 |
+| 2 | Hire 2 SDRs (`sdrs`) | Hire SDRs template, defaults (test T46) | 181,471.27 | 223,166.67 | 119,577.99 | 61,893.28 | 0.5358 |
+| 3 | Hire 2 AEs (`aes`) | Hire AEs template, defaults | 148,021.43 | 305,000.00 | 94,097.26 | 53,924.17 | 0.3085 |
+| 4 | Paid search campaign (`paid`) | Paid campaign template, defaults | 53,530.09 | 90,000.00 | 39,678.48 | 13,851.61 | 0.4409 |
+| 5 | Paid social test (`social`) | Paid campaign: 60,000 over 3 months from month 3 | 35,403.50 | 60,000.00 | 26,242.38 | 9,161.12 | 0.4374 |
+| 6 | Partner program (`partner`) | Partner program template, defaults (test T75) | 153,264.26 | 140,000.00 | 103,886.35 | 49,377.91 | 0.7420 |
+| 7 | Hub pull-in (`hub`) | Pull in a revenue milestone, defaults (section 9.11) | 97,812.69 | 1,481,166.67 | 19,996.09 | 77,816.60 | 0.0135 |
+| 8 | Hosting pull-in (`host`) | Pull in a cost-saving milestone, defaults (section 9.12) | 0.00 | 525,000.00 | 0.00 | 0.00 | 0.0000 |
+| 9 | Summer trade show (`summer_show`) | Trade show: month 6, booth 40,000, travel 10,000, 16 staff days, 150 leads | 98,280.00 | 50,000.00 | 58,989.67 | 39,290.33 | 1.1798 |
+| 10 | Hire 1 more AE (`ae_one`) | Hire AEs: 1 from month 3 | 57,351.90 | 140,000.00 | 29,347.65 | 28,004.25 | 0.2096 |
+| 11 | Hire 3 SDRs (`sdrs3`) | Hire SDRs: 3 from month 2. `exclusiveGroup` "sdr_hiring" with `sdrs` | 272,206.91 | 334,750.00 | 179,366.98 | 92,839.93 | 0.5358 |
+| 12 | Regional roadshow (`roadshow`) | Trade show: month 4, booth 15,000, travel 5,000, 8 staff days, 80 leads | 53,258.01 | 20,000.00 | 38,291.03 | 14,966.98 | 1.9146 |
+| 13 | Partner boost (`partner_boost`) | `program_spend` on partners, 15,000 a month in months 3 to 5, `from_cpl`. `requires` partner | 100,099.17 | 45,000.00 | 74,353.83 | 25,745.34 | 1.6523 |
+| 14 | Paid retargeting (`retarget`) | Paid campaign: 45,000 over 3 months from month 6 | 25,925.42 | 45,000.00 | 19,216.88 | 6,708.54 | 0.4270 |
+| 15 | Second-half paid push (`h2_push`) | Paid campaign: 120,000 over 4 months from month 5 | 69,411.73 | 120,000.00 | 51,450.54 | 17,961.19 | 0.4288 |
+
+`sdrs` and `sdrs3` share `exclusiveGroup` "sdr_hiring", and `partner_boost` has `requires: ["partner"]`, so `3/4 × 3/4` of the 32,768 sets are valid. The boost is still scored alone, like every initiative. Expected selections:
+
+| Budget (the fifteen) | Risk setting | Chosen set | Initiatives | Budget cost | Contribution | Gap closed | Shortfall |
+|---|---|---|---|---|---|---|---|
+| 250,000.00 | none | 289 | show + partner + summer_show | 250,000.00 | 384,689.29 | 384,689.29 | 766,821.35 |
+| 500,000.00 | none | 6434 | sdrs + partner + summer_show + roadshow + partner_boost | 478,166.67 | 569,689.52 | 569,689.52 | 581,821.12 |
+| 1,000,000.00 | none | 15653 | show + aes + partner + summer_show + sdrs3 + roadshow + partner_boost + retarget | 999,750.00 | 912,606.57 | 912,606.57 | 238,904.07 |
+| 1,500,000.00 | none | 32573 | show + aes + paid + social + partner + summer_show + ae_one + sdrs3 + roadshow + partner_boost + retarget + h2_push | 1,409,750.00 | 1,079,070.57 | 1,079,070.57 | 72,440.07 |
+| 5,000,000.00 | none | 22373 | show + aes + partner + hub + summer_show + ae_one + sdrs3 + partner_boost + h2_push | 2,675,916.67 | 1,168,344.41 | 1,151,510.64 | 0.00 |
+| 250,000.00 | downside | 289 | show + partner + summer_show | 250,000.00 | 384,689.29 | 258,603.60 | 892,907.04 |
+| 500,000.00 | downside | 6434 | sdrs + partner + summer_show + roadshow + partner_boost | 478,166.67 | 569,689.52 | 378,415.68 | 773,094.96 |
+| 1,000,000.00 | downside | 13605 | show + aes + partner + summer_show + sdrs3 + partner_boost + retarget | 979,750.00 | 906,311.81 | 601,008.13 | 550,502.50 |
+| 1,500,000.00 | downside | 30525 | show + aes + paid + social + partner + summer_show + ae_one + sdrs3 + partner_boost + retarget + h2_push | 1,389,750.00 | 1,071,908.04 | 697,626.19 | 453,884.45 |
+| 5,000,000.00 | downside | 30589 | show + aes + paid + social + partner + hub + summer_show + ae_one + sdrs3 + partner_boost + retarget + h2_push | 2,870,916.67 | 1,225,049.95 | 772,951.50 | 378,559.14 |
+
+The frontier has 82 steps in the plan case and 72 risk-adjusted. At 5,000,000 in the plan case the target is met (contribution 1,168,344.41 against a gap of 1,151,510.64) and the search returns the cheapest set that meets it, 2,675,916.67, not the largest one.
+
+### 11.14 Check of this section's math
+
+1. **Two independent calculations of the objective for every combination.** The reference values come from the audited engine of Steps 1 to 5 used as a calculator, with the shared-leads rule applied by rewriting each smaller campaign's inputs before the run (75% of its direct leads, or its `cplMultiplier` divided by 0.75, in the overlapping months). They were then recomputed by a separate script that shares no code with the engine: its own funnel, capacity and ARR rollforward for months 1 to 12 with the shared-leads rule built into the leads step, and its own arithmetic for budget cost from the template inputs. The two agree on the contribution and the budget cost of all 256 sets of the eight and all 18,432 valid sets of the fifteen. Largest difference: 0.00000003.
+2. **Two independent searches.** The reference selection scans the table row by row. The second script walks the candidates one at a time, in or out, and compares complete sets. They choose the same set at every budget in 11.11, 11.12, T140 and T143, in both risk settings (44 selections).
+3. **Two independent simulations for the haircuts.** The P10 of the contribution of each of the fifteen initiatives was recomputed by the second script with its own copy of the random number generator, the draw order of section 10.1 and its own model. All fifteen match the engine's simulation to the cent. The same script reproduces the stress test's ARR percentiles and target probabilities for sets 51 and 127.
+4. **Hand checks.** The four standalone contributions, the shared-leads and capacity interactions of sets 5, 12, 13 and 15, every budget cost, and the 2028 margins of T131 are worked by hand above and match the tables.
+5. **Identities.** In every row of the 16-row table, contribution equals the sum of the parts plus the interaction, and risk-adjusted equals contribution minus haircut. Set 3 of the four (show and aes) reproduces test T43 (281,166.46, NPV 393,598.27). The hub with the hosting pull-in reproduces T113 (burn multiple 2.0360, NPV −1,461,937.29) and the show with the hub its 236,786.51. Along both frontiers gap closed never falls. Every single-member row equals the initiative's standalone score.
+6. **Checked by one path only:** every guardrail value, NPV and the guardrail pass shares of the stress test come from the engine alone (the second script has no P&L or cash). The three stub strategies use the engine alone plus the hand check of their plan values. If Step 6b gets different numbers for T142 or for the pass shares in T144, recheck these before changing the engine.
+7. **Timing, measured while writing this:** the 18,432 runs of the fifteen took about 9 seconds in Node on one core.
+
+### 11.15 Assumptions a real CFO would question
+
+These continue the list in sections 7, 9.15 and 10.7.
+
+47. **The objective is one number on one date.** ARR at month 12 gives no credit for what an initiative adds later and full credit for whatever lands by December. A trade show in June counts (98,280.00) and the same show in September would count zero, because its deals close in month 14. Hires look weak for the same reason. The guardrails and NPV look further out, the objective does not.
+48. **The objective outranks value.** The search will fund an initiative that loses money if it moves the objective and breaks no guardrail. With 2,209,333.33 of budget the best plan of the eight takes the hub pull-in (NPV −1,082,747.69 alone) in place of the two paid campaigns, for 10,371.30 more risk-adjusted ARR, and plan NPV falls from 1,161,275.33 to 189,307.56. The app flags every member with NPV below zero and shows the extra gap closed per extra dollar, but it does not refuse. A CFO may want a rule that nothing with negative NPV is funded.
+49. **The budget is this year's new cash.** Two AEs count as 305,000.00 against the budget and cost 932,270.00 over the model. Staff time is left out. The cash floor over 36 months and NPV are the only brakes on cost after the window.
+50. **The risk haircut adds up, with no credit for diversification.** A set's haircut is the sum of its members' P10 haircuts. Risks that do not move together partly cancel, so the true P10 of a plan is better: set 51 has a risk-adjusted contribution of 297,424.66 and a simulated P10 of 380,342.74. The search is therefore conservative, and more so the more members a plan has, which tilts it slightly toward fewer, larger initiatives.
+51. **P10 is a choice.** It is the downside already shown on every card. A different percentile changes haircuts and can change the plan (the flip at 285,000 goes away with no haircut). The haircut is also measured alone: it does not shrink when an interaction has already shrunk what the initiative adds.
+52. **Guardrails are tested in the plan case.** A plan is "allowed" if it passes with every driver at its planned value. The stress test shows how often that holds: the plan itself passes all five in 96.1% of runs, and the largest allowed set of the eight in 76.4%. The search does not use those shares.
+53. **Shared leads is one number.** 25% for every channel, only for the same month, and the larger campaign keeps everything. Real overlap depends on audience and creative, carries across months, and would be higher in paid digital than at two different trade shows.
+54. **Capacity losses are spread over every channel** (section 7 item 8). That rule is why adding a cheap campaign to a full month can cost outbound deals, and it drives most of the interactions in 11.12. If the team worked its best opportunities first, the losses and the value of an AE hire inside a plan would both be smaller.
+55. **Initiatives are fixed as entered.** The search chooses which, not when or how big. Moving the trade show to May might avoid the April crunch. Alternatives have to be entered as separate initiatives in one `exclusiveGroup`.
+56. **Once the target is met, the cheapest plan wins.** Leftover budget is not spent on further positive-NPV initiatives. That is the right reading of "at least $31.2M" and may not be what a growth board wants.
+57. **A plan that already breaks a guardrail can still take on initiatives** as long as they do not make it worse. A stricter rule would freeze spending until the breach is repaired.
+58. **Fifteen is a hard limit.** The method is exact because it tries everything, and that doubles with each candidate. A longer list has to be shortlisted by a person, using the ranked list, which is the one place a good combination could be missed.
+59. **Marginal contributions are not a fair split.** They do not add up to the plan's total, and an initiative's marginal depends on what else is in the plan. They answer "what do we lose if we drop this one", not "what did each contribute".
+60. **The stub strategies are placeholders.** The Rule of 40 target is not reachable inside the model (the plan reaches 19.80 at month 36 and the best set of the eight 26.02). It uses free cash flow margin, which annual upfront billing flatters; many would use EBITDA margin. The cash strategy's objective is first-year burn, so it rejects everything that spends, including initiatives that raise the cash low point by 2029. The margin strategy measures one year and ignores how the margin is reached. Each needs its own targets, windows and test cases before it is used.
+
+### 11.16 Glossary additions and engine interface
+
+| Term | Plain meaning |
+|---|---|
+| Strategy | One objective plus the guardrails that must not break while pursuing it |
+| Objective | The one number the strategy wants moved, with a target and a date |
+| Gap | How far the plan is from the target today |
+| Watch line | A limit that is reported but not used to accept or reject a plan |
+| Contribution | What an initiative, or a set, adds to the objective |
+| Budget cost | New cash an initiative needs inside the budget window |
+| Downside | The contribution that nine simulated runs in ten beat |
+| Haircut | Plan-case contribution minus the downside: the part we do not count on |
+| Score | Risk-adjusted contribution per budget dollar |
+| Candidate, committed, excluded | An initiative the search may choose, must include, or must leave out |
+| Combined plan | The plan with a set of initiatives applied together in one run |
+| Allowed | A combined plan that breaks no guardrail (or makes none worse than it already is) |
+| Shortfall | What is still missing from the target after the set, counting only what can be relied on |
+| Interaction | Contribution of a set minus the sum of its members alone |
+| Marginal | What a plan loses if one member is dropped |
+| Frontier | The best plan at each budget level |
+| Stress test | A simulation of the chosen plan as a whole |
+
+Engine interface (names are suggestions, behavior is required; this extends sections 2.19, 9.16 and 10.5):
+
+- `metricCatalog` and `evaluateStrategy(assumptions, strategy, result)` (11.1). `activeStrategyOf(assumptions)` returns the active strategy with its input references resolved.
+- `runModel` applies the shared-leads rule and returns `InitiativeLeads`, each initiative's `L` and `Kept` per channel and month, `LeadsLostToOverlap` and `OppsLostToCapacity`.
+- `simulate` records the contribution per run and reports its percentiles. `scoreInitiative(assumptions, strategy, initiative, downside)` returns the row of 11.5.
+- `portfolioSetup(assumptions, strategy, initiatives)`, `portfolioRows(setup, from, to)` and `portfolioTable(setup, rows)` build the table of 11.7 in chunks. The table does not depend on the budget or the haircuts.
+- `selectPortfolio(table, haircuts, budget)` returns the chosen row, the explanation of 11.8 and the frontier. It runs no model, so the budget slider calls it directly. Haircuts are an argument so a test can pass stated values.
+- `simulatePortfolio(assumptions, strategy, initiatives, set, { runs, seed })` (11.9), chunked like `simulate`.
+- `runChecks` returns 22 checks for a model result; `portfolioChecks(result)` returns C23 and C24, and the badge shows all 24.
