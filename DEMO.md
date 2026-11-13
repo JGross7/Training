@@ -1,6 +1,43 @@
-# Demo script: Capital Allocation Copilot in 5 minutes
+# Demo scripts: Capital Allocation Copilot
 
-For showing the app in an interview. Open `index.html` in a browser (no server needed). The numbers below are what the app shows with the default assumptions; if you edit anything first, the app's numbers win.
+Two scripts: a 75-second screen recording for LinkedIn (the dashboard), and a 5-minute walkthrough for an interview (the Analyst view). Open `index.html` in a browser; no server is needed. The numbers below are what the app shows with the default assumptions; if you change anything first, the app's numbers win.
+
+---
+
+## LinkedIn video: "What is deciding with data worth?" (about 75 seconds)
+
+**Set-up:** browser at 1366 x 800 or larger, page zoom 100%, the dashboard freshly loaded (it opens on 2027 with a $500K budget). Record the browser window only. Move the mouse slowly; every change animates.
+
+**0:00 to 0:08. The hook.** Hover the title.
+> "Eight teams want money. One budget. Do you trust your gut, or the data? Here is what the difference is worth, in dollars."
+
+**0:08 to 0:20. 01 Where we stand.** Sweep left to right across the four cards.
+> "A fictional SaaS company: ARR, cash, burn and margin, each against the plan and its limit. Every number comes from a three-statement model, and the green badge says all 24 integrity checks pass."
+
+**0:20 to 0:35. 02 Same budget, two ways to spend it.** Point at the two columns, then the gold headline.
+> "Gut feel funds the biggest promises first. The data runs every combination through the model and keeps the one with the most value that fits the budget and breaks no guardrail. At $500K, the data plan creates $29K more value and spends $60K less."
+
+**0:35 to 0:50. Drag the budget slider to $600K.** Let the numbers settle.
+> "Give gut feel more money and it hires two account executives because they promise the most ARR. The data plan says no: it keeps the partner program instead. $60K more value, $165K less spent this year, and 99 cents of value per dollar committed against 51."
+
+**0:50 to 0:58. 03 Where the extra value comes from.** Point at the red and green bars.
+> "Here is why: dropping the AEs costs $203K of value, adding the partner program brings $262K. Each bar is a full model run."
+
+**0:58 to 1:08. Drag the budget to $1.5M, then back to $600K.**
+> "With a big budget, gut feel even funds a hosting project that never pays back. The data plan leaves $682K unspent and still creates $408K more value."
+
+**1:08 to 1:15. 04 CFO briefing.** Scroll down a little.
+> "And the briefing writes itself from the model: what happened, why, what to decide. Change any slider and it rewrites. Deciding with data is not a feeling; it is a number."
+
+**Optional extras** (if you want a longer cut): click **2029** to show the three-year view, move **Win rate** to +25% to show everything recalculating, or click **Analyst view** to show the full model behind it.
+
+**Caption idea:** "Same budget. Gut feel vs data. The data plan created $60K more value and spent $165K less. Fictional company, real method: every combination run through a 3-statement model, 24 integrity checks on every recalculation."
+
+---
+
+## Interview walkthrough (5 minutes, Analyst view)
+
+Open `index.html?mode=analyst`, or click **Analyst view** on the dashboard.
 
 **Before you start:** open the page once, click **Reset** in Assumptions if you used it before, and close any saved-scenario experiments. Have the window at laptop width.
 
@@ -23,7 +60,7 @@ Click the **Strategy** tab.
 - Objective: ARR of **$31.2M** by Dec 2027. The plan gets to **$30.0M**, so there is a **$1.2M gap**.
 - Guardrails: cash floor $15M, runway at least 18 months, CAC payback at most 24 months, burn multiple at most 2.0x, gross margin at least 72%. The $12M covenant is a watch line.
 - Open the **Strategy** dropdown: "Three more strategies are drafted, margin expansion, cash preservation, Rule of 40. Adding one is a new configuration object, no new code." Leave it on the growth strategy.
-- Click **Load the example list**: eight proposals appear in the ranked list. "Each is scored alone: how much of the gap it closes that we can count on, per dollar of this year's budget." The scores fill in over about ten seconds as each one's risk simulation finishes.
+- If the ranked list is empty (you opened `?mode=analyst` directly), click **Load the example list**: eight proposals appear in the ranked list. Coming from the dashboard, they are already there. "Each is scored alone: how much of the gap it closes that we can count on, per dollar of this year's budget." The scores fill in over about ten seconds as each one's risk simulation finishes.
 
 ## 1:15 to 2:15. Evaluate a trade show
 

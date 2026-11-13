@@ -3329,3 +3329,77 @@ A scenario is the assumptions object plus the initiative list (with statuses, co
 | T152 | Briefing rewrites | Changing the budget to 600,000 changes the recommendation to set 45; a completed trade show with the actuals of 12.1 is reported under "What happened" |
 | T153 | Scenario summary | Equals the values of `applyInitiatives` for the same inputs; the plan's summary shows 30,048,489.36 at month 12 and a cash low point of 18,008,506.93 |
 | UI | Briefing, learning loop, scenarios, overlay | The briefing tab shows the four sections and rewrites when the budget moves; marking the trade show completed and entering 160, 1 and 48,000 shows actual against expected and the four proposed values, applying them marks them changed in Assumptions and undo restores them; a saved scenario survives a reload, loads back and appears in the compare table; "How to read this" opens and closes with Escape; no em dashes; no sideways scrolling at 390px |
+
+## 13. Dashboard: the return on deciding with data
+
+The first screen of the app is a dashboard for a short video: one question, five numbered sections and a few sliders. It adds no formula to the model. It compares two ways to spend the same budget, both read from the portfolio table of section 11.7, and it is checked by C24 (e). The detailed app of sections 1 to 12 is one click away ("Analyst view", or `index.html?mode=analyst`).
+
+### 13.1 Two ways to spend the same budget
+
+The candidates are the initiatives in the list (the dashboard starts with the eight of 11.12). For a budget `b`:
+
+```
+Gut feel (fund the biggest promises first):
+  order the candidates by their headline promise, ExtraNewArr_i (new ARR over the whole model, initiative alone, section 2.17),
+  largest first, ties in listing order;
+  start from no candidate; add each in that order if the combination is valid (11.7 step 2) and BudgetCost ≤ b + 0.01.
+  It does not look at guardrails, timing, risk or interactions.
+
+Data-driven (most value that fits and keeps every guardrail):
+  among the rows that are valid, allowed (11.6) and have BudgetCost ≤ b + 0.01, the highest NPV;
+  ties: lower budget cost, then lower set number.
+
+Gain       = NPV(data) − NPV(gut)                   value created by deciding with data, same budget
+Saved      = BudgetCost(gut) − BudgetCost(data)     spend this year
+ValuePer$1 = NPV / TotalInvestment                   value per dollar committed over the model (section 2.17)
+```
+
+Why value and not the growth objective: section 11's objective is ARR on one date (11.15 item 47). With it, the search can prefer a set that adds December ARR but less value; at 600,000 the growth pick (set 45) has 724,968.56 of NPV against 860,154.88 for gut feel. Ranking by NPV within the budget and the guardrails is the fair test of "data-driven", and by construction it never creates less value than gut feel when gut feel keeps the guardrails.
+
+**The value bridge** goes from the gut-feel set to the data set: drop, in listing order, each member of the gut set the data set does not hold, then add each member of the data set the gut set does not hold. Each step is the NPV difference of two stored rows (a step into a combination that is not valid is merged with the next), so the steps add up to the gain exactly.
+
+**Reference values (the eight, default assumptions, test T156):**
+
+| Budget | Gut feel | Its NPV | Data-driven | Its NPV | Gain | Bridge |
+|---|---|---|---|---|---|---|
+| 400,000 | 34 (sdrs, partner) | 771,763.80 | 34 | 771,763.80 | 0.00 | none |
+| 500,000 | 51 (show, sdrs, social, partner) | 890,577.40 | 35 (show, sdrs, partner) | 919,707.86 | 29,130.45 | drop paid social +29,130.45 |
+| 600,000 | 7 (show, sdrs, aes) | 860,154.88 | 35 (show, sdrs, partner) | 919,707.86 | 59,552.98 | drop AEs −202,780.33, add partner +262,333.31 |
+| 1,500,000 | 191 (all but the hub pull-in) | 783,572.71 | 47 (show, sdrs, aes, paid, partner) | 1,191,525.17 | 407,952.46 | drop paid social, drop hosting pull-in |
+
+At 600,000: gut feel spends 588,166.67 this year and commits 1,700,707.67 over the model (0.5058 of value per dollar); the data set spends 423,166.67 and commits 928,437.67 (0.9906 per dollar). Headline promises, largest first: sdrs, aes, partner, hub, show, paid, social, host.
+
+### 13.2 Check C24 (e)
+
+C24 gains a part (e), on every portfolio result: the data pick equals a plain scan for the highest NPV among valid, allowed rows within the budget (same tie rule); the gut pick equals a greedy fill by headline promise recomputed from the stored standalone figures; each pick's NPV and budget cost equal its row; the bridge starts at the gut-feel NPV, every step equals the difference of its two rows, and the steps add up to the data NPV. The badge still counts 24 checks.
+
+### 13.3 Cash river
+
+For the year shown (months `12y − 11` to `12y`) and the run with the data set:
+
+```
+In:  customers in the plan     = Σ Collections_m of the plan
+     customers from decisions  = Σ Collections_m of the run − the plan's      (zero or more)
+     interest earned           = Σ InterestIncome_m
+Out: team                      = Σ (Payroll_m + Commissions_m)
+     vendors, hosting, programs= Σ VendorPaid_m
+     equipment                 = Σ Capex_m
+     interest and tax          = Σ (InterestExpense_m + Tax_m)
+     debt repayment            = Σ Principal_m
+Closing: ΔCash = Cash_end − Cash_start; added to reserves (out) if ΔCash ≥ 0, drawn from reserves (in) otherwise.
+```
+
+Cash in equals cash out to the cent, because this is the direct cash formula of section 2.11 summed over the year.
+
+### 13.4 Cards and briefing
+
+Four cards for the year shown, with the data set: ARR (against the plan, and against the target in the objective's year, otherwise growth), lowest month-end cash in the year (against the plan and the floor), burn multiple (against the plan and the limit) and trailing gross margin (against the plan and the guardrail), each with the 36-month line of the plan and of the data set. The briefing has three short sections: what happened, why (both picks, their value and the spend saved) and what to decide. Every sentence is a list of parts: text, an engine number (a fact) or an initiative name (an input, recorded as given). No text part contains a digit.
+
+### 13.5 Tests
+
+| Test | Scenario | Expected |
+|---|---|---|
+| T156 | Picks | The table of 13.1, a brute-force scan for the data pick, the bridge adding up, value per dollar 0.990597 and 0.505763 at 600,000, and the order of promises |
+| T157 | Dashboard view | For 500,000, 600,000 and 1,500,000 and each year: the cash river balances and its customer streams add up to collections, the ARR card is the model, no number outside the recorded facts; at 600,000 the briefing names both picks, a gain of 59,552.98 and 176,833.33 of budget freed |
+| T158 | C24 (e) can fail | A wrong data pick, a wrong gut pick, a bridge step off by 1.00 and a pick value off by 1.00 each fail C24 |
+| UI | The dashboard | It is the first screen, with five numbered sections, four cards and the badge at 24/24; the budget slider reproduces 13.1 at 500,000 and 600,000 and the briefing rewrites itself; the year toggle moves the cards and the cash river; a win-rate slider lifts ARR with every check passing; Reset restores; the Analyst view opens and returns; no em dashes; no sideways scrolling at 390px |

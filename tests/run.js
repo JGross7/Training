@@ -10,6 +10,7 @@ const { extract } = require('./extract-spec-tables');
 
 const ROOT = path.resolve(__dirname, '..');
 const PAGE = 'file://' + path.join(ROOT, 'index.html');
+const APP = PAGE + '?mode=analyst'; // the detailed app (the bare page opens the dashboard)
 
 (async () => {
   const browser = await chromium.launch();
@@ -44,7 +45,7 @@ const PAGE = 'file://' + path.join(ROOT, 'index.html');
     // 3. Normal page: renders, badge reads Integrity 24/24, no errors
     const app = await browser.newPage();
     app.on('pageerror', e => errors.push(String(e)));
-    await app.goto(PAGE);
+    await app.goto(APP);
     const badge = (await app.textContent('#badge')).trim();
     const rows = await app.$$eval('#app table tr', trs => trs.length);
     const badgeOk = badge === 'Integrity 24/24' && rows > 36;
@@ -147,7 +148,7 @@ const PAGE = 'file://' + path.join(ROOT, 'index.html');
     // Phone width: no sideways scrolling of the page, and the cards are on screen.
     const phone = await browser.newPage({ viewport: { width: 390, height: 844 } });
     phone.on('pageerror', e => errors.push(String(e)));
-    await phone.goto(PAGE);
+    await phone.goto(APP);
     const pw = await phone.evaluate(() => ({ sw: document.documentElement.scrollWidth, cards: document.querySelectorAll('[data-kpi]').length,
       right: Math.max(...Array.from(document.querySelectorAll('.kpi, .card')).map(e => e.getBoundingClientRect().right)) }));
     check('Phone: no horizontal page scroll', pw.sw <= 390 && pw.right <= 390, JSON.stringify(pw));
@@ -156,7 +157,7 @@ const PAGE = 'file://' + path.join(ROOT, 'index.html');
     // 5. Initiative Evaluator (Step 3), on a fresh page.
     const ev = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     ev.on('pageerror', e => errors.push(String(e)));
-    await ev.goto(PAGE);
+    await ev.goto(APP);
     await ev.click('[data-view-tab="initiatives"]');
     const tpls = await ev.$$eval('[data-template]', els => els.map(e => e.getAttribute('data-template') + ':' + e.querySelector('b').textContent));
     check('Seven templates', tpls.join('|') === 'tradeShow:Trade show or event|hireSdrs:Hire SDRs|hireAes:Hire AEs|paidCampaign:Paid campaign|partnerProgram:Partner program|' +
@@ -252,7 +253,7 @@ const PAGE = 'file://' + path.join(ROOT, 'index.html');
     // 6. Product acceleration cards (Step 4b, SPEC.md 9.8 and 9.13), on a fresh page.
     const ac = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     ac.on('pageerror', e => errors.push(String(e)));
-    await ac.goto(PAGE);
+    await ac.goto(APP);
     await ac.click('[data-view-tab="initiatives"]');
     await ac.click('[data-template="accelerateRevenue"]');
     const accFields = await ac.$$eval('#init-fields [data-param]', els => Object.fromEntries(els.map(e => [e.getAttribute('data-param'), e.value])));
@@ -329,7 +330,7 @@ const PAGE = 'file://' + path.join(ROOT, 'index.html');
 
     const acp = await browser.newPage({ viewport: { width: 390, height: 844 } });
     acp.on('pageerror', e => errors.push(String(e)));
-    await acp.goto(PAGE);
+    await acp.goto(APP);
     await acp.click('[data-view-tab="initiatives"]'); await acp.click('[data-template="accelerateRevenue"]'); await acp.click('#init-submit'); await acp.waitForTimeout(300);
     await acp.click('.decision details.more summary');
     const acw = await acp.evaluate(() => ({ sw: document.documentElement.scrollWidth, right: Math.max(...Array.from(document.querySelectorAll('.card, .tile, .chart svg')).map(e => e.getBoundingClientRect().right)) }));
@@ -338,7 +339,7 @@ const PAGE = 'file://' + path.join(ROOT, 'index.html');
     // 7. Uncertainty on the cards and the scenario cockpit (Step 5, SPEC.md section 10), on a fresh page.
     const un = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     un.on('pageerror', e => errors.push(String(e)));
-    await un.goto(PAGE);
+    await un.goto(APP);
     await un.click('[data-view-tab="initiatives"]');
     await un.click('#init-submit');
     check('A new card shows the simulation progress or its result', (await un.$$('[data-uncertainty]')).length === 1);
@@ -399,7 +400,7 @@ const PAGE = 'file://' + path.join(ROOT, 'index.html');
 
     const unp = await browser.newPage({ viewport: { width: 390, height: 844 } });
     unp.on('pageerror', e => errors.push(String(e)));
-    await unp.goto(PAGE);
+    await unp.goto(APP);
     await unp.click('#cockpit > summary');
     await unp.click('[data-view-tab="initiatives"]'); await unp.click('#init-submit');
     await unp.waitForSelector('[data-uncertainty][data-sim-done]', { timeout: 60000 });
@@ -410,7 +411,7 @@ const PAGE = 'file://' + path.join(ROOT, 'index.html');
     // Phone width on the evaluator with a card and its sources open.
     const evp = await browser.newPage({ viewport: { width: 390, height: 844 } });
     evp.on('pageerror', e => errors.push(String(e)));
-    await evp.goto(PAGE);
+    await evp.goto(APP);
     await evp.click('[data-view-tab="initiatives"]'); await evp.click('#init-submit'); await evp.check('#show-sources'); await evp.waitForTimeout(200);
     const evw = await evp.evaluate(() => ({ sw: document.documentElement.scrollWidth, right: Math.max(...Array.from(document.querySelectorAll('.card, .tile')).map(e => e.getBoundingClientRect().right)) }));
     check('Phone: evaluator has no horizontal page scroll', evw.sw <= 390 && evw.right <= 390, JSON.stringify(evw));
@@ -419,7 +420,7 @@ const PAGE = 'file://' + path.join(ROOT, 'index.html');
     const st = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     st.on('pageerror', e => errors.push(String(e)));
     st.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
-    await st.goto(PAGE);
+    await st.goto(APP);
     await st.click('[data-view-tab="strategy"]');
     const ready = () => st.waitForFunction(() => document.getElementById('strategy-portfolio').getAttribute('data-status') === 'ready', null, { timeout: 180000 });
     const chosen = async () => Number(await st.getAttribute('#strategy-portfolio', 'data-chosen-set'));
@@ -514,7 +515,7 @@ const PAGE = 'file://' + path.join(ROOT, 'index.html');
     check('No em dashes in the Strategy view', !stText.includes('—'));
     const sp = await browser.newPage({ viewport: { width: 390, height: 844 } });
     sp.on('pageerror', e => errors.push(String(e)));
-    await sp.goto(PAGE);
+    await sp.goto(APP);
     await sp.click('[data-view-tab="strategy"]'); await sp.click('#load-examples');
     await sp.waitForFunction(() => document.getElementById('strategy-portfolio').getAttribute('data-status') === 'ready', null, { timeout: 180000 });
     const spw = await sp.evaluate(() => ({ sw: document.documentElement.scrollWidth, right: Math.max(...Array.from(document.querySelectorAll('.card, .tile, .guards li')).map(e => e.getBoundingClientRect().right)) }));
@@ -524,7 +525,7 @@ const PAGE = 'file://' + path.join(ROOT, 'index.html');
     const bp = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     bp.on('pageerror', e => errors.push(String(e)));
     bp.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
-    await bp.goto(PAGE);
+    await bp.goto(APP);
     await bp.evaluate(() => { try { localStorage.clear(); } catch (e) {} });
     await bp.click('#open-howto');
     const howto = await bp.evaluate(() => ({ open: !document.getElementById('howto').hidden, text: document.getElementById('howto').innerText, focus: document.activeElement.id }));
@@ -588,7 +589,7 @@ const PAGE = 'file://' + path.join(ROOT, 'index.html');
     check('No em dashes in the briefing, scenarios or overlay', !bText.includes('—') && !howto.text.includes('—'));
     const bph = await browser.newPage({ viewport: { width: 390, height: 844 } });
     bph.on('pageerror', e => errors.push(String(e)));
-    await bph.goto(PAGE);
+    await bph.goto(APP);
     await bph.click('[data-view-tab="briefing"]');
     const bw = await bph.evaluate(() => ({ sw: document.documentElement.scrollWidth, right: Math.max(...Array.from(document.querySelectorAll('.card, .scn-list li')).map(e => e.getBoundingClientRect().right)) }));
     check('Phone: briefing and scenarios have no horizontal page scroll', bw.sw <= 390 && bw.right <= 390, JSON.stringify(bw));
@@ -599,7 +600,7 @@ const PAGE = 'file://' + path.join(ROOT, 'index.html');
     // AUDIT-FINAL F1: on a phone, the finished simulation tables and the learning tables scroll inside the card, not the page
     const fp = await browser.newPage({ viewport: { width: 390, height: 844 } });
     fp.on('pageerror', e => errors.push(String(e)));
-    await fp.goto(PAGE);
+    await fp.goto(APP);
     await fp.click('[data-view-tab="initiatives"]'); await fp.click('#init-submit');
     await fp.waitForSelector('[data-sim-table]', { timeout: 120000 });
     await fp.waitForSelector('[data-sens]', { state: 'attached', timeout: 120000 });
@@ -617,6 +618,63 @@ const PAGE = 'file://' + path.join(ROOT, 'index.html');
     await fp.click('[data-view-tab="briefing"]');
     const integ = await fp.$$eval('[data-compare-row="integrity"] td', tds => tds.map(td => td.textContent));
     check('Compare columns carry the model checks of their runs', integ.length === 2 && integ.every(x => x === 'All pass'), integ.join(' | '));
+
+    // 7. The dashboard, the first screen (SPEC.md 13.5)
+    const dp = await browser.newPage({ viewport: { width: 1366, height: 800 } });
+    dp.on('pageerror', e => errors.push(String(e)));
+    dp.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
+    await dp.goto(PAGE);
+    const dready = () => dp.waitForFunction(() => document.getElementById('d-main').getAttribute('data-ready') === 'yes', null, { timeout: 120000 });
+    await dready();
+    const d0 = await dp.evaluate(() => ({ dash: !document.getElementById('dash').hidden, analystHidden: getComputedStyle(document.getElementById('app')).display === 'none',
+      sections: Array.from(document.querySelectorAll('#dash .d-card h2')).map(h => h.textContent), kpis: Array.from(document.querySelectorAll('[data-dkpi]')).map(k => k.getAttribute('data-dkpi')).join(','),
+      badge: document.getElementById('d-badge').textContent, fictional: document.getElementById('dash').innerText.includes('Fictional company, for demonstration.') }));
+    check('Dashboard is the first screen, with five numbered sections', d0.dash && d0.analystHidden && d0.sections.length === 5 && /^01Where we stand/.test(d0.sections[0]) && /^05Cash river/.test(d0.sections[4]), JSON.stringify(d0.sections));
+    check('Dashboard: four KPI cards, integrity badge 24/24, labelled fictional', d0.kpis === 'arr,cash,burn,margin' && d0.badge === 'Integrity 24/24' && d0.fictional, JSON.stringify(d0));
+    const read = () => dp.evaluate(() => ({ value: document.getElementById('d-main').getAttribute('data-value-set'), gut: document.getElementById('d-main').getAttribute('data-gut-set'),
+      big: document.querySelector('#d-hero .big').getAttribute('data-v'), also: document.querySelector('#d-hero .also').textContent,
+      vpd: Array.from(document.querySelectorAll('[data-vpd]')).map(e => e.firstChild.textContent).join(','),
+      bars: Array.from(document.querySelectorAll('#d-bridge-chart [data-bar-value]')).map(t => t.textContent).join(' '),
+      brief: document.getElementById('d-brief-body').innerText, arr: document.querySelector('[data-dkpi="arr"] .d-value').getAttribute('data-v') }));
+    const at500 = await read();
+    check('At $500K: data picks set 35, gut feel set 51, +$29.1K of value and $60.0K less spend', at500.value === '35' && at500.gut === '51' && Math.abs(Number(at500.big) - 29130.25) < 1 &&
+      at500.also === 'and $60.0K less spent this year' && at500.bars === '$890.6K +$29.1K $919.7K', JSON.stringify(at500));
+    await dp.evaluate(() => { const r = document.querySelector('[data-slider="budget"]'); r.value = '600000'; r.dispatchEvent(new Event('input')); });
+    await dp.waitForFunction(() => document.getElementById('d-main').getAttribute('data-gut-set') === '7', null, { timeout: 30000 }).catch(() => {});
+    await dp.waitForTimeout(600);
+    const at600 = await read();
+    check('At $600K: gut feel funds the AEs, data the partner program; bridge drops one and adds the other', at600.value === '35' && at600.gut === '7' &&
+      at600.bars === '$860.2K -$202.8K +$262.3K $919.7K' && at600.vpd === '$0.51,$0.99', JSON.stringify(at600));
+    check('The dashboard briefing rewrites itself with the budget', /On a \$600\.0K budget, gut feel funds the biggest promises first/.test(at600.brief) && /adds \$59\.6K of value/.test(at600.brief), at600.brief.slice(0, 300));
+    const engine600 = await dp.evaluate(() => { const v = window.__APP__.state.dashView; return { gain: v.gain.value, value: v.picks.value.npv, gut: v.picks.gut.npv }; });
+    check('Dashboard numbers are the engine\'s', Math.abs(engine600.gain - (engine600.value - engine600.gut)) < 0.01 && Math.abs(Number(at600.big) - engine600.gain) < 0.01, JSON.stringify(engine600));
+    await dp.click('.d-seg [data-year="3"]');
+    const y3 = await dp.evaluate(() => ({ sub: document.getElementById('d-stand-sub').textContent, river: document.getElementById('d-river-sub').textContent,
+      arr: document.querySelector('[data-dkpi="arr"] [data-chip="growth"]') !== null }));
+    check('Year toggle moves the cards and the cash river to 2029', /^Dec 2029/.test(y3.sub) && /Jan 2029 to Dec 2029/.test(y3.river) && y3.arr, JSON.stringify(y3));
+    await dp.click('.d-seg [data-year="1"]');
+    await dp.evaluate(() => { const r = document.querySelector('[data-slider="winRate"]'); r.value = '1.25'; r.dispatchEvent(new Event('input')); });
+    await dp.waitForFunction(() => window.__APP__.state.A.cockpit.winRate === 1.25 && document.getElementById('d-busy').hidden && document.getElementById('d-main').getAttribute('data-ready') === 'yes' &&
+      Number(document.querySelector('[data-dkpi="arr"] .d-value').getAttribute('data-v')) > 30600000, null, { timeout: 60000 }).catch(() => {});
+    const wr = await dp.evaluate(() => ({ arr: Number(document.querySelector('[data-dkpi="arr"] .d-value').getAttribute('data-v')), out: document.querySelector('[data-out="winRate"]').textContent,
+      badge: document.getElementById('d-badge').textContent }));
+    check('Win rate +25% lifts ARR and keeps every check passing', wr.arr > Number(at600.arr) && wr.out === '+25%' && wr.badge === 'Integrity 24/24', JSON.stringify(wr));
+    await dp.click('#d-reset');
+    await dp.waitForFunction(() => window.__APP__.state.A.cockpit.winRate === 1 && window.__APP__.state.A.portfolio.budget === 500000 && document.getElementById('d-main').getAttribute('data-value-set') === '35', null, { timeout: 60000 }).catch(() => {});
+    check('Reset restores the sliders', await dp.evaluate(() => window.__APP__.state.A.cockpit.winRate === 1 && window.__APP__.state.A.portfolio.budget === 500000));
+    await dp.click('#d-analyst');
+    const an = await dp.evaluate(() => ({ dash: document.getElementById('dash').hidden, app: getComputedStyle(document.getElementById('app')).display !== 'none', n: window.__APP__.state.initiatives.length }));
+    check('Analyst view opens the detailed app with the same eight initiatives', an.dash && an.app && an.n === 8, JSON.stringify(an));
+    await dp.click('#to-dash');
+    check('The Dashboard button comes back', await dp.evaluate(() => !document.getElementById('dash').hidden));
+    const dText = await dp.evaluate(() => document.getElementById('dash').innerText);
+    check('No em dashes on the dashboard', !dText.includes('—'));
+    const dph = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    dph.on('pageerror', e => errors.push(String(e)));
+    await dph.goto(PAGE);
+    await dph.waitForFunction(() => document.getElementById('d-main').getAttribute('data-ready') === 'yes', null, { timeout: 120000 });
+    const dpw = await dph.evaluate(() => ({ sw: document.documentElement.scrollWidth, cockpit: Math.round(document.querySelector('.d-cockpit-in').getBoundingClientRect().right) }));
+    check('Phone: dashboard has no horizontal page scroll and the sliders fit', dpw.sw <= 390 && dpw.cockpit <= 390, JSON.stringify(dpw));
 
     const text = await app.evaluate(() => document.body.innerText);
     const src = require('fs').readFileSync(path.join(ROOT, 'index.html'), 'utf8');
