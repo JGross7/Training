@@ -470,18 +470,17 @@ body.is-dash .topbar, body.is-dash #app, body.is-dash #input-error, body.is-dash
 .d-note { margin: 8px 0 0; font-size: 12.5px; color: var(--d-muted); }
 /* Cockpit */
 .d-cockpit { position: fixed; left: 0; right: 0; bottom: 0; z-index: 25; padding: 0 16px 14px; pointer-events: none; }
-.d-cockpit-in { pointer-events: auto; max-width: 1240px; margin: 0 auto; display: flex; align-items: center; gap: 14px 22px; padding: 12px 18px; border-radius: 16px;
+.d-cockpit-in { pointer-events: auto; max-width: 760px; margin: 0 auto; display: flex; align-items: center; gap: 14px 22px; padding: 12px 18px; border-radius: 16px;
   background: color-mix(in srgb, var(--d-card) 92%, transparent); backdrop-filter: blur(10px); border: 1px solid var(--d-line); box-shadow: 0 10px 30px rgba(40, 30, 10, 0.12); }
 .d-ck-title { display: grid; gap: 2px; font-family: var(--serif); font-size: 16px; flex: none; }
 .d-busy { font-family: system-ui, sans-serif; font-size: 11px; font-weight: 650; color: var(--d-gold); }
 .d-busy[hidden] { display: none; }
-.d-sliders { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px 20px; flex: 1; min-width: 0; }
+.d-sliders { display: grid; grid-template-columns: minmax(0, 640px); gap: 10px 20px; flex: 1; min-width: 0; }
 .d-sl { display: grid; gap: 3px; min-width: 0; }
 .d-sl-top { display: flex; justify-content: space-between; gap: 8px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--d-ink2); }
 .d-sl-top output { color: var(--d-gold); font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
 .d-sl.budget .d-sl-top output { font-size: 13px; }
 .d-sl input[type=range] { width: 100%; accent-color: var(--d-gold); margin: 0; }
-@media (max-width: 900px) { .d-sliders { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 600px) {
   .d-top { position: static; }
   .d-top-in { padding: 10px 14px; }
@@ -496,8 +495,8 @@ body.is-dash .topbar, body.is-dash #app, body.is-dash #input-error, body.is-dash
   .d-hero .big { font-size: 32px; }
   .d-cockpit { padding: 0 8px 8px; }
   .d-cockpit-in { flex-wrap: wrap; gap: 8px 12px; padding: 10px 12px; }
-  .d-sliders { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 14px; }
-  .d-sl.budget { grid-column: 1 / -1; }
+  .d-sliders { grid-template-columns: minmax(0, 1fr); }
+  .d-crm-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .d-ck-title { flex-direction: row; display: flex; gap: 8px; align-items: baseline; }
   .dash { padding-bottom: 250px; }
 }
@@ -505,6 +504,34 @@ body.is-dash .topbar, body.is-dash #app, body.is-dash #input-error, body.is-dash
 .analyst-dash { margin-left: 4px; }
 
 /* Test a decision */
+/* CRM band */
+.d-crm { border: 1px solid var(--d-line); border-radius: 14px; background: var(--d-card); padding: 10px 14px; display: grid; gap: 8px; }
+.d-crm-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; }
+.d-crm-src { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--d-ink2); min-width: 0; }
+.d-crm-src b { color: var(--d-ink); }
+.d-crm-tag { font-size: 10.5px; font-weight: 800; letter-spacing: 0.14em; color: #fff; background: var(--d-plan); padding: 2px 7px; border-radius: 6px; align-self: center; }
+.d-crm-stats { margin: 0; display: grid; grid-template-columns: repeat(4, auto); gap: 4px 22px; flex: 1; }
+.d-crm-stats div { display: grid; gap: 0; }
+.d-crm-stats dt { font-size: 10.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--d-muted); }
+.d-crm-stats dd { margin: 0; font-size: 17px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.d-crm-acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.d-crm-acts .d-btn { padding: 5px 11px; font-size: 12px; }
+.d-crm .d-err { margin: 0; font-size: 12.5px; color: var(--d-bad); }
+.d-crm-table { overflow-x: auto; }
+.d-crm-table table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.d-crm-table th, .d-crm-table td { padding: 6px 8px; border-bottom: 1px solid var(--d-line); text-align: right; white-space: nowrap; }
+.d-crm-table th:first-child, .d-crm-table td:first-child { text-align: left; }
+.d-crm-table th { font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--d-muted); font-weight: 700; }
+.d-crm-table .d-note { margin: 6px 0 0; }
+/* Tester: read-only CRM figure and the headcount stepper */
+.d-ro { display: grid; gap: 2px; }
+.d-ro b { font-size: 20px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.d-ro small { font-size: 12px; color: var(--d-muted); }
+.d-step { display: inline-flex; align-items: center; gap: 0; border: 1px solid var(--d-line); border-radius: 999px; background: var(--d-card); width: max-content; }
+.d-step button { width: 36px; height: 34px; border: 0; background: transparent; color: var(--d-ink); font-size: 18px; font-weight: 700; cursor: pointer; border-radius: 999px; }
+.d-step button[disabled] { opacity: 0.35; cursor: default; }
+.d-step output { min-width: 34px; text-align: center; font-size: 20px; font-weight: 700; color: var(--d-gold); font-variant-numeric: tabular-nums; }
+.d-pick button small { font-size: 11px; font-weight: 700; color: var(--d-gold); }
 .d-pick { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
 .d-pick button { display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border-radius: 999px; border: 1px solid var(--d-line); background: var(--d-card); color: var(--d-ink); font-size: 13px; font-weight: 600; cursor: pointer; }
 .d-pick button i { width: 8px; height: 8px; border-radius: 50%; background: var(--d-line); }
@@ -526,8 +553,10 @@ body.is-dash .topbar, body.is-dash #app, body.is-dash #input-error, body.is-dash
 .d-term dd.good { color: var(--d-good); }
 .d-term dd.bad { color: var(--d-bad); }
 .d-test-low { display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); margin-top: 14px; }
-@media (min-width: 900px) { .d-test-low { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); } }
-.d-verdict p { font-size: 16px; }
+.d-verdict p { font-size: 15px; }
+.d-verdict { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; }
+.d-verdict section { border: 0; padding: 0; margin: 0; }
+.d-verdict .d-note { margin: 0; }
 .d-verdict section { margin-bottom: 10px; }
 
 /* Strategy view */
@@ -591,10 +620,24 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
     </div>
   </header>
   <main class="d-main" id="d-main">
+    <section class="d-crm" id="d-crm" aria-label="CRM data behind the model">
+      <div class="d-crm-row">
+        <div class="d-crm-src"><span class="d-crm-tag">CRM</span><b id="d-crm-name"></b><span id="d-crm-period"></span></div>
+        <dl class="d-crm-stats" id="d-crm-stats"></dl>
+        <div class="d-crm-acts">
+          <button type="button" class="d-btn" id="d-crm-more" aria-expanded="false" aria-controls="d-crm-table">By channel</button>
+          <label class="d-btn" id="d-crm-load">Load CSV<input type="file" id="d-crm-file" accept=".csv,text/csv" hidden></label>
+          <button type="button" class="d-btn" id="d-crm-csv">Sample CSV</button>
+          <button type="button" class="d-btn" id="d-crm-sample" hidden>Use sample</button>
+        </div>
+      </div>
+      <p class="d-err" id="d-crm-err" role="alert" hidden></p>
+      <div class="d-crm-table" id="d-crm-table" hidden></div>
+    </section>
     <section class="d-card" id="d-stand" aria-labelledby="d-stand-h">
       <div class="d-head"><h2 id="d-stand-h"><span class="d-num">01</span>Where we stand</h2><p class="d-sub" id="d-stand-sub"></p></div>
       <div class="d-kpis" id="d-kpis"></div>
-      <div class="d-guards-head"><span class="d-label plain">Guardrails</span><span class="d-sub">The funded plan against the strategy's limits</span></div>
+      <div class="d-guards-head"><span class="d-label plain">Guardrails</span></div>
       <ul class="d-guards" id="d-guards" aria-label="Guardrails of the strategy for the funded plan"></ul>
     </section>
     <div class="d-row d-row-a">
@@ -605,12 +648,12 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
         <p class="d-note" id="d-next"></p>
       </section>
       <section class="d-card" id="d-bridge" aria-labelledby="d-bridge-h">
-        <div class="d-head"><h2 id="d-bridge-h"><span class="d-num">03</span>Where the value comes from</h2><p class="d-sub">Value created (NPV), initiative by initiative</p></div>
+        <div class="d-head"><h2 id="d-bridge-h"><span class="d-num">03</span>Where the value comes from</h2><p class="d-sub">Value created (NPV), step by step</p></div>
         <div class="d-chart" id="d-bridge-chart"></div>
       </section>
     </div>
     <section class="d-card" id="d-test" aria-labelledby="d-test-h">
-      <div class="d-head"><h2 id="d-test-h"><span class="d-num">04</span>Test a decision</h2><p class="d-sub" id="d-test-sub">What one decision does on top of the rest of the plan: this year, and over the whole model</p></div>
+      <div class="d-head"><h2 id="d-test-h"><span class="d-num">04</span>Test a decision</h2><p class="d-sub" id="d-test-sub">On top of the rest of the plan</p></div>
       <div class="d-pick" id="d-pick" role="group" aria-label="Decision to test"></div>
       <div class="d-test-grid">
         <div class="d-test-inputs" id="d-test-inputs"></div>
@@ -624,7 +667,7 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
     </section>
     <div class="d-row d-row-b">
       <section class="d-card" id="d-brief" aria-labelledby="d-brief-h">
-        <div class="d-head"><h2 id="d-brief-h"><span class="d-num">05</span>CFO briefing</h2><p class="d-sub">Written from the model</p></div>
+        <div class="d-head"><h2 id="d-brief-h"><span class="d-num">05</span>CFO briefing</h2></div>
         <div class="d-brief" id="d-brief-body" aria-live="polite"></div>
       </section>
       <section class="d-card" id="d-river" aria-labelledby="d-river-h">
@@ -635,7 +678,7 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
   </main>
   <div class="d-cockpit" id="d-cockpit" role="region" aria-label="Scenario sliders">
     <div class="d-cockpit-in">
-      <div class="d-ck-title"><b>Scenario</b><span id="d-busy" class="d-busy" hidden>Recalculating</span></div>
+      <div class="d-ck-title"><b>Budget</b><span id="d-busy" class="d-busy" hidden>Recalculating</span></div>
       <div class="d-sliders" id="d-sliders"></div>
       <button type="button" class="d-btn" id="d-reset">Reset</button>
     </div>
@@ -837,7 +880,7 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
   <div class="modal-head"><h2 id="howto-title">How to read this</h2><button type="button" class="btn" id="close-howto">Close</button></div>
   <div class="modal-body">
     <h3>The dashboard</h3>
-    <p>The first screen asks one question: what return does a data-driven plan earn? Eight proposals compete for one budget. The model runs every combination and funds the one with the most value (NPV) that fits the budget and breaks no guardrail. The cards show what it costs and returns; the guardrails show it stays inside its limits. <b>Test a decision</b> takes one proposal, such as a trade show, lets you change its inputs and shows what it does on top of the rest of the plan this year and over the whole model. Move the sliders at the bottom and everything recalculates.</p>
+    <p>The first screen asks one question: what return does a data-driven plan earn? Eight proposals compete for one budget. The model runs every combination and funds the one with the most value (NPV) that fits the budget and breaks no guardrail. The cards show what it costs and returns; the guardrails show it stays inside its limits. Win rates, deal sizes, lead costs and sales cycles come from the CRM data in the band at the top; load your own export as a CSV and everything re-derives. <b>Test a decision</b> takes one proposal, such as a trade show or a number of hires, and shows what it does on top of the rest of the plan this year and over the whole model. The budget bar at the bottom is the one lever.</p>
     <h3>Four tabs, one decision (Analyst view)</h3>
     <ul>
       <li><b>Where we stand:</b> the plan for a fictional SaaS company. KPI cards, the ARR bridge, 13-week cash against the floor and the covenant, and the three statements.</li>
@@ -3605,6 +3648,115 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
     };
   }
 
+  // ---------------------------------------------------------------------
+  // CRM data (SPEC.md 13.7). A CRM export (monthly funnel by channel, and past
+  // trade shows) sets each channel's rates, deal size, cost per lead and sales
+  // cycle, the leads per SDR, and the trade show's expected leads and costs.
+  // The bundled sample is fictional; its totals give the default assumptions exactly.
+  // ---------------------------------------------------------------------
+  var CRM_SAMPLE = {"source":"Sample CRM export (fictional)","period":"Jan 2026 to Dec 2026","funnel":[{"month":"2026-01","channel":"outbound","spend":28000,"leads":68,"mqls":14,"opps":4,"won":1,"lost":3,"won_amount":48600,"won_days":131,"sdrs":3},{"month":"2026-02","channel":"outbound","spend":28000,"leads":70,"mqls":14,"opps":4,"won":1,"lost":3,"won_amount":41400,"won_days":113,"sdrs":3},{"month":"2026-03","channel":"outbound","spend":28000,"leads":75,"mqls":15,"opps":4,"won":1,"lost":3,"won_amount":48600,"won_days":131,"sdrs":3},{"month":"2026-04","channel":"outbound","spend":28000,"leads":80,"mqls":16,"opps":5,"won":1,"lost":4,"won_amount":41400,"won_days":113,"sdrs":3},{"month":"2026-05","channel":"outbound","spend":28000,"leads":82,"mqls":16,"opps":5,"won":1,"lost":3,"won_amount":48600,"won_days":131,"sdrs":3},{"month":"2026-06","channel":"outbound","spend":28000,"leads":78,"mqls":16,"opps":5,"won":1,"lost":4,"won_amount":41400,"won_days":113,"sdrs":3},{"month":"2026-07","channel":"outbound","spend":28000,"leads":72,"mqls":14,"opps":4,"won":1,"lost":3,"won_amount":48600,"won_days":131,"sdrs":3},{"month":"2026-08","channel":"outbound","spend":28000,"leads":70,"mqls":14,"opps":4,"won":1,"lost":3,"won_amount":41400,"won_days":113,"sdrs":3},{"month":"2026-09","channel":"outbound","spend":28000,"leads":75,"mqls":15,"opps":4,"won":1,"lost":3,"won_amount":48600,"won_days":131,"sdrs":3},{"month":"2026-10","channel":"outbound","spend":28000,"leads":78,"mqls":16,"opps":5,"won":1,"lost":3,"won_amount":41400,"won_days":113,"sdrs":3},{"month":"2026-11","channel":"outbound","spend":28000,"leads":80,"mqls":16,"opps":5,"won":1,"lost":3,"won_amount":48600,"won_days":131,"sdrs":3},{"month":"2026-12","channel":"outbound","spend":28000,"leads":72,"mqls":14,"opps":5,"won":1,"lost":3,"won_amount":41400,"won_days":113,"sdrs":3},{"month":"2026-01","channel":"paid","spend":60000,"leads":225,"mqls":45,"opps":7,"won":1,"lost":7,"won_amount":32400,"won_days":70,"sdrs":0},{"month":"2026-02","channel":"paid","spend":60000,"leads":233,"mqls":47,"opps":7,"won":2,"lost":7,"won_amount":57600,"won_days":113,"sdrs":0},{"month":"2026-03","channel":"paid","spend":60000,"leads":250,"mqls":50,"opps":8,"won":1,"lost":6,"won_amount":32400,"won_days":70,"sdrs":0},{"month":"2026-04","channel":"paid","spend":60000,"leads":267,"mqls":53,"opps":8,"won":2,"lost":7,"won_amount":57600,"won_days":113,"sdrs":0},{"month":"2026-05","channel":"paid","spend":60000,"leads":275,"mqls":55,"opps":8,"won":1,"lost":7,"won_amount":32400,"won_days":70,"sdrs":0},{"month":"2026-06","channel":"paid","spend":60000,"leads":258,"mqls":52,"opps":8,"won":2,"lost":7,"won_amount":57600,"won_days":113,"sdrs":0},{"month":"2026-07","channel":"paid","spend":60000,"leads":242,"mqls":48,"opps":7,"won":2,"lost":7,"won_amount":64800,"won_days":140,"sdrs":0},{"month":"2026-08","channel":"paid","spend":60000,"leads":233,"mqls":47,"opps":7,"won":1,"lost":6,"won_amount":25200,"won_days":43,"sdrs":0},{"month":"2026-09","channel":"paid","spend":60000,"leads":250,"mqls":50,"opps":8,"won":2,"lost":7,"won_amount":64800,"won_days":140,"sdrs":0},{"month":"2026-10","channel":"paid","spend":60000,"leads":258,"mqls":52,"opps":8,"won":1,"lost":7,"won_amount":25200,"won_days":43,"sdrs":0},{"month":"2026-11","channel":"paid","spend":60000,"leads":267,"mqls":53,"opps":8,"won":2,"lost":7,"won_amount":64800,"won_days":140,"sdrs":0},{"month":"2026-12","channel":"paid","spend":60000,"leads":242,"mqls":48,"opps":6,"won":1,"lost":7,"won_amount":25200,"won_days":43,"sdrs":0},{"month":"2026-01","channel":"events","spend":28000,"leads":72,"mqls":18,"opps":4,"won":1,"lost":3,"won_amount":56160,"won_days":161,"sdrs":0},{"month":"2026-02","channel":"events","spend":28000,"leads":75,"mqls":19,"opps":4,"won":1,"lost":3,"won_amount":47840,"won_days":143,"sdrs":0},{"month":"2026-03","channel":"events","spend":28000,"leads":80,"mqls":20,"opps":4,"won":1,"lost":3,"won_amount":56160,"won_days":161,"sdrs":0},{"month":"2026-04","channel":"events","spend":28000,"leads":85,"mqls":21,"opps":4,"won":1,"lost":3,"won_amount":47840,"won_days":143,"sdrs":0},{"month":"2026-05","channel":"events","spend":28000,"leads":88,"mqls":22,"opps":4,"won":1,"lost":3,"won_amount":56160,"won_days":161,"sdrs":0},{"month":"2026-06","channel":"events","spend":28000,"leads":83,"mqls":21,"opps":4,"won":1,"lost":3,"won_amount":47840,"won_days":143,"sdrs":0},{"month":"2026-07","channel":"events","spend":28000,"leads":77,"mqls":19,"opps":4,"won":1,"lost":3,"won_amount":56160,"won_days":161,"sdrs":0},{"month":"2026-08","channel":"events","spend":28000,"leads":75,"mqls":19,"opps":4,"won":1,"lost":3,"won_amount":47840,"won_days":143,"sdrs":0},{"month":"2026-09","channel":"events","spend":28000,"leads":80,"mqls":20,"opps":4,"won":1,"lost":3,"won_amount":56160,"won_days":161,"sdrs":0},{"month":"2026-10","channel":"events","spend":28000,"leads":83,"mqls":21,"opps":4,"won":1,"lost":3,"won_amount":47840,"won_days":143,"sdrs":0},{"month":"2026-11","channel":"events","spend":28000,"leads":85,"mqls":21,"opps":4,"won":1,"lost":3,"won_amount":56160,"won_days":161,"sdrs":0},{"month":"2026-12","channel":"events","spend":28000,"leads":77,"mqls":19,"opps":4,"won":1,"lost":3,"won_amount":47840,"won_days":143,"sdrs":0},{"month":"2026-01","channel":"partners","spend":24000,"leads":36,"mqls":16,"opps":4,"won":1,"lost":2,"won_amount":41040,"won_days":100,"sdrs":0},{"month":"2026-02","channel":"partners","spend":24000,"leads":37,"mqls":17,"opps":4,"won":1,"lost":2,"won_amount":34960,"won_days":82,"sdrs":0},{"month":"2026-03","channel":"partners","spend":24000,"leads":40,"mqls":18,"opps":4,"won":0,"lost":1,"won_amount":0,"won_days":0,"sdrs":0},{"month":"2026-04","channel":"partners","spend":24000,"leads":43,"mqls":19,"opps":5,"won":1,"lost":2,"won_amount":41040,"won_days":100,"sdrs":0},{"month":"2026-05","channel":"partners","spend":24000,"leads":44,"mqls":20,"opps":5,"won":1,"lost":2,"won_amount":34960,"won_days":82,"sdrs":0},{"month":"2026-06","channel":"partners","spend":24000,"leads":41,"mqls":19,"opps":5,"won":1,"lost":2,"won_amount":41040,"won_days":100,"sdrs":0},{"month":"2026-07","channel":"partners","spend":24000,"leads":39,"mqls":17,"opps":4,"won":1,"lost":2,"won_amount":34960,"won_days":82,"sdrs":0},{"month":"2026-08","channel":"partners","spend":24000,"leads":37,"mqls":17,"opps":4,"won":0,"lost":1,"won_amount":0,"won_days":0,"sdrs":0},{"month":"2026-09","channel":"partners","spend":24000,"leads":40,"mqls":18,"opps":4,"won":1,"lost":2,"won_amount":41040,"won_days":100,"sdrs":0},{"month":"2026-10","channel":"partners","spend":24000,"leads":41,"mqls":19,"opps":5,"won":0,"lost":1,"won_amount":0,"won_days":0,"sdrs":0},{"month":"2026-11","channel":"partners","spend":24000,"leads":43,"mqls":19,"opps":5,"won":1,"lost":2,"won_amount":34960,"won_days":82,"sdrs":0},{"month":"2026-12","channel":"partners","spend":24000,"leads":39,"mqls":17,"opps":5,"won":1,"lost":2,"won_amount":38000,"won_days":91,"sdrs":0}],"events":[{"name":"FieldOps Expo, Dallas","month":"2026-03","leads":180,"booth":44000,"travel":11000},{"name":"Service Pros Summit, Denver","month":"2026-06","leads":220,"booth":52000,"travel":13000},{"name":"Crew and Dispatch Forum, Atlanta","month":"2026-10","leads":200,"booth":48000,"travel":12000}]};
+  var CRM_FUNNEL_COLS = ['spend', 'leads', 'mqls', 'opps', 'won', 'lost', 'won_amount', 'won_days', 'sdrs'];
+  var CRM_COLS = ['record', 'month', 'channel', 'name', 'spend', 'leads', 'mqls', 'opps', 'won', 'lost', 'won_amount', 'won_days', 'sdrs', 'booth', 'travel'];
+  var DAYS_PER_MONTH = 30.4375;
+  function invalid(msg) { throw new Error('Invalid input: ' + msg); }
+  function csvCell(v) { var s = v === undefined || v === null ? '' : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+  function crmToCsv(crm) {
+    var lines = [CRM_COLS.join(',')];
+    crm.funnel.forEach(function (r) { lines.push(CRM_COLS.map(function (c) { return csvCell(c === 'record' ? 'funnel' : r[c]); }).join(',')); });
+    crm.events.forEach(function (e) { lines.push(CRM_COLS.map(function (c) { return csvCell(c === 'record' ? 'event' : e[c]); }).join(',')); });
+    return lines.join('\n') + '\n';
+  }
+  function splitCsv(text) {
+    var rows = [], row = [], cell = '', q = false, s = String(text).replace(/^﻿/, '');
+    for (var i = 0; i < s.length; i++) {
+      var ch = s[i];
+      if (q) { if (ch === '"') { if (s[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += ch; }
+      else if (ch === '"') q = true;
+      else if (ch === ',') { row.push(cell); cell = ''; }
+      else if (ch === '\n' || ch === '\r') { if (ch === '\r' && s[i + 1] === '\n') i++; row.push(cell); rows.push(row); row = []; cell = ''; }
+      else cell += ch;
+    }
+    if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+    return rows.filter(function (r) { return r.some(function (c) { return c.trim() !== ''; }); });
+  }
+  // Reads a CRM export in the format of crmToCsv. Throws with the line number on anything it cannot use.
+  function parseCrmCsv(text, opts) {
+    opts = opts || {};
+    var rows = splitCsv(text);
+    if (!rows.length) invalid('The file is empty');
+    var head = rows[0].map(function (h) { return h.trim().toLowerCase(); }), col = {};
+    head.forEach(function (h, i) { col[h] = i; });
+    ['record', 'month', 'channel'].concat(CRM_FUNNEL_COLS).forEach(function (c) { if (col[c] === undefined) invalid('The file has no "' + c + '" column'); });
+    var channels = opts.channels || ['outbound', 'paid', 'events', 'partners'], crm = { source: opts.source || 'CRM export', period: '', funnel: [], events: [] };
+    function num(r, c, line) {
+      var raw = col[c] === undefined ? '' : String(r[col[c]] === undefined ? '' : r[col[c]]).trim().replace(/[$,\s]/g, '');
+      if (raw === '') return 0;
+      var v = Number(raw);
+      if (!isFinite(v) || v < 0) invalid('Line ' + line + ': "' + c + '" must be a number at or above zero');
+      return v;
+    }
+    for (var i = 1; i < rows.length; i++) {
+      var r = rows[i], line = i + 1, rec = String(r[col.record] || '').trim().toLowerCase(), month = String(r[col.month] || '').trim();
+      if (!/^\d{4}-\d{2}$/.test(month)) invalid('Line ' + line + ': month must look like 2026-03');
+      if (rec === 'funnel') {
+        var ch = String(r[col.channel] || '').trim().toLowerCase();
+        if (channels.indexOf(ch) < 0) invalid('Line ' + line + ': unknown channel "' + ch + '" (use ' + channels.join(', ') + ')');
+        var f = { month: month, channel: ch };
+        CRM_FUNNEL_COLS.forEach(function (c) { f[c] = num(r, c, line); });
+        if (f.mqls > f.leads || f.opps > f.mqls) invalid('Line ' + line + ': each funnel stage must be at or below the one before');
+        crm.funnel.push(f);
+      } else if (rec === 'event') {
+        crm.events.push({ name: String(col.name === undefined ? '' : r[col.name] || '').trim() || 'Event ' + month, month: month, leads: num(r, 'leads', line), booth: num(r, 'booth', line), travel: num(r, 'travel', line) });
+      } else invalid('Line ' + line + ': record must be "funnel" or "event"');
+    }
+    if (!crm.funnel.length) invalid('The file has no funnel rows');
+    var ms = crm.funnel.map(function (f) { return f.month; }).sort();
+    var MN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    function ml(x) { return MN[Number(x.slice(5)) - 1] + ' ' + x.slice(0, 4); }
+    crm.period = ms[0] === ms[ms.length - 1] ? ml(ms[0]) : ml(ms[0]) + ' to ' + ml(ms[ms.length - 1]);
+    return crm;
+  }
+  // The assumptions a CRM export implies (SPEC.md 13.7). A rate with no evidence keeps the assumption.
+  function crmDerive(A, crm) {
+    var out = { source: crm.source, period: crm.period, channels: {}, kept: [], leadsPerSdrPerMonth: A.leadsPerSdrPerMonth, tradeShow: null, blended: null };
+    var tot = { spend: 0, leads: 0, won: 0, lost: 0, amount: 0, days: 0 };
+    A.channelOrder.forEach(function (cid) {
+      var ch = A.channels[cid], e = { spend: 0, leads: 0, mqls: 0, opps: 0, won: 0, lost: 0, won_amount: 0, won_days: 0, sdrs: 0, months: 0 };
+      crm.funnel.forEach(function (f) { if (f.channel === cid) { CRM_FUNNEL_COLS.forEach(function (c) { e[c] += f[c]; }); e.months++; } });
+      var d = { name: ch.name, evidence: e, costPerLead: ch.costPerLead, leadToMqlRate: ch.leadToMqlRate, mqlToOppRate: ch.mqlToOppRate, winRate: ch.winRate, acv: ch.acv, salesCycleMonths: ch.salesCycleMonths };
+      function set(key, ok, v) { if (ok) d[key] = v; else out.kept.push(cid + '.' + key); }
+      if (ch.leadSource === 'spend') set('costPerLead', e.leads > 0 && e.spend > 0, e.spend / e.leads);
+      set('leadToMqlRate', e.leads > 0, e.mqls / e.leads);
+      set('mqlToOppRate', e.mqls > 0, e.opps / e.mqls);
+      set('winRate', e.won + e.lost > 0, e.won / (e.won + e.lost));
+      set('acv', e.won > 0 && e.won_amount > 0, e.won_amount / e.won);
+      set('salesCycleMonths', e.won > 0 && e.won_days > 0, Math.max(1, Math.round(e.won_days / e.won / DAYS_PER_MONTH)));
+      if (ch.leadSource === 'sdr') { if (e.sdrs > 0 && e.leads > 0) out.leadsPerSdrPerMonth = e.leads / e.sdrs; else out.kept.push('leadsPerSdrPerMonth'); }
+      if (ch.leadSource === 'spend') { tot.spend += e.spend; tot.leads += e.leads; }
+      tot.won += e.won; tot.lost += e.lost; tot.amount += e.won_amount; tot.days += e.won_days;
+      out.channels[cid] = d;
+    });
+    out.blended = { winRate: tot.won + tot.lost > 0 ? tot.won / (tot.won + tot.lost) : null, acv: tot.won > 0 ? tot.amount / tot.won : null,
+      costPerLead: tot.leads > 0 ? tot.spend / tot.leads : null, salesCycleMonths: tot.won > 0 ? tot.days / tot.won / DAYS_PER_MONTH : null, deals: tot.won };
+    var ev = crm.events.filter(function (x) { return x.leads > 0; });
+    if (ev.length) {
+      var s = { leads: 0, booth: 0, travel: 0 }; ev.forEach(function (x) { s.leads += x.leads; s.booth += x.booth; s.travel += x.travel; });
+      out.tradeShow = { events: ev.length, expectedLeads: Math.round(s.leads / ev.length), booth: Math.round(s.booth / ev.length), travel: Math.round(s.travel / ev.length) };
+    } else out.kept.push('templates.tradeShow');
+    return out;
+  }
+  // The assumptions with the CRM-derived values written in. Nothing else changes.
+  function applyCrm(A, d) {
+    var B = clone(A);
+    Object.keys(d.channels).forEach(function (cid) {
+      var c = d.channels[cid], ch = B.channels[cid];
+      ['costPerLead', 'leadToMqlRate', 'mqlToOppRate', 'winRate', 'acv', 'salesCycleMonths'].forEach(function (k) { ch[k] = c[k]; });
+    });
+    B.leadsPerSdrPerMonth = d.leadsPerSdrPerMonth;
+    if (d.tradeShow) ['expectedLeads', 'booth', 'travel'].forEach(function (k) { B.templates.tradeShow[k] = d.tradeShow[k]; });
+    return B;
+  }
+
   // Cash in and out over months from..to of a run, with the change in cash closing it (SPEC.md 13.3).
   function cashRiver(R, B, from, to) {
     var s = { coll: 0, collPlan: 0, intIn: 0, team: 0, vendors: 0, capex: 0, intTax: 0, debt: 0 };
@@ -3673,22 +3825,20 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
     var watch = sv.watch.map(function (g) { return { id: g.id, label: g.label, metric: g.metric, unit: g.unit, rule: g.rule, limit: g.limit, value: g.value, pass: g.pass, watch: true }; });
     // Briefing
     var low = sv.guardrails.filter(function (g) { return g.metric === 'cashLow'; })[0];
-    var happened = [T('With the funded plan, ARR reaches '), F(bMoney(arr)), T(' by '), F(R.months[m])];
+    var happened = [T('ARR reaches '), F(bMoney(arr)), T(' by '), F(R.months[m])];
     if (isTargetYear) happened = happened.concat(arr >= sv.objective.target ? [T(', meeting the '), F(bMoney(sv.objective.target)), T(' target.')]
       : [T(', '), F(bMoney(sv.objective.target - arr)), T(' short of the '), F(bMoney(sv.objective.target)), T(' target.')]);
     else happened.push(T('.'));
     var brokenG = sv.guardrails.filter(function (g) { return !g.pass; });
     happened = happened.concat(brokenG.length ? [T(' '), { input: bList(brokenG.map(function (g) { facts.push(g.label); return g.label; })) }, T(brokenG.length === 1 ? ' breaks its limit.' : ' break their limits.')]
       : [T(' All '), F(String(sv.total)), T(' guardrails hold')].concat(low ? [T(', and cash never goes below '), F(bMoney(low.value)), T('.')] : [T('.')]));
-    var why = p.members.length ? [T('Of '), F(String(p.candidates)), T(' proposals, the most value that fits the '), F(bMoney(p.budget)), T(' budget comes from '), N(p.names),
-      T('. Together they create '), F(bMoney(p.npv)), T(' of value on '), F(bMoney(p.totalInvestment)), T(' committed, '), F('$' + p.valuePerDollar.toFixed(2)), T(' per dollar.')]
+    var why = p.members.length ? [N(p.names), T(' create '), F(bMoney(p.npv)), T(' of value on '), F(bMoney(p.totalInvestment)), T(' committed, '), F('$' + p.valuePerDollar.toFixed(2)), T(' per dollar.')]
       : [T('No proposal fits the '), F(bMoney(p.budget)), T(' budget and adds value.')];
-    if (p.members.length && pb.status === 'paid_back') why = why.concat([T(' It returns '), F(bMoney(cum[H])), T(' of net cash by '), F(R.months[H]), T(' and pays back in '), F(R.months[pb.month]), T('.')]);
     var lower = p.others.filter(function (o) { return o.reason === 'lowers_value'; }).map(function (o) { return o.name; });
-    if (lower.length) why = why.concat([T(' Adding '), N(lower), T(lower.length === 1 ? ' would fit but lower the value.' : ' would fit but lower the value.')]);
-    var decide = p.members.length ? [T('Approve '), N(p.names), T(' for '), F(bMoney(p.budgetCost))].concat(p.unspent > 0.5 ? [T(' and keep '), F(bMoney(p.unspent)), T(' of the budget.')] : [T('.')])
+    if (lower.length) why = why.concat([T(' Adding '), N(lower), T(' would lower it.')]);
+    var decide = p.members.length ? [T('Approve '), N(p.names), T(' for '), F(bMoney(p.budgetCost)), T(' of the '), F(bMoney(p.budget)), T(' budget.')]
       : [T('Fund nothing new at this budget.')];
-    if (p.next) decide = decide.concat([T(' The next step: '), F(bMoney(p.next.extraBudget)), T(' more budget would fund '), N(p.next.names), T(' and add '), F(bMoney(p.next.extraValue)), T(' of value.')]);
+    if (p.next) decide = decide.concat([T(' '), F(bMoney(p.next.extraBudget)), T(' more would fund '), N(p.next.names), T(' and add '), F(bMoney(p.next.extraValue)), T('.')]);
     else decide.push(T(' More budget would not add value.'));
     return {
       year: y, month: m, monthLabel: R.months[m], months: R.months, isTargetYear: isTargetYear, cards: cards, guardrails: guards, watch: watch, picks: p,
@@ -5540,7 +5690,8 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
     LEARNABLE: LEARNABLE, learningChannel: learningChannel, learningExpected: learningExpected, learnFromActuals: learnFromActuals, applyLearning: applyLearning,
     scenarioSummary: scenarioSummary, cfoBriefing: cfoBriefing,
     // Dashboard (SPEC.md section 13)
-    pickValue: pickValue, dashboardPicks: dashboardPicks, cashRiver: cashRiver, dashboardView: dashboardView, decisionImpact: decisionImpact
+    pickValue: pickValue, dashboardPicks: dashboardPicks, cashRiver: cashRiver, dashboardView: dashboardView, decisionImpact: decisionImpact,
+    CRM_SAMPLE: CRM_SAMPLE, parseCrmCsv: parseCrmCsv, crmToCsv: crmToCsv, crmDerive: crmDerive, applyCrm: applyCrm
   };
 })(window);
 </script>
@@ -8594,8 +8745,9 @@ window.TestSuite = (function () {
     t.near('2027 to date is still kept: invested', v1.returns.investedToDate, 439166.67, 0.01); t.near('2027 to date: net cash return', v1.returns.returnToDate, -239669.38, 0.01);
     t.eq('Pays back in Oct 2028', v1.returns.payback.month, 22);
     var txt = v1.briefing.map(function (s) { return s.parts.map(function (x) { return x.fact || x.input || x.text; }).join(''); }).join(' ');
-    t.ok('The briefing names the plan, its value and the next step', /comes from Trade show, Hire 2 SDRs and Partner program\. Together they create \$919\.7K of value on \$928\.4K committed, \$0\.99 per dollar\./.test(txt) &&
-      /Adding Paid social test would fit but lower the value/.test(txt) && /It returns \$1\.3M of net cash by Dec 2029 and pays back in Oct 2028/.test(txt) && /\$168\.2K more budget would fund Hire 2 SDRs, Hire 2 AEs and Partner program and add \$43\.5K of value/.test(txt), txt);
+    t.ok('The briefing names the plan, its value and the next step', /Trade show, Hire 2 SDRs and Partner program create \$919\.7K of value on \$928\.4K committed, \$0\.99 per dollar\./.test(txt) &&
+      /Adding Paid social test would lower it/.test(txt) && /Approve Trade show, Hire 2 SDRs and Partner program for \$423\.2K of the \$500\.0K budget\./.test(txt) &&
+      /\$168\.2K more would fund Hire 2 SDRs, Hire 2 AEs and Partner program and add \$43\.5K\./.test(txt), txt);
     t.ok('No gut-feel comparison remains', !/gut/i.test(txt));
   });
   test('T158', 'C24 (e) can fail: a wrong dashboard plan, build-up, reason or next step is caught (SPEC.md 13.2)', function (t) {
@@ -8637,6 +8789,44 @@ window.TestSuite = (function () {
     });
     var more = E.decisionImpact({ assumptions: A0, base: [sdrs, partner], decision: E.templates.tradeShow(A0, { id: 'show', name: 'Trade show', expectedLeads: 350 }), inPlan: true });
     t.ok('More expected leads, more return', more.long.netReturn > d.long.netReturn && more.long.roi > d.long.roi);
+  });
+
+  test('T160', 'CRM data sets the funnel rates, deal sizes, lead costs, sales cycles and trade show leads (SPEC.md 13.7)', function (t) {
+    var crm = E.CRM_SAMPLE, d = E.crmDerive(A0, crm);
+    t.eq('The sample export gives the default assumptions exactly', JSON.stringify(E.applyCrm(A0, d)), JSON.stringify(A0));
+    t.eq('Nothing is kept from the assumptions', d.kept.length, 0);
+    t.eq('Events: win rate is won over won and lost (12 of 48)', d.channels.events.winRate, 0.25); t.eq('Paid: cost per lead is spend over leads', d.channels.paid.costPerLead, 240);
+    t.eq('Outbound: deal size is won amount over deals', d.channels.outbound.acv, 45000); t.eq('Events: sales cycle 152 days is 5 months', d.channels.events.salesCycleMonths, 5);
+    t.eq('Leads per SDR month: 900 over 36', d.leadsPerSdrPerMonth, 25);
+    t.eq('Trade show: average of 3 past events', d.tradeShow.events + ' events, ' + d.tradeShow.expectedLeads + ' leads, ' + d.tradeShow.booth + ' booth, ' + d.tradeShow.travel + ' travel', '3 events, 200 leads, 48000 booth, 12000 travel');
+    t.near('Blended win rate 51 of 228', d.blended.winRate, 51 / 228, 1e-12); t.near('Blended deal size', d.blended.acv, 2046000 / 51, 1e-9);
+    t.near('Blended cost per lead, spend channels', d.blended.costPerLead, 1344000 / 4440, 1e-9); t.near('Blended sales cycle in months', d.blended.salesCycleMonths, 5205 / 51 / 30.4375, 1e-12);
+    var back = E.parseCrmCsv(E.crmToCsv(crm), { source: crm.source });
+    t.eq('CSV round trip: funnel', JSON.stringify(back.funnel), JSON.stringify(crm.funnel)); t.eq('CSV round trip: events', JSON.stringify(back.events), JSON.stringify(crm.events));
+    t.eq('CSV round trip: period', back.period, crm.period);
+    // a cheaper paid channel changes only its cost per lead
+    var c2 = structuredClone(crm); c2.funnel.forEach(function (f) { if (f.channel === 'paid') f.spend = f.spend / 2; });
+    var A2 = E.applyCrm(A0, E.crmDerive(A0, c2)), want = structuredClone(A0); want.channels.paid.costPerLead = 120;
+    t.eq('Half the paid spend for the same leads: cost per lead 120, nothing else changes', JSON.stringify(A2), JSON.stringify(want));
+    t.ok('Cheaper paid leads lift the plan\'s ARR', E.runModel(A2, []).arr.arr[12] > E.runModel(A0, []).arr.arr[12]);
+    // better events history: more leads per show, higher win rate
+    var c3 = structuredClone(crm); c3.events.forEach(function (e) { e.leads += 100; }); c3.funnel.forEach(function (f) { if (f.channel === 'events') { f.won += f.lost > 0 ? 1 : 0; f.lost -= f.lost > 0 ? 1 : 0; } });
+    var d3 = E.crmDerive(A0, c3), A3 = E.applyCrm(A0, d3);
+    t.eq('More leads at past shows: expected leads 300', A3.templates.tradeShow.expectedLeads, 300);
+    t.ok('A better events record raises the events win rate', A3.channels.events.winRate > 0.25, String(A3.channels.events.winRate));
+    t.ok('and the trade show returns more', E.applyInitiatives(A3, [E.templates.tradeShow(A3)]).returns.npv > E.applyInitiatives(A0, [E.templates.tradeShow(A0)]).returns.npv);
+    // no evidence for a channel: its assumptions stay
+    var c4 = structuredClone(crm); c4.funnel = c4.funnel.filter(function (f) { return f.channel !== 'partners'; }); c4.events = [];
+    var d4 = E.crmDerive(A0, c4);
+    t.eq('No partner rows and no events: those assumptions are kept', JSON.stringify(E.applyCrm(A0, d4)), JSON.stringify(A0));
+    t.eq('and listed as kept', d4.kept.join(','), 'partners.costPerLead,partners.leadToMqlRate,partners.mqlToOppRate,partners.winRate,partners.acv,partners.salesCycleMonths,templates.tradeShow');
+    var csv = E.crmToCsv(crm);
+    [['', /empty/], ['month,channel\n2026-01,paid', /no "record" column/], [csv.replace('outbound', 'radio'), /Line 2: unknown channel "radio"/],
+      [csv.replace(',28000,', ',-5,'), /Line 2: "spend" must be a number at or above zero/], [csv.replace('2026-01', 'Jan 26'), /Line 2: month must look like/]].forEach(function (x) {
+      var msg = ''; try { E.parseCrmCsv(x[0]); } catch (e) { msg = e.message; }
+      t.ok('Rejects a bad file: ' + x[1], x[1].test(msg), msg);
+    });
+    t.eq('Every model check passes with CRM-derived assumptions', E.runChecks(E.runModel(A3, [])).every(function (c) { return c.pass; }), true);
   });
 
   function run() {
@@ -8708,6 +8898,7 @@ window.TestSuite = (function () {
     dashView: null,
     tester: null,               // the decision being tested on the dashboard: { uid, params (draft inputs) }
     testView: null,
+    crm: null,                  // the CRM export behind the funnel rates: { data, derived, sample, error } (SPEC.md 13.7)
     learned: {},                // assumption paths updated from a completed initiative's actuals: path -> initiative name
     compare: {},                // saved scenarios ticked for comparison
     storeNote: ''
@@ -10895,7 +11086,7 @@ window.TestSuite = (function () {
   var PCT_METRICS = { arrGrowth: 1, grossMarginTrailing: 1, ebitdaMarginTrailing: 1, fcfMarginTrailing: 1 };
   var REASON_WORDS = { over_budget: 'Over budget', breaks_guardrail: 'Breaks a guardrail', conflict: 'Not a valid combination', no_gain: 'Adds nothing the plan needs', excluded: 'Excluded by you' };
   var EXAMPLES = [
-    ['tradeShow', { name: 'Trade show' }], ['hireSdrs', { name: 'Hire 2 SDRs' }], ['hireAes', { name: 'Hire 2 AEs' }],
+    ['tradeShow', { name: 'Trade show' }], ['hireSdrs', { name: 'SDR hires' }], ['hireAes', { name: 'AE hires' }],
     ['paidCampaign', { name: 'Paid search campaign' }], ['paidCampaign', { name: 'Paid social test', budget: 60000, months: 3, startMonth: 3 }],
     ['partnerProgram', { name: 'Partner program' }], ['accelerateRevenue', { name: 'Hub pull-in' }], ['accelerateCost', { name: 'Hosting pull-in' }]
   ];
@@ -11630,16 +11821,8 @@ window.TestSuite = (function () {
   // data. The engine picks, explains and writes (SPEC.md 13); this only draws.
   // ------------------------------------------------------------------
   var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  function dashSliderDefs() {
-    var U = state.A.uncertainty, shifts = U.salesCycleShift.map(function (x) { return x.shift; });
-    return [
-      { key: 'budget', label: 'Budget', min: 0, max: 1500000, step: 25000 },
-      { key: 'winRate', label: 'Win rate', min: U.winRate.low, max: U.winRate.high, step: 0.05 },
-      { key: 'acv', label: 'Deal size', min: U.acv.low, max: U.acv.high, step: 0.05 },
-      { key: 'costPerLead', label: 'Lead cost', min: U.costPerLead.low, max: U.costPerLead.high, step: 0.05 },
-      { key: 'salesCycleShift', label: 'Sales cycle', min: Math.min.apply(null, shifts), max: Math.max.apply(null, shifts), step: 1 }
-    ];
-  }
+  // The dashboard has one lever, the budget. Win rate, deal size, lead cost and sales cycle come from the CRM data.
+  function dashSliderDefs() { return [{ key: 'budget', label: 'This year', min: 0, max: 1500000, step: 25000 }]; }
   function sliderValue(key) { return key === 'budget' ? state.A.portfolio.budget : state.A.cockpit[key]; }
   function sliderText(key, v) {
     if (key === 'budget') return compact(v);
@@ -11676,6 +11859,56 @@ window.TestSuite = (function () {
     renderCockpit(); renderChangeCount();
     recalcSoon();
   }
+  // CRM data (SPEC.md 13.7): the source of the funnel rates. Loading an export re-derives them and re-plans.
+  function crmSet(crm, sample) {
+    var d = E.crmDerive(state.A, crm);
+    state.A = E.applyCrm(state.A, d);
+    state.crm = { data: crm, derived: d, sample: !!sample, error: null };
+    if (d.tradeShow) state.initiatives.forEach(function (it) {
+      if (it.template === 'tradeShow' && !it.completed) ['expectedLeads', 'booth', 'travel'].forEach(function (k) { it.params[k] = d.tradeShow[k]; });
+    });
+    state.tester = null; $('d-test-inputs').removeAttribute('data-for');
+    buildPanel(); dashPending = true; recalc();
+  }
+  function crmLoadFile(file) {
+    var rd = new FileReader();
+    rd.onload = function () {
+      try { crmSet(E.parseCrmCsv(String(rd.result), { source: file.name }), false); }
+      catch (err) { state.crm.error = String(err.message).replace(/^Invalid input: /, '') + '.'; renderDashCrm(); }
+    };
+    rd.readAsText(file);
+  }
+  function crmDownload() {
+    var a = el('a', { href: URL.createObjectURL(new Blob([E.crmToCsv(E.CRM_SAMPLE)], { type: 'text/csv' })), download: 'crm-sample-fictional.csv' });
+    document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+  }
+  function cycleText(x) { return isNum(x) ? Number(x.toFixed(1)) + ' mo' : 'n/a'; }
+  function renderDashCrm() {
+    var c = state.crm, d = c.derived, b = d.blended;
+    $('d-crm-name').textContent = c.data.source; $('d-crm-period').textContent = c.data.period;
+    var st = clear($('d-crm-stats'));
+    [['winRate', 'Win rate', pct(b.winRate, 1)], ['acv', 'Deal size', compact(b.acv)], ['costPerLead', 'Cost per lead', isNum(b.costPerLead) ? '$' + Math.round(b.costPerLead) : 'n/a'],
+      ['salesCycle', 'Sales cycle', cycleText(b.salesCycleMonths)]].forEach(function (r) {
+      var w = el('div', { 'data-crm': r[0] }); w.appendChild(el('dt', null, r[1])); w.appendChild(el('dd', null, r[2])); st.appendChild(w);
+    });
+    $('d-crm-sample').hidden = c.sample;
+    var er = $('d-crm-err'); er.hidden = !c.error; er.textContent = c.error || '';
+    var tb = clear($('d-crm-table')), t = el('table'), hr = el('tr');
+    ['Channel', 'Leads', 'Cost per lead', 'Win rate', 'Deal size', 'Sales cycle'].forEach(function (h) { hr.appendChild(el('th', { scope: 'col' }, h)); });
+    t.appendChild(el('thead')).appendChild(hr);
+    var body = el('tbody');
+    state.A.channelOrder.forEach(function (cid) {
+      var x = d.channels[cid], tr = el('tr', { 'data-crm-row': cid });
+      [x.name, whole(x.evidence.leads), isNum(x.costPerLead) ? '$' + Math.round(x.costPerLead) : 'SDRs', pct(x.winRate, 1), compact(x.acv), x.salesCycleMonths + ' mo'].forEach(function (v) { tr.appendChild(el('td', null, v)); });
+      body.appendChild(tr);
+    });
+    t.appendChild(body); tb.appendChild(t);
+    var notes = [];
+    if (d.tradeShow) notes.push('Trade shows: ' + d.tradeShow.events + ' past events, ' + whole(d.tradeShow.expectedLeads) + ' leads each on average.');
+    notes.push('Each ramped SDR brings ' + count(d.leadsPerSdrPerMonth, 1) + ' leads a month.');
+    if (d.kept.length) notes.push('Not in the file, kept as assumptions: ' + d.kept.join(', ') + '.');
+    tb.appendChild(el('p', { class: 'd-note' }, notes.join(' ')));
+  }
   function dashReady() { var S = state.strat; return !!(S.table && S.tableKey === S.key && S.sel && S.sel.picks); }
   function dashRun(set) {
     var S = state.strat;
@@ -11687,7 +11920,7 @@ window.TestSuite = (function () {
   }
   function renderDash() {
     if (state.mode !== 'dash' || !state.res) return;
-    syncDashSliders();
+    syncDashSliders(); renderDashCrm();
     var S = state.strat;
     $('d-busy').hidden = !(S.build || dashPending);
     document.querySelectorAll('.d-seg [data-year]').forEach(function (b) { b.setAttribute('aria-pressed', String(Number(b.getAttribute('data-year')) === state.dashYear)); });
@@ -11699,7 +11932,7 @@ window.TestSuite = (function () {
     state.dashView = v;
     var main = $('d-main');
     main.setAttribute('data-ready', 'yes'); main.setAttribute('data-plan-set', String(picks.set));
-    $('d-stand-sub').textContent = v.monthLabel + ', with the data-driven plan';
+    $('d-stand-sub').textContent = v.monthLabel;
     renderDashKpis(v); renderDashDecision(v); renderDashBridge(v); renderDashTester(false); renderDashBrief(v); renderDashRiver(v);
   }
   // Numbers ease to their new value for the video, and always land on the engine's figure.
@@ -11767,7 +12000,6 @@ window.TestSuite = (function () {
         k.appendChild(el('div', { class: 'd-value' }));
         k.appendChild(el('div', { class: 'd-chips' }));
         k.appendChild(el('div', { class: 'd-sparkbox' }));
-        k.appendChild(el('p', { class: 'd-cap' }));
         box.appendChild(k);
       });
     }
@@ -11780,7 +12012,6 @@ window.TestSuite = (function () {
         sp.appendChild(el('small', null, ch.label)); chips.appendChild(sp);
       });
       var sb = clear(k.querySelector('.d-sparkbox')); dashSpark(sb, c);
-      partsInto(clear(k.querySelector('.d-cap')), c.caption);
     });
     // The guardrails of the strategy, for the funded plan over their own windows
     var gl = clear($('d-guards'));
@@ -11798,8 +12029,8 @@ window.TestSuite = (function () {
     $('d-decision-sub').textContent = compact(p.budget) + ' to spend this year';
     if (!hero.children.length) { hero.appendChild(el('div', { class: 'big' })); hero.appendChild(el('div', { class: 'what' })); hero.appendChild(el('div', { class: 'also' })); }
     setNum(hero.querySelector('.big'), p.npv, function (x) { return compact(x); });
-    hero.querySelector('.what').textContent = p.members.length ? 'of value created by the funded plan (NPV over ' + H + ' months)' : 'Nothing at this budget adds value';
-    hero.querySelector('.also').textContent = p.members.length ? compact(p.budgetCost) + ' of the ' + compact(p.budget) + ' budget, $' + p.valuePerDollar.toFixed(2) + ' of value per $1 committed' : '';
+    hero.querySelector('.what').textContent = p.members.length ? 'value created (NPV)' : 'Nothing at this budget adds value';
+    hero.querySelector('.also').textContent = p.members.length ? compact(p.budgetCost) + ' of ' + compact(p.budget) + ' spent' : '';
     var vs = clear($('d-vs'));
     var fund = el('div', { class: 'd-side data', 'data-side': 'funded' });
     var h3 = el('h3'); h3.appendChild(el('i', { style: 'background:var(--d-gold)' })); h3.appendChild(document.createTextNode('Fund')); fund.appendChild(h3);
@@ -11821,7 +12052,7 @@ window.TestSuite = (function () {
     out.appendChild(ul);
     vs.appendChild(out);
     var next = $('d-next');
-    next.textContent = p.next ? 'Next step: ' + compact(p.next.extraBudget) + ' more budget would add ' + compact(p.next.extraValue) + ' of value.' : 'More budget would not add value.';
+    next.textContent = p.next ? 'Next step: +' + compact(p.next.extraBudget) + ' budget adds ' + compact(p.next.extraValue) + '.' : 'More budget would not add value.';
   }
   function wrapLabel(text, max) {
     var words = String(text).split(' '), lines = [''];
@@ -11854,8 +12085,7 @@ window.TestSuite = (function () {
       g.appendChild(t);
     });
     box.appendChild(g);
-    box.appendChild(el('p', { class: 'd-note' }, b.steps.length ? 'Each step adds one initiative to those before it in a full model run, so what they share (leads, sales capacity) shows up in the later steps.'
-      : 'Nothing is funded at this budget.'));
+    if (!b.steps.length) box.appendChild(el('p', { class: 'd-note' }, 'Nothing is funded at this budget.'));
   }
   function renderDashBrief(v) {
     var box = clear($('d-brief-body'));
@@ -11871,7 +12101,7 @@ window.TestSuite = (function () {
   function renderDashRiver(v) {
     var box = clear($('d-river-chart')), rv = v.river;
     if (riverAnim) { cancelAnimationFrame(riverAnim); riverAnim = null; }
-    $('d-river-sub').textContent = 'Cash in and out, ' + rv.fromLabel + ' to ' + rv.toLabel + ', with the data-driven plan';
+    $('d-river-sub').textContent = rv.fromLabel + ' to ' + rv.toLabel;
     var w = Math.max(300, box.clientWidth || 600), h = 320, nodeW = 12, cxw = 12, gap = 10, top = 26;
     var narrow = w < 520, colL = 0, colC = w * (narrow ? 0.5 : 0.44) - cxw / 2, colR = w - nodeW;
     var ins = rv.inflows.filter(function (x) { return x.value > 0.5; }), outs = rv.outflows.filter(function (x) { return x.value > 0.5; });
@@ -11941,10 +12171,10 @@ window.TestSuite = (function () {
   }
   // --- Test a decision (SPEC.md 13.6): one proposal on top of the rest of the plan ------------
   var TEST_FIELDS = {
-    tradeShow: [['booth', 'Booth and sponsorship', 0, 150000, 5000, 'money'], ['expectedLeads', 'Expected leads', 0, 600, 10, 'count'], ['month', 'Event month', 1, 12, 1, 'month']],
+    tradeShow: [['expectedLeads', 'Expected leads', 0, 0, 0, 'crm'], ['booth', 'Booth and sponsorship', 0, 150000, 5000, 'money'], ['month', 'Event month', 1, 12, 1, 'month']],
     paidCampaign: [['budget', 'Campaign budget', 0, 300000, 5000, 'money'], ['months', 'Months it runs', 1, 12, 1, 'count'], ['startMonth', 'First month', 1, 12, 1, 'month']],
-    hireSdrs: [['count', 'SDRs hired', 1, 6, 1, 'count'], ['startMonth', 'Start month', 1, 12, 1, 'month']],
-    hireAes: [['count', 'AEs hired', 1, 6, 1, 'count'], ['startMonth', 'Start month', 1, 12, 1, 'month']],
+    hireSdrs: [['count', 'Headcount', 1, 10, 1, 'stepper'], ['startMonth', 'Start month', 1, 12, 1, 'month']],
+    hireAes: [['count', 'Headcount', 1, 10, 1, 'stepper'], ['startMonth', 'Start month', 1, 12, 1, 'month']],
     partnerProgram: [['coMarketingMonthly', 'Co-marketing per month', 0, 40000, 1000, 'money'], ['months', 'Months it runs', 1, 24, 1, 'count'], ['startMonth', 'First month', 1, 12, 1, 'month']],
     accelerateRevenue: [['contractors', 'Contract engineers', 0, 16, 1, 'count'], ['engineers', 'Engineers hired', 0, 6, 1, 'count']],
     accelerateCost: [['contractors', 'Contract engineers', 0, 16, 1, 'count'], ['engineers', 'Engineers hired', 0, 6, 1, 'count']]
@@ -11976,34 +12206,56 @@ window.TestSuite = (function () {
     testerCandidates().forEach(function (x) {
       var b = el('button', { type: 'button', class: planIds[x.uid] ? 'in' : '', 'aria-pressed': String(x.uid === it.uid), 'data-test-pick': x.uid, title: planIds[x.uid] ? 'In the plan' : 'Not in the plan' });
       b.appendChild(el('i')); b.appendChild(document.createTextNode(x.params.name));
+      if (x.template === 'hireSdrs' || x.template === 'hireAes') b.appendChild(el('small', { 'data-pick-count': '' }, String(x.uid === it.uid ? state.tester.params.count : x.params.count)));
       b.addEventListener('click', function () { selectTester(x.uid); });
       pick.appendChild(b);
     });
     var box = $('d-test-inputs'), fields = TEST_FIELDS[it.template] || [];
     if (rebuildInputs || box.getAttribute('data-for') !== it.uid) {
       clear(box); box.setAttribute('data-for', it.uid);
-      box.appendChild(el('div', { class: 'd-label plain' }, 'Inputs for ' + it.params.name));
       fields.forEach(function (f) {
+        function changed() { clearTimeout(testerTimer); testerTimer = setTimeout(function () { renderDashTester(false); }, 60); }
+        if (f[5] === 'crm') {
+          // From the CRM: the average of past events, not a slider
+          var tsd = state.crm.derived.tradeShow, v0 = state.tester.params[f[0]], fromCrm = tsd && tsd.expectedLeads === v0;
+          var ro = el('div', { class: 'd-ro' }); ro.appendChild(el('span', { class: 'd-sl-top' }, f[1]));
+          ro.appendChild(el('b', { 'data-test-out': f[0] }, whole(v0)));
+          ro.appendChild(el('small', { 'data-test-src': f[0] }, fromCrm ? 'CRM average of ' + tsd.events + ' past events' : 'Assumption'));
+          box.appendChild(ro); return;
+        }
+        if (f[5] === 'stepper') {
+          var sw = el('div', { class: 'd-sl' }); sw.appendChild(el('span', { class: 'd-sl-top' }, f[1]));
+          var stp = el('div', { class: 'd-step', role: 'group', 'aria-label': f[1] });
+          var minus = el('button', { type: 'button', 'data-test-step': '-1', 'aria-label': 'One fewer' }, '\u2212');
+          var val = el('output', { 'data-test-out': f[0] }, String(state.tester.params[f[0]]));
+          var plus = el('button', { type: 'button', 'data-test-step': '1', 'aria-label': 'One more' }, '+');
+          function step(dlt) {
+            var nv = Math.min(f[3], Math.max(f[2], state.tester.params[f[0]] + dlt));
+            state.tester.params[f[0]] = nv; val.textContent = String(nv); minus.disabled = nv <= f[2]; plus.disabled = nv >= f[3]; changed();
+          }
+          minus.disabled = state.tester.params[f[0]] <= f[2]; plus.disabled = state.tester.params[f[0]] >= f[3];
+          minus.addEventListener('click', function () { step(-1); }); plus.addEventListener('click', function () { step(1); });
+          stp.appendChild(minus); stp.appendChild(val); stp.appendChild(plus); sw.appendChild(stp); box.appendChild(sw); return;
+        }
         var wrap = el('label', { class: 'd-sl' }), top = el('span', { class: 'd-sl-top' });
         top.appendChild(el('span', null, f[1]));
         var out = el('output', { 'data-test-out': f[0] }, testFieldText(f[5], state.tester.params[f[0]])); top.appendChild(out); wrap.appendChild(top);
         var inp = el('input', { type: 'range', min: f[2], max: f[3], step: f[4], 'data-test-field': f[0], 'aria-label': f[1] });
         inp.value = String(state.tester.params[f[0]]);
         inp.addEventListener('input', function () {
-          state.tester.params[f[0]] = Number(inp.value); out.textContent = testFieldText(f[5], Number(inp.value));
-          clearTimeout(testerTimer); testerTimer = setTimeout(function () { renderDashTester(false); }, 60);
+          state.tester.params[f[0]] = Number(inp.value); out.textContent = testFieldText(f[5], Number(inp.value)); changed();
         });
         wrap.appendChild(inp); box.appendChild(wrap);
       });
       box.appendChild(el('p', { class: 'd-err', 'data-test-err': '' }));
       var acts = el('div', { class: 'd-actions' });
-      var use = el('button', { type: 'button', class: 'd-btn primary', id: 'd-test-use' }, 'Use these inputs in the plan');
+      var use = el('button', { type: 'button', class: 'd-btn primary', id: 'd-test-use' }, 'Use in the plan');
       use.addEventListener('click', function () {
         var target = state.initiatives.filter(function (x) { return x.uid === state.tester.uid; })[0];
         if (!target) return;
         target.params = cloneParams(state.tester.params); dashPending = true; recalc();
       });
-      var rs = el('button', { type: 'button', class: 'd-btn', id: 'd-test-reset' }, 'Reset inputs');
+      var rs = el('button', { type: 'button', class: 'd-btn', id: 'd-test-reset' }, 'Reset');
       rs.addEventListener('click', function () { selectTester(state.tester.uid); });
       acts.appendChild(use); acts.appendChild(rs); box.appendChild(acts);
     }
@@ -12028,20 +12280,20 @@ window.TestSuite = (function () {
       t.appendChild(dl);
     }
     var pb = r.long.payback;
-    term('d-near', 'Near term, to ' + r.near.label, [
+    term('d-near', (r.inPlan ? 'In the plan' : 'Not in the plan') + ' \u00b7 to ' + r.near.label, [
       ['Budget used this year', compact(r.budgetCost), '', 'budget'],
-      ['ARR added by ' + r.near.label, signedCompact(r.near.arr), r.near.arr >= 0 ? 'good' : 'bad', 'nearArr'],
+      ['ARR added', signedCompact(r.near.arr), r.near.arr >= 0 ? 'good' : 'bad', 'nearArr'],
       ['Deals won', count(r.near.deals, 1), '', 'deals'],
       ['Net cash this year', signedCompact(r.near.netReturn), r.near.netReturn >= 0 ? 'good' : 'bad', 'nearCash']]);
-    term('d-long', 'Long term, to ' + r.long.label, [
-      ['ARR added by ' + r.long.label, signedCompact(r.long.arr), r.long.arr >= 0 ? 'good' : 'bad', 'longArr'],
+    term('d-long', 'Long term \u00b7 to ' + r.long.label, [
+      ['ARR added', signedCompact(r.long.arr), r.long.arr >= 0 ? 'good' : 'bad', 'longArr'],
       ['Net cash return', signedCompact(r.long.netReturn), r.long.netReturn >= 0 ? 'good' : 'bad', 'longCash'],
       ['ROI', isNum(r.long.roi) ? signed(Math.abs(Math.round(r.long.roi * 100)) + '%', r.long.roi) : 'n/a', isNum(r.long.roi) && r.long.roi >= 0 ? 'good' : 'bad', 'roi'],
       ['Pays back', pb.status === 'paid_back' ? r.months[pb.month] : pb.status === 'never_negative' ? 'At once' : 'Not by ' + r.long.label, pb.status === 'not_within_horizon' ? 'bad' : '', 'payback']]);
     testerChart($('d-test-chart'), r);
     var vb = clear($('d-verdict'));
-    r.verdict.forEach(function (v) { var sec = el('section', { 'data-verdict-part': v.key }); sec.appendChild(partsInto(el('p'), v.parts)); vb.appendChild(sec); });
-    vb.appendChild(el('p', { class: 'd-note', 'data-test-checks': '' }, r.checks.passed === r.checks.total ? 'All ' + r.checks.total + ' model checks pass on this run.' : 'Model checks failing: ' + r.checks.failures.join('; ')));
+    r.verdict.filter(function (v) { return v.key === 'fit'; }).forEach(function (v) { var sec = el('section', { 'data-verdict-part': v.key }); sec.appendChild(partsInto(el('p'), v.parts)); vb.appendChild(sec); });
+    vb.appendChild(el('p', { class: 'd-note', 'data-test-checks': '' }, r.checks.passed === r.checks.total ? r.checks.passed + '/' + r.checks.total + ' model checks pass' : 'Model checks failing: ' + r.checks.failures.join('; ')));
   }
   // The decision's cumulative net cash, month by month: near term shaded, the payback month marked.
   function testerChart(box, r) {
@@ -12145,6 +12397,10 @@ window.TestSuite = (function () {
       renderCockpit(); buildPanel(); buildDashSliders(); dashPending = true; recalc();
     });
     buildDashSliders();
+    $('d-crm-more').addEventListener('click', function () { var t = $('d-crm-table'), open = t.hidden; t.hidden = !open; $('d-crm-more').setAttribute('aria-expanded', String(open)); });
+    $('d-crm-file').addEventListener('change', function (e) { var f = e.target.files && e.target.files[0]; if (f) crmLoadFile(f); e.target.value = ''; });
+    $('d-crm-csv').addEventListener('click', crmDownload);
+    $('d-crm-sample').addEventListener('click', function () { crmSet(E.CRM_SAMPLE, true); });
     $('close-howto').addEventListener('click', function () { openHowto(false); });
     $('howto-scrim').addEventListener('click', function () { openHowto(false); });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('howto').hidden) openHowto(false); });
@@ -12167,6 +12423,7 @@ window.TestSuite = (function () {
     $('init-cancel').addEventListener('click', function () { startDraft(state.draft.template, null); });
     $('reset-assumptions').addEventListener('click', function () {
       state.A = E.defaultAssumptions(); state.invalid = {}; state.learned = {};
+      state.crm = { data: E.CRM_SAMPLE, derived: E.crmDerive(state.A, E.CRM_SAMPLE), sample: true, error: null };
       state.initiatives.forEach(function (it) { if (it.completed) it.completed.applied = null; });
       buildPanel(); recalc();
     });
@@ -12193,6 +12450,8 @@ window.TestSuite = (function () {
       return;
     }
     state.plan = E.runModel(DEFAULTS, []);
+    // The defaults are what the bundled sample CRM export gives (test T160), so starting from it changes nothing.
+    state.crm = { data: E.CRM_SAMPLE, derived: E.crmDerive(state.A, E.CRM_SAMPLE), sample: true, error: null };
     state.mode = params.get('mode') === 'analyst' || params.get('view') ? 'analyst' : 'dash';
     if (state.mode === 'dash') addExampleInitiatives();
     applyMode();

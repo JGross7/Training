@@ -8,11 +8,11 @@ Two scripts: an 85-second screen recording for LinkedIn (the dashboard), and a 5
 
 **Set-up:** browser at 1366 x 800 or larger, page zoom 100%, the dashboard freshly loaded (it opens on 2027 with a $500K budget). Record the browser window only. Move the mouse slowly; every change animates.
 
-**0:00 to 0:08. The hook.** Hover the title.
-> "Eight teams want money. One budget. Which ones do you fund, and what will it earn? Let the model decide, and show its work."
+**0:00 to 0:08. The hook.** Hover the title, then the CRM band.
+> "Eight teams want money. One budget. Which ones do you fund, and what will it earn? Let the model decide, and show its work. It starts from last year's CRM data: a 22% win rate, $40K deals, $303 a lead, a three-and-a-half month sales cycle."
 
 **0:08 to 0:22. 02 The plan for this budget.** Point at the gold number, then the two lists.
-> "The model runs every combination of the eight through a full three-statement forecast. At $500K it funds three: the trade show, two SDRs and the partner program. $920K of value, and every proposal it leaves out says why: over budget, or it would lower the value."
+> "The model runs every combination of the eight through a full three-statement forecast. At $500K it funds three: the trade show, the SDR hires and the partner program. $920K of value, and every proposal it leaves out says why: over budget, or it would lower the value."
 
 **0:22 to 0:32. 03 Where the value comes from.** Point at the green steps.
 > "Here is where the value comes from, initiative by initiative. The trade show adds less here than on its own, because it competes for the same sales capacity in April."
@@ -21,7 +21,7 @@ Two scripts: an 85-second screen recording for LinkedIn (the dashboard), and a 5
 > "The scoreboard: ARR $30.5M, revenue growing 27%. We invest $928K and get $1.3M of cash back, a 136% return, paid back by October 2028. Underneath, every guardrail holds: cash never goes below $18.9M against a $15M floor, the burn multiple stays under 2. Click through the years and growth keeps going."
 
 **0:48 to 1:05. 04 Test a decision.** The trade show is already selected.
-> "Now the question every marketing lead asks: should we go to the trade show? It costs $60K this year. Near term it adds $107K of ARR by December, and this year's cash is $19K down. Long term it returns $200K, a 263% ROI, paying back in June 2028. Watch what happens if the booth brings 350 leads instead of 200." Drag Expected leads to 350: ROI 311%, payback April 2028. "ARR this year moves less than you would think, because April's sales team is already full. That is the kind of thing a spreadsheet hides."
+> "Now the question every marketing lead asks: should we go to the trade show? The CRM says our last three shows brought 200 leads each. It costs $60K this year. Near term it adds $107K of ARR by December, and this year's cash is $19K down. Long term it returns $200K, a 263% ROI, paying back in June 2028. Negotiate the booth down to $30K?" Drag Booth to $30K: ROI 375%, payback January 2028. Click **SDR hires**, then **+** once: "And a third SDR? $230K more ARR this year, but now the plan is over budget. The model says so."
 
 **1:05 to 1:15. Click 2027 again and drag the budget to $700K.**
 > "Give it more budget and the answer changes: now it hires account executives instead of running the trade show. The briefing rewrites itself."
@@ -29,7 +29,7 @@ Two scripts: an 85-second screen recording for LinkedIn (the dashboard), and a 5
 **1:15 to 1:25. 05 CFO briefing.** Scroll down a little.
 > "What happened, why, what to decide. Every number in it comes from the model, and 24 integrity checks run on every change. That is what data-driven capital allocation looks like."
 
-**Optional extras** (for a longer cut): move **Win rate** to +25% to show everything recalculating, show the **cash river**, or click **Analyst view** to show the full model behind it.
+**Optional extras** (for a longer cut): click **By channel** to show each channel's rates from the CRM, load your own CRM export with **Load CSV** (the format is in **Sample CSV**), show the **cash river**, or click **Analyst view** to show the full model behind it.
 
 **Caption idea:** "Eight proposals, one $500K budget. The model ran every combination: fund three, return $1.3M on $928K (136%), pay back by October 2028, keep every guardrail. Fictional company, real method: a 3-statement model with 24 integrity checks on every recalculation."
 

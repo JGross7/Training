@@ -3332,7 +3332,7 @@ A scenario is the assumptions object plus the initiative list (with statuses, co
 
 ## 13. Dashboard: the return on a data-driven plan
 
-The first screen of the app is a dashboard for a short video: one question (what does a data-driven plan earn?), six numbered sections and a few sliders, including one place to test a single decision near term and long term (13.6). It adds no formula to the model. It reads the portfolio table of section 11.7, and check C24 (e) verifies what it shows. The detailed app of sections 1 to 12 is one click away ("Analyst view", or `index.html?mode=analyst`).
+The first screen of the app is a dashboard for a short video: one question (what does a data-driven plan earn?), six numbered sections and one lever (the budget), including one place to test a single decision near term and long term (13.6). The funnel figures behind it (win rates, deal sizes, lead costs, sales cycles, leads per SDR and per trade show) come from a CRM export (13.7). It adds no formula to the model. It reads the portfolio table of section 11.7, and check C24 (e) verifies what it shows. The detailed app of sections 1 to 12 is one click away ("Analyst view", or `index.html?mode=analyst`).
 
 ### 13.1 The plan for a budget
 
@@ -3408,11 +3408,11 @@ At 500,000: ARR growth 27.0426% in 2027 (1.84 points above the plan), invested 9
 
 Below the cards, the guardrail strip shows the active strategy's guardrails and watch line for the run `R`, over their own windows (cash floor, runway, CAC payback, burn multiple, gross margin, covenant): value, limit and pass. Lowest cash and the burn multiple appear there, not as cards.
 
-The briefing has three short sections: what happened (ARR against the target, the guardrails, the lowest cash), why (the plan, its value and value per dollar, and what would fit but lower the value) and what to decide (approve the plan, what stays unspent, the next step). Every sentence is a list of parts: text, an engine number (a fact) or an initiative or guardrail name (an input, recorded as given). No text part contains a digit.
+The briefing has three short sections: what happened (ARR against the target, the guardrails, the lowest cash), why (the plan, its value and value per dollar, and what would fit but lower it) and what to decide (approve the plan against the budget, and the next step). The cards carry no caption on screen; the view keeps them for the Analyst view and the tests. Every sentence is a list of parts: text, an engine number (a fact) or an initiative or guardrail name (an input, recorded as given). No text part contains a digit.
 
 ### 13.6 Test a decision
 
-One proposal, with its key inputs changed if wanted (for a trade show: booth and sponsorship, expected leads, event month), tested on top of the rest of the plan. `Base` is the plan of 13.1 without that proposal (plus anything committed); the decision is that proposal with the inputs as set. Two runs, `R0 = runModel(Base)` and `R1 = runModel(Base + decision)`:
+One proposal, with its key inputs changed if wanted (for a trade show: booth and sponsorship and the event month, with expected leads shown from the CRM; for hires: the headcount, with a minus and plus control, and the start month), tested on top of the rest of the plan. `Base` is the plan of 13.1 without that proposal (plus anything committed); the decision is that proposal with the inputs as set. Two runs, `R0 = runModel(Base)` and `R1 = runModel(Base + decision)`:
 
 ```
 Investment_m = Investment_m of R1 − of R0        the decision's own cost, including what it changes in the plan's
@@ -3425,9 +3425,29 @@ Guardrails   = the strategy's rows on R1, with those R0 passes and R1 breaks nam
 Budget       = budget cost of R1 (the plan with the decision) against portfolio.budget
 ```
 
-For a proposal in the plan this is what it adds to the plan (its NPV is the difference of two table rows); for one outside it is what adding it would do. Alone (an empty base) it reduces to the decision card of sections 2.17 and 4.3. The verdict follows the rule of 13.4: every number is a recorded fact, every name an input, no digit in plain text. Checks C1 to C22 run on `R1` and their count is shown. Changing the inputs runs two models and changes nothing else; "Use these inputs in the plan" writes them into the proposal, and the plan of 13.1 is chosen again.
+For a proposal in the plan this is what it adds to the plan (its NPV is the difference of two table rows); for one outside it is what adding it would do. Alone (an empty base) it reduces to the decision card of sections 2.17 and 4.3. The verdict follows the rule of 13.4: every number is a recorded fact, every name an input, no digit in plain text. Checks C1 to C22 run on `R1` and their count is shown. On screen the two columns carry the numbers, so only the fit line of the verdict and the check count are shown. Changing the inputs runs two models and changes nothing else; "Use in the plan" writes them into the proposal, and the plan of 13.1 is chosen again.
 
 **Reference values (default assumptions, budget 500,000, test T159):** the trade show on top of the SDRs and the partner program uses 60,000.00 of the budget and 76,000.00 in all; by Dec 2027 it adds 107,000.68 of ARR from 1.926120 deals and a net cash effect of −18,985.09; through Dec 2029 it adds 131,355.16 of ARR and 199,709.74 of net cash, an ROI of 262.78%, paying back in June 2028 (month 18); its NPV, 147,944.06, is row 35 minus row 34. Alone it is the trade show of 4.3 (NPV 202,196.90, payback month 14). Adding the two AEs to the plan does not fit: the plan would need 228,166.67 more than the budget.
+
+### 13.7 CRM data
+
+The funnel figures come from a CRM export: one row per month and channel (`spend, leads, mqls, opps, won, lost, won_amount, won_days, sdrs`) and one row per past trade show (`leads, booth, travel`), in one CSV with a `record` column (`funnel` or `event`). Summed over the rows of each channel `c`:
+
+```
+costPerLead_c      = spend / leads              spend-sourced channels only (outbound leads come from SDRs)
+leadToMqlRate_c    = mqls / leads
+mqlToOppRate_c     = opps / mqls
+winRate_c          = won / (won + lost)
+acv_c              = won_amount / won
+salesCycleMonths_c = round(won_days / won / 30.4375), at least 1
+leadsPerSdrPerMonth = outbound leads / Σ outbound sdrs          (sdrs is SDRs on staff that month)
+Trade show         = expectedLeads, booth, travel: the rounded averages of the past events with leads
+Blended (shown)    = Σwon / Σ(won + lost);  Σwon_amount / Σwon;  Σspend / Σleads over spend channels;  Σwon_days / Σwon / 30.4375
+```
+
+A figure with no evidence (no rows, or a zero denominator) keeps its assumption and is listed as kept. Nothing else in the assumptions changes. Loading an export writes these values into the assumptions, sets the trade show proposals' expected leads, booth and travel, and chooses the plan again; a file it cannot read is refused with the line and reason, and nothing changes. "Use sample" restores the bundled export.
+
+The bundled sample (fictional, Jan to Dec 2026, 48 funnel rows and 3 trade shows) is built so these formulas give the default assumptions exactly: for example events 960 leads on 336,000 of spend (350 per lead), 240 MQLs, 48 opportunities, 12 won and 36 lost (25%), 624,000 won (52,000 each) over 1,824 days (5 months); 900 outbound leads over 36 SDR months (25 each); trade shows of 180, 220 and 200 leads (200 on average), booths 44,000, 52,000 and 48,000, travel 11,000, 13,000 and 12,000. Blended: win rate 51 of 228 (22.4%), deal size 40,117.65, cost per lead 302.70, sales cycle 3.35 months.
 
 ### 13.5 Tests
 
@@ -3436,5 +3456,6 @@ For a proposal in the plan this is what it adds to the plan (its NPV is the diff
 | T156 | The plan | The table of 13.1, a brute-force scan agreeing with the plan, the build-up adding up, the left-out reasons and the next steps |
 | T157 | Dashboard view | For 200,000, 500,000 and 1,000,000 and each year: the cards equal the formulas of 13.4, the guardrails are the strategy's rows, the cash river balances, the net cash return is positive, and no number lies outside the recorded facts. At 500,000: revenue growth 27.0426% in 2027 (on ARR), invested 928,437.67, net cash return 1,258,869.63, ROI 1.355901, paid back in October 2028 |
 | T159 | Test a decision | The values of 13.6, the identity with section 4.3 alone, the budget note for the AEs, every verdict number a recorded fact, and more expected leads giving more return |
+| T160 | CRM data | The sample gives the default assumptions exactly; the formulas of 13.7 and the blended figures; a CSV round trip; cheaper paid leads change only the paid cost per lead; better trade shows raise expected leads, the events win rate and the trade show's return; missing rows keep the assumptions and are listed; bad files are refused with the line |
 | T158 | C24 (e) can fail | A plan that is not the most value, a build-up step off by 1.00, a wrong left-out reason, a wrong next step and a plan value off by 1.00 each fail C24 |
-| UI | The dashboard | It is the first screen with six numbered sections, the four cards (ARR, revenue growth, invested, net cash return) and six guardrail tiles all passing, the badge at 24/24 and no comparison with a gut-feel pick; at 500,000 it funds set 35 with the build-up and reasons of 13.1; the year toggle moves ARR, revenue growth and the cash river while the return stays the plan's; at 700,000 the plan becomes set 38 and the briefing rewrites itself; a win-rate slider lifts ARR with every check passing; Reset restores; Test a decision starts on the trade show with the values of 13.6, updates live when expected leads move to 350 (ROI 311%, payback April 2028), explains a proposal outside the plan, and "Use these inputs in the plan" re-plans with more value; the Analyst view opens and returns; no em dashes; no sideways scrolling at 390px |
+| UI | The dashboard | It is the first screen with six numbered sections, the four cards (ARR, revenue growth, invested, net cash return) and six guardrail tiles all passing, the badge at 24/24 and no comparison with a gut-feel pick; at 500,000 it funds set 35 with the build-up and reasons of 13.1; the year toggle moves ARR, revenue growth and the cash river while the return stays the plan's; at 700,000 the plan becomes set 38 and the briefing rewrites itself; the bottom bar has only the budget; the CRM band shows the blended figures and the channel table of 13.7; loading an export with better trade shows (300 leads each, events win rate 16 of 48) re-derives the rates and the trade show's leads and raises the plan's value with every check passing; a bad file is refused with its line; "Use sample" restores the defaults exactly; Reset restores the budget; Test a decision starts on the trade show with the values of 13.6, shows expected leads from the CRM (no slider), updates live when the booth drops to 30,000 (ROI 375%, payback January 2028), the headcount stepper takes the SDR hires from 2 to 3 (ARR this year +229.5K, net cash return +870.0K, ROI 84%, over the budget), it explains a proposal outside the plan, and "Use in the plan" re-plans with more value; the Analyst view opens and returns; no em dashes; no sideways scrolling at 390px |

@@ -439,7 +439,7 @@ const APP = PAGE + '?mode=analyst'; // the detailed app (the bare page opens the
     const ranked = await st.$$eval('[data-ranked] tbody tr', trs => trs.map(tr => ({ name: tr.querySelector('th').firstChild.textContent,
       score: tr.querySelector('[data-col="score"]').textContent, cost: tr.querySelector('[data-col="budgetCost"]').firstChild.textContent,
       arr: tr.querySelector('[data-col="extraNewArr"]').textContent, g: tr.querySelector('[data-col="guardrails"]').textContent })));
-    check('Ranked list in SPEC 11.12 order', ranked.map(r => r.name).join(', ') === 'Trade show, Partner program, Hire 2 SDRs, Paid search campaign, Paid social test, Hire 2 AEs, Hub pull-in, Hosting pull-in',
+    check('Ranked list in SPEC 11.12 order', ranked.map(r => r.name).join(', ') === 'Trade show, Partner program, SDR hires, Paid search campaign, Paid social test, AE hires, Hub pull-in, Hosting pull-in',
       ranked.map(r => r.name).join(', '));
     check('Ranked list shows score, budget cost, extra new ARR and guardrail status', ranked[0].score === '1.60' && ranked[0].cost === '$60.0K' && /^\+\$/.test(ranked[0].arr) &&
       ranked[2].cost === '$223.2K' && ranked.every(r => r.g === '5 of 5'), JSON.stringify(ranked.slice(0, 3)));
@@ -541,7 +541,7 @@ const APP = PAGE + '?mode=analyst'; // the detailed app (the bare page opens the
     await bp.click('[data-view-tab="briefing"]');
     await bp.waitForFunction(() => /Main risk: cash floor/.test(document.getElementById('briefing-body').innerText), null, { timeout: 180000 });
     const b1 = await bp.textContent('#briefing-body');
-    check('Briefing recommends set 51 with the cash floor as the main risk', /Approve Trade show, Hire 2 SDRs, Paid social test and Partner program for \$483\.2K of the \$500\.0K budget/.test(b1) &&
+    check('Briefing recommends set 51 with the cash floor as the main risk', /Approve Trade show, SDR hires, Paid social test and Partner program for \$483\.2K of the \$500\.0K budget/.test(b1) &&
       /keeps it in 99\.1% of them, and meets the target in 0\.7%/.test(b1), b1.slice(0, 300));
     await bp.click('[data-view-tab="strategy"]');
     await bp.fill('#budget-input', '600000'); await bp.press('#budget-input', 'Enter');
@@ -644,8 +644,8 @@ const APP = PAGE + '?mode=analyst'; // the detailed app (the bare page opens the
     check('Revenue growth for 2027 is shown', Math.abs(at500.growth - 0.270426) < 0.000001, String(at500.growth));
     check('At $500K: fund trade show, SDRs and partner program for $919.7K of value', at500.set === '35' && Math.abs(at500.big - 919707.86) < 0.01 &&
       at500.bars === '+$466.6K +$305.2K +$147.9K $919.7K', JSON.stringify(at500).slice(0, 300));
-    check('Each proposal left out says why', at500.out === 'Hire 2 AEs:over_budget, Paid search campaign:over_budget, Paid social test:lowers_value, Hub pull-in:over_budget, Hosting pull-in:over_budget', at500.out);
-    check('The next step is named', at500.next === 'Next step: $168.2K more budget would add $43.5K of value.', at500.next);
+    check('Each proposal left out says why', at500.out === 'AE hires:over_budget, Paid search campaign:over_budget, Paid social test:lowers_value, Hub pull-in:over_budget, Hosting pull-in:over_budget', at500.out);
+    check('The next step is named', at500.next === 'Next step: +$168.2K budget adds $43.5K.', at500.next);
     await dp.click('.d-seg [data-year="3"]');
     const y3 = await read();
     const growth29 = await dp.evaluate(() => window.__APP__.state.dashView.cards[1].value);
@@ -657,18 +657,45 @@ const APP = PAGE + '?mode=analyst'; // the detailed app (the bare page opens the
     await dp.waitForTimeout(600);
     const at700 = await read();
     check('At $700K the plan changes: SDRs, AEs and partner program, $963.2K of value', at700.set === '38' && Math.abs(at700.big - 963165.17) < 0.01, JSON.stringify(at700).slice(0, 200));
-    check('The dashboard briefing rewrites itself with the budget', /fits the \$700\.0K budget comes from Hire 2 SDRs, Hire 2 AEs and Partner program/.test(at700.brief), at700.brief.slice(0, 300));
+    check('The dashboard briefing rewrites itself with the budget', /SDR hires, AE hires and Partner program create \$963\.2K of value/.test(at700.brief) && /of the \$700\.0K budget/.test(at700.brief), at700.brief.slice(0, 300));
     const eng = await dp.evaluate(() => { const v = window.__APP__.state.dashView; return { npv: v.picks.npv, ret: v.returns.netReturn }; });
     check('Dashboard numbers are the engine\'s', Math.abs(eng.npv - at700.big) < 0.01 && Math.abs(eng.ret - at700.ret) < 0.01, JSON.stringify(eng));
-    await dp.evaluate(() => { const r = document.querySelector('[data-slider="winRate"]'); r.value = '1.25'; r.dispatchEvent(new Event('input')); });
-    await dp.waitForFunction(() => window.__APP__.state.A.cockpit.winRate === 1.25 && document.getElementById('d-busy').hidden && document.getElementById('d-main').getAttribute('data-ready') === 'yes' &&
-      Number(document.querySelector('[data-dkpi="arr"] .d-value').getAttribute('data-v')) > 30700000, null, { timeout: 60000 }).catch(() => {});
-    const wr = await dp.evaluate(() => ({ arr: Number(document.querySelector('[data-dkpi="arr"] .d-value').getAttribute('data-v')), out: document.querySelector('[data-out="winRate"]').textContent,
-      badge: document.getElementById('d-badge').textContent }));
-    check('Win rate +25% lifts ARR and keeps every check passing', wr.arr > at700.arr && wr.out === '+25%' && wr.badge === 'Integrity 24/24', JSON.stringify(wr));
+    // CRM data (SPEC.md 13.7): the bottom bar has only the budget; the funnel figures come from the CRM export
+    const ck0 = await dp.evaluate(() => ({ sliders: Array.from(document.querySelectorAll('#d-sliders [data-slider]')).map(s => s.getAttribute('data-slider')).join(','),
+      crm: Object.fromEntries(Array.from(document.querySelectorAll('[data-crm]')).map(e => [e.getAttribute('data-crm'), e.querySelector('dd').textContent])),
+      src: document.getElementById('d-crm-name').textContent + ' | ' + document.getElementById('d-crm-period').textContent, sample: document.getElementById('d-crm-sample').hidden }));
+    check('The dashboard bottom bar has one lever, the budget', ck0.sliders === 'budget', ck0.sliders);
+    check('Win rate, deal size, cost per lead and sales cycle are shown from the CRM sample', ck0.crm.winRate === '22.4%' && ck0.crm.acv === '$40.1K' && ck0.crm.costPerLead === '$303' &&
+      ck0.crm.salesCycle === '3.4 mo' && ck0.src === 'Sample CRM export (fictional) | Jan 2026 to Dec 2026' && ck0.sample === true, JSON.stringify(ck0));
+    await dp.click('#d-crm-more');
+    const crmRows = await dp.$$eval('[data-crm-row]', trs => trs.map(tr => Array.from(tr.children).map(td => td.textContent).join('|')));
+    check('By channel: each channel\'s rates from the CRM', crmRows.join(' / ') === 'Outbound (SDR to AE)|900|SDRs|24.0%|$45.0K|4 mo / Paid digital|3,000|$240|18.0%|$30.0K|2 mo / ' +
+      'Events and trade shows|960|$350|25.0%|$52.0K|5 mo / Partners and referrals|480|$600|30.0%|$38.0K|3 mo', crmRows.join(' / '));
+    // a CRM export with better trade shows: 100 more leads at each past show and four more events wins
+    const better = await dp.evaluate(() => { const c = structuredClone(Engine.CRM_SAMPLE); let n = 0; c.events.forEach(e => { e.leads += 100; });
+      c.funnel.forEach(f => { if (f.channel === 'events' && f.lost > 0 && n < 4) { n++; f.won += 1; f.lost -= 1; f.won_amount += 52000; f.won_days += 152; } }); return Engine.crmToCsv(c); });
+    await dp.setInputFiles('#d-crm-file', { name: 'crm-export.csv', mimeType: 'text/csv', buffer: Buffer.from(better) });
+    await dp.waitForFunction(() => document.getElementById('d-crm-name').textContent === 'crm-export.csv' && document.getElementById('d-main').getAttribute('data-ready') === 'yes' &&
+      document.getElementById('d-busy').hidden, null, { timeout: 60000 }).catch(() => {});
+    await dp.waitForTimeout(600);
+    const cb = await dp.evaluate(() => ({ wr: window.__APP__.state.A.channels.events.winRate, leads: window.__APP__.state.initiatives[0].params.expectedLeads, value: window.__APP__.state.dashView.picks.npv,
+      win: document.querySelector('[data-crm="winRate"] dd').textContent, ro: document.querySelector('#d-test [data-test-out="expectedLeads"]').textContent,
+      src: document.querySelector('#d-test [data-test-src="expectedLeads"]').textContent, sample: document.getElementById('d-crm-sample').hidden, badge: document.getElementById('d-badge').textContent }));
+    check('Loading a CRM export re-derives the rates, the trade show leads and the plan', Math.abs(cb.wr - 16 / 48) < 1e-12 && cb.leads === 300 && cb.ro === '300' &&
+      cb.src === 'CRM average of 3 past events' && cb.win === '24.1%' && cb.value > 963165.17 + 1 && cb.sample === false && cb.badge === 'Integrity 24/24', JSON.stringify(cb));
+    await dp.setInputFiles('#d-crm-file', { name: 'bad.csv', mimeType: 'text/csv', buffer: Buffer.from(better.replace('outbound', 'radio')) });
+    await dp.waitForFunction(() => !document.getElementById('d-crm-err').hidden, null, { timeout: 10000 }).catch(() => {});
+    const crmErr = await dp.evaluate(() => ({ err: document.getElementById('d-crm-err').textContent, src: document.getElementById('d-crm-name').textContent }));
+    check('A file it cannot read is refused with the line, and nothing changes', /^Line 2: unknown channel "radio"/.test(crmErr.err) && crmErr.src === 'crm-export.csv', JSON.stringify(crmErr));
+    await dp.click('#d-crm-sample');
+    await dp.waitForFunction(() => document.getElementById('d-main').getAttribute('data-plan-set') === '38' && document.getElementById('d-busy').hidden &&
+      Math.abs(window.__APP__.state.dashView.picks.npv - 963165.17) < 0.01, null, { timeout: 60000 }).catch(() => {});
+    const back = await dp.evaluate(() => ({ same: JSON.stringify(window.__APP__.state.A) === JSON.stringify(Object.assign(Engine.defaultAssumptions(), { portfolio: window.__APP__.state.A.portfolio })),
+      leads: window.__APP__.state.initiatives[0].params.expectedLeads, value: window.__APP__.state.dashView.picks.npv, err: document.getElementById('d-crm-err').hidden }));
+    check('Use sample restores the defaults exactly', back.same && back.leads === 200 && Math.abs(back.value - 963165.17) < 0.01 && back.err, JSON.stringify(back));
     await dp.click('#d-reset');
-    await dp.waitForFunction(() => window.__APP__.state.A.cockpit.winRate === 1 && window.__APP__.state.A.portfolio.budget === 500000 && document.getElementById('d-main').getAttribute('data-plan-set') === '35', null, { timeout: 60000 }).catch(() => {});
-    check('Reset restores the sliders', await dp.evaluate(() => window.__APP__.state.A.cockpit.winRate === 1 && window.__APP__.state.A.portfolio.budget === 500000));
+    await dp.waitForFunction(() => window.__APP__.state.A.portfolio.budget === 500000 && document.getElementById('d-main').getAttribute('data-plan-set') === '35', null, { timeout: 60000 }).catch(() => {});
+    check('Reset restores the budget', await dp.evaluate(() => window.__APP__.state.A.portfolio.budget === 500000 && Engine.cockpitIsNeutral(window.__APP__.state.A.cockpit)));
     await dp.waitForFunction(() => document.getElementById('d-main').getAttribute('data-ready') === 'yes' && document.getElementById('d-busy').hidden, null, { timeout: 60000 }).catch(() => {});
     // Test a decision (SPEC.md 13.6): the trade show on top of the rest of the plan
     await dp.waitForFunction(() => document.getElementById('d-test').getAttribute('data-test-uid'), null, { timeout: 30000 });
@@ -679,26 +706,41 @@ const APP = PAGE + '?mode=analyst'; // the detailed app (the bare page opens the
     const tv0 = await tv();
     check('Test a decision starts on the trade show, with near and long term', tv0.pressed === 'Trade show' && tv0.vals.budget === '$60.0K' && tv0.vals.nearArr === '+$107.0K' &&
       tv0.vals.nearCash === '-$19.0K' && tv0.vals.longCash === '+$199.7K' && tv0.vals.roi === '+263%' && tv0.vals.payback === 'Jun 2028' && tv0.use === true, JSON.stringify(tv0.vals));
-    check('The decision verdict is written from the model', /Trade show is in the plan\. It uses \$60\.0K of this year's budget/.test(tv0.verdict) && /All 22 model checks pass on this run/.test(tv0.verdict), tv0.verdict.slice(0, 200));
-    await dp.evaluate(() => { const r = document.querySelector('[data-test-field="expectedLeads"]'); r.value = '350'; r.dispatchEvent(new Event('input')); });
+    check('The decision verdict is one line from the model', tv0.verdict.trim() === 'Every guardrail holds with it.\n\n22/22 model checks pass' || tv0.verdict.replace(/\s+/g, ' ').trim() === 'Every guardrail holds with it. 22/22 model checks pass', JSON.stringify(tv0.verdict));
+    const ro = await dp.evaluate(() => ({ slider: !!document.querySelector('[data-test-field="expectedLeads"]'), val: document.querySelector('#d-test [data-test-out="expectedLeads"]').textContent,
+      src: document.querySelector('#d-test [data-test-src="expectedLeads"]').textContent }));
+    check('Expected leads come from the CRM, not a slider', !ro.slider && ro.val === '200' && ro.src === 'CRM average of 3 past events', JSON.stringify(ro));
+    await dp.evaluate(() => { const r = document.querySelector('[data-test-field="booth"]'); r.value = '30000'; r.dispatchEvent(new Event('input')); });
     await dp.waitForFunction(() => document.querySelector('#d-test [data-test="roi"]').textContent !== '+263%', null, { timeout: 10000 }).catch(() => {});
     const tv1 = await tv();
-    check('More expected leads: the ROI and payback update live', tv1.vals.roi === '+311%' && tv1.vals.payback === 'Apr 2028' && tv1.use === false, JSON.stringify(tv1.vals));
-    const aesUid = await dp.evaluate(() => window.__APP__.state.initiatives.filter(i => i.params.name === 'Hire 2 AEs')[0].uid);
+    check('A cheaper booth: the ROI and payback update live', tv1.vals.budget === '$42.0K' && tv1.vals.roi === '+375%' && tv1.vals.payback === 'Jan 2028' && tv1.use === false, JSON.stringify(tv1.vals));
+    // headcount: the SDR hires stepper
+    const sdrUid = await dp.evaluate(() => window.__APP__.state.initiatives.filter(i => i.params.name === 'SDR hires')[0].uid);
+    await dp.click('[data-test-pick="' + sdrUid + '"]');
+    await dp.waitForFunction(u => document.getElementById('d-test').getAttribute('data-test-uid') === u, sdrUid, { timeout: 10000 });
+    const hc0 = await dp.evaluate(() => ({ n: document.querySelector('#d-test [data-test-out="count"]').textContent, slider: !!document.querySelector('[data-test-field="count"]') }));
+    await dp.click('#d-test [data-test-step="1"]');
+    await dp.waitForFunction(() => document.querySelector('#d-test [data-test="nearArr"]').textContent === '+$229.5K', null, { timeout: 10000 }).catch(() => {});
+    const hc1 = await tv();
+    const hcN = await dp.evaluate(() => ({ n: document.querySelector('#d-test [data-test-out="count"]').textContent, chip: document.querySelector('[data-test-pick][aria-pressed="true"] [data-pick-count]').textContent }));
+    check('Headcount stepper: 2 SDRs to 3, near and long term update, and the budget note shows', hc0.n === '2' && !hc0.slider && hcN.n === '3' && hcN.chip === '3' &&
+      hc1.vals.nearArr === '+$229.5K' && hc1.vals.longCash === '+$870.0K' && hc1.vals.roi === '+84%' && /more than the \$500\.0K budget/.test(hc1.verdict), JSON.stringify({ hc0, hcN, v: hc1.vals, verdict: hc1.verdict }));
+    const aesUid = await dp.evaluate(() => window.__APP__.state.initiatives.filter(i => i.params.name === 'AE hires')[0].uid);
     await dp.click('[data-test-pick="' + aesUid + '"]');
     await dp.waitForFunction(u => document.getElementById('d-test').getAttribute('data-test-uid') === u, aesUid, { timeout: 10000 });
     const tv2 = await tv();
-    check('Testing a proposal not in the plan says what adding it would do and that it needs more budget', /Hire 2 AEs is not in the plan/.test(tv2.verdict) && /more than the \$500\.0K budget/.test(tv2.verdict), tv2.verdict.slice(0, 260));
+    const nearHead = await dp.textContent('#d-near h3');
+    check('Testing a proposal not in the plan says so and that it needs more budget', /^Not in the plan/.test(nearHead) && /more than the \$500\.0K budget/.test(tv2.verdict), nearHead + ' | ' + tv2.verdict.slice(0, 260));
     const tShowUid = await dp.evaluate(() => window.__APP__.state.initiatives[0].uid);
     await dp.click('[data-test-pick="' + tShowUid + '"]');
-    await dp.evaluate(() => { const r = document.querySelector('[data-test-field="expectedLeads"]'); r.value = '350'; r.dispatchEvent(new Event('input')); });
+    await dp.evaluate(() => { const r = document.querySelector('[data-test-field="booth"]'); r.value = '30000'; r.dispatchEvent(new Event('input')); });
     await dp.waitForTimeout(200);
     await dp.click('#d-test-use');
-    await dp.waitForFunction(() => window.__APP__.state.initiatives[0].params.expectedLeads === 350 && document.getElementById('d-main').getAttribute('data-ready') === 'yes' &&
+    await dp.waitForFunction(() => window.__APP__.state.initiatives[0].params.booth === 30000 && document.getElementById('d-main').getAttribute('data-ready') === 'yes' &&
       !document.getElementById('d-busy').hidden === false, null, { timeout: 60000 }).catch(() => {});
     await dp.waitForTimeout(800);
-    const applied = await dp.evaluate(() => ({ leads: window.__APP__.state.initiatives[0].params.expectedLeads, value: window.__APP__.state.dashView.picks.npv, badge: document.getElementById('d-badge').textContent }));
-    check('Use these inputs in the plan: the proposal changes and the plan re-optimizes', applied.leads === 350 && applied.value > 919707.86 + 1 && applied.badge === 'Integrity 24/24', JSON.stringify(applied));
+    const applied = await dp.evaluate(() => ({ booth: window.__APP__.state.initiatives[0].params.booth, value: window.__APP__.state.dashView.picks.npv, badge: document.getElementById('d-badge').textContent }));
+    check('Use in the plan: the proposal changes and the plan re-optimizes', applied.booth === 30000 && applied.value > 919707.86 + 1 && applied.badge === 'Integrity 24/24', JSON.stringify(applied));
     await dp.click('#d-analyst');
     const an = await dp.evaluate(() => ({ dash: document.getElementById('dash').hidden, app: getComputedStyle(document.getElementById('app')).display !== 'none', n: window.__APP__.state.initiatives.length }));
     check('Analyst view opens the detailed app with the same eight initiatives', an.dash && an.app && an.n === 8, JSON.stringify(an));
@@ -711,7 +753,7 @@ const APP = PAGE + '?mode=analyst'; // the detailed app (the bare page opens the
     await dph.goto(PAGE);
     await dph.waitForFunction(() => document.getElementById('d-main').getAttribute('data-ready') === 'yes', null, { timeout: 120000 });
     const dpw = await dph.evaluate(() => ({ sw: document.documentElement.scrollWidth, cockpit: Math.round(document.querySelector('.d-cockpit-in').getBoundingClientRect().right) }));
-    check('Phone: dashboard has no horizontal page scroll and the sliders fit', dpw.sw <= 390 && dpw.cockpit <= 390, JSON.stringify(dpw));
+    check('Phone: dashboard has no horizontal page scroll and the budget bar fits', dpw.sw <= 390 && dpw.cockpit <= 390, JSON.stringify(dpw));
 
     const text = await app.evaluate(() => document.body.innerText);
     const src = require('fs').readFileSync(path.join(ROOT, 'index.html'), 'utf8');
