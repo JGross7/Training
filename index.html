@@ -3554,23 +3554,29 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
     function plan(arr) { return arr.map(function () { return 0; }); }
     var isTargetYear = sv.objective.metric === 'arr' && sv.objective.month === m;
     var arr = R.arr.arr[m], arrB = B.arr.arr[m], arrS = { with: R.arr.arr.slice(), plan: B.arr.arr.slice() };
-    var pb = ret.payback, roi = inv[m] > EPS_COST ? cum[m] / inv[m] : null;
+    var pb = ret.payback, roi = inv[H] > EPS_COST ? cum[H] / inv[H] : null;
+    // Revenue growth for the year shown: year on year from the second year; in the first year the model has no
+    // prior-year revenue, so it is ARR growth (section 2.15), and the caption says so.
+    function yearRevenue(Rx, to) { var t = 0; for (var k = Math.max(1, to - 11); k <= to; k++) t += Rx.pl.revenue[k]; return t; }
+    var rg = R.kpis.revenueGrowth[m], rgB = B.kpis.revenueGrowth[m], rev = yearRevenue(R, m), onArr = R.kpis.revenueGrowthBasis[m] === 'arr';
     var cards = [
       { key: 'arr', label: 'ARR', value: arr, unit: 'money', series: arrS, month: m,
         chips: [{ key: 'plan', value: arr - arrB, unit: 'money', good: arr >= arrB, label: 'vs plan' },
           isTargetYear ? { key: 'target', value: arr - sv.objective.target, unit: 'money', good: arr >= sv.objective.target, label: 'vs target' }
             : { key: 'growth', value: R.kpis.arrGrowth[m], unit: 'pct', good: R.kpis.arrGrowth[m] >= 0, label: 'growth' }],
         caption: [T('The funded plan adds '), F(bMoney(arr - arrB)), T(' of ARR by '), F(R.months[m])].concat(isTargetYear ? [T('; the target is '), F(bMoney(sv.objective.target)), T('.')] : [T('.')]) },
-      { key: 'invested', label: 'Invested', value: inv[m], unit: 'money', series: { with: inv, plan: plan(inv) }, month: m,
-        chips: [{ key: 'budget', value: p.budgetCost, unit: 'money', good: true, label: 'this year' }, { key: 'committed', value: p.totalInvestment, unit: 'money', good: true, label: 'committed' }],
-        caption: [T('Cash and staff time put into the funded initiatives by '), F(R.months[m]), T('.')] },
-      { key: 'return', label: 'Net cash return', value: cum[m], unit: 'money', series: { with: cum, plan: plan(cum) }, month: m, zero: true,
+      { key: 'growth', label: 'Revenue growth', value: rg, unit: 'pct', series: { with: R.kpis.revenueGrowth.map(function (x, k) { return k < 12 ? null : x; }), plan: B.kpis.revenueGrowth.map(function (x, k) { return k < 12 ? null : x; }) }, month: m, showPlan: true,
+        chips: [{ key: 'plan', value: rg !== null && rgB !== null ? rg - rgB : null, unit: 'pts', good: rg !== null && rgB !== null && rg >= rgB, label: 'vs plan' },
+          { key: 'revenue', value: rev, unit: 'money', good: null, label: 'revenue in the year' }],
+        caption: onArr ? [T('The model starts in '), F(R.months[1]), T(', so the first year is measured on ARR.')]
+          : [T('Revenue in the year to '), F(R.months[m]), T(' against '), F(bMoney(yearRevenue(R, m - 12))), T(' the year before.')] },
+      { key: 'invested', label: 'Invested', value: inv[H], unit: 'money', series: { with: inv, plan: plan(inv) }, month: H,
+        chips: [{ key: 'budget', value: p.budgetCost, unit: 'money', good: null, label: 'this year' }],
+        caption: [T('Cash and staff time committed to the funded initiatives through '), F(R.months[H]), T('.')] },
+      { key: 'return', label: 'Net cash return', value: cum[H], unit: 'money', series: { with: cum, plan: plan(cum) }, month: pb.status === 'paid_back' ? pb.month : H, zero: true,
         chips: [{ key: 'roi', value: roi, unit: 'pct', good: roi !== null && roi >= 0, label: 'ROI' }],
-        caption: pb.status === 'paid_back' ? (pb.month <= m ? [T('Paid back in '), F(R.months[pb.month]), T('.')] : [T('Pays back in '), F(R.months[pb.month]), T('.')])
-          : pb.status === 'never_negative' ? [T('Ahead from the first month.')] : [T('Not paid back by '), F(R.months[H]), T('.')] },
-      { key: 'value', label: 'Value created', value: disc[m], unit: 'money', series: { with: disc, plan: plan(disc) }, month: m, zero: true,
-        chips: [{ key: 'perDollar', value: p.valuePerDollar, unit: 'perDollar', good: p.valuePerDollar !== null && p.valuePerDollar >= 0, label: 'per $1 committed' }],
-        caption: [T('Net present value to '), F(R.months[m]), T(', at '), F((A.discountRateAnnual * 100).toFixed(0) + '%'), T(' a year; '), F(bMoney(ret.npv)), T(' by '), F(R.months[H]), T('.')] }
+        caption: [T('Cash back through '), F(R.months[H])].concat(pb.status === 'paid_back' ? [T('; paid back in '), F(R.months[pb.month]), T('.')]
+          : pb.status === 'never_negative' ? [T('; ahead from the first month.')] : [T('; not yet paid back.')]) }
     ];
     var guards = sv.guardrails.map(function (g) {
       return { id: g.id, label: g.label, metric: g.metric, unit: g.unit, rule: g.rule, limit: g.limit, value: g.value, pass: g.pass, headroom: g.headroom,
@@ -3589,6 +3595,7 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
     var why = p.members.length ? [T('Of '), F(String(p.candidates)), T(' proposals, the most value that fits the '), F(bMoney(p.budget)), T(' budget comes from '), N(p.names),
       T('. Together they create '), F(bMoney(p.npv)), T(' of value on '), F(bMoney(p.totalInvestment)), T(' committed, '), F('$' + p.valuePerDollar.toFixed(2)), T(' per dollar.')]
       : [T('No proposal fits the '), F(bMoney(p.budget)), T(' budget and adds value.')];
+    if (p.members.length && pb.status === 'paid_back') why = why.concat([T(' It returns '), F(bMoney(cum[H])), T(' of net cash by '), F(R.months[H]), T(' and pays back in '), F(R.months[pb.month]), T('.')]);
     var lower = p.others.filter(function (o) { return o.reason === 'lowers_value'; }).map(function (o) { return o.name; });
     if (lower.length) why = why.concat([T(' Adding '), N(lower), T(lower.length === 1 ? ' would fit but lower the value.' : ' would fit but lower the value.')]);
     var decide = p.members.length ? [T('Approve '), N(p.names), T(' for '), F(bMoney(p.budgetCost))].concat(p.unspent > 0.5 ? [T(' and keep '), F(bMoney(p.unspent)), T(' of the budget.')] : [T('.')])
@@ -3597,7 +3604,7 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
     else decide.push(T(' More budget would not add value.'));
     return {
       year: y, month: m, monthLabel: R.months[m], months: R.months, isTargetYear: isTargetYear, cards: cards, guardrails: guards, watch: watch, picks: p,
-      returns: { npv: ret.npv, totalInvestment: ret.totalInvestment, payback: pb, investedToDate: inv[m], returnToDate: cum[m], valueToDate: disc[m] },
+      returns: { npv: ret.npv, totalInvestment: ret.totalInvestment, payback: pb, invested: inv[H], netReturn: cum[H], roi: roi, investedToDate: inv[m], returnToDate: cum[m], valueToDate: disc[m] },
       river: cashRiver(R, B, from, m),
       briefing: [{ key: 'happened', title: 'What happened', parts: happened }, { key: 'why', title: 'Why', parts: why }, { key: 'decide', title: 'What to decide', parts: decide }],
       facts: facts, strategyName: sv.name
@@ -8467,11 +8474,14 @@ window.TestSuite = (function () {
       [1, 2, 3].forEach(function (y) {
         var v = E.dashboardView({ assumptions: A0, baseline: B, run: R, table: tab, picks: p, year: y }), rv = v.river, label = b + ' year ' + y, m = 12 * y, card = {};
         v.cards.forEach(function (c) { card[c.key] = c; });
-        t.eq(label + ': four cards', v.cards.map(function (c) { return c.key; }).join(','), 'arr,invested,return,value');
+        t.eq(label + ': four cards', v.cards.map(function (c) { return c.key; }).join(','), 'arr,growth,invested,return');
         t.near(label + ': ARR is the model', card.arr.value, R.arr.arr[m], 1e-9);
-        var inv = 0, disc = 0; for (var k = 1; k <= m; k++) { inv += ret.investment[k]; disc += ret.netFlow[k] / Math.pow(1 + ret.monthlyDiscountRate, k); }
-        t.near(label + ': invested to date', card.invested.value, inv, 1e-6); t.near(label + ': net cash return to date', card.return.value, ret.cumNetFlow[m], 1e-6);
-        t.near(label + ': value to date', card.value.value, disc, 1e-6);
+        t.near(label + ': revenue growth is the model', card.growth.value, R.kpis.revenueGrowth[m], 1e-12);
+        var rev = 0; for (var k0 = m - 11; k0 <= m; k0++) rev += R.pl.revenue[k0];
+        t.near(label + ': revenue in the year', card.growth.chips[1].value, rev, 1e-6);
+        var inv = 0; for (var k = 1; k <= 36; k++) inv += ret.investment[k];
+        t.near(label + ': invested over the model', card.invested.value, inv, 1e-6); t.near(label + ': net cash return over the model', card.return.value, ret.cumNetFlow[36], 1e-6);
+        t.near(label + ': ROI is return over invested', card.return.chips[0].value, ret.cumNetFlow[36] / inv, 1e-12);
         t.eq(label + ': guardrails are the strategy rows', v.guardrails.map(function (g) { return g.id + ':' + g.pass; }).join(','), R.strategy.guardrails.map(function (g) { return g.id + ':' + g.pass; }).join(','));
         t.near(label + ': cash in equals cash out', rv.imbalance, 0, 1e-6);
         var flowIn = 0, flowOut = 0;
@@ -8485,16 +8495,19 @@ window.TestSuite = (function () {
         });
         t.ok(label + ': no number outside the recorded facts', bad.length === 0, bad.slice(0, 4).join(' | '));
       });
-      t.near(b + ': value at the end of the model is the plan NPV', E.dashboardView({ assumptions: A0, baseline: B, run: R, table: tab, picks: p, year: 3 }).cards[3].value, p.npv, 0.01);
+      t.ok(b + ': the plan pays back, so the net cash return is positive', E.dashboardView({ assumptions: A0, baseline: B, run: R, table: tab, picks: p, year: 1 }).cards[3].value > 0);
     });
     var p5 = E.selectPortfolio(tab, zeroHaircuts(L8), 500000).picks, R5 = E.runModel(A0, L8.filter(function (i, k) { return 35 & (1 << k); }));
     var v1 = E.dashboardView({ assumptions: A0, baseline: B, run: R5, table: tab, picks: p5, year: 1 }), v3 = E.dashboardView({ assumptions: A0, baseline: B, run: R5, table: tab, picks: p5, year: 3 });
-    t.near('2027: invested', v1.cards[1].value, 439166.67, 0.01); t.near('2027: net cash return', v1.cards[2].value, -239669.38, 0.01); t.near('2027: value to date', v1.cards[3].value, -232849.43, 0.01);
-    t.near('2029: net cash return', v3.cards[2].value, 1258869.63, 0.01); t.near('2029: ROI', v3.cards[2].chips[0].value, 1258869.63 / 928437.67, 0.0001);
+    t.near('Revenue growth 2027 (measured on ARR in the first year)', v1.cards[1].value, 0.270426, 0.0000005); t.eq('First year basis noted', /measured on ARR/.test(v1.cards[1].caption.map(function (x) { return x.text || ''; }).join('')), true);
+    t.near('Revenue growth 2029', v3.cards[1].value, R5.kpis.revenueGrowth[36], 1e-12);
+    t.near('Invested over the model', v1.cards[2].value, 928437.67, 0.01); t.near('Net cash return over the model', v1.cards[3].value, 1258869.63, 0.01);
+    t.near('ROI', v1.cards[3].chips[0].value, 1.355901, 0.000001);
+    t.near('2027 to date is still kept: invested', v1.returns.investedToDate, 439166.67, 0.01); t.near('2027 to date: net cash return', v1.returns.returnToDate, -239669.38, 0.01);
     t.eq('Pays back in Oct 2028', v1.returns.payback.month, 22);
     var txt = v1.briefing.map(function (s) { return s.parts.map(function (x) { return x.fact || x.input || x.text; }).join(''); }).join(' ');
     t.ok('The briefing names the plan, its value and the next step', /comes from Trade show, Hire 2 SDRs and Partner program\. Together they create \$919\.7K of value on \$928\.4K committed, \$0\.99 per dollar\./.test(txt) &&
-      /Adding Paid social test would fit but lower the value/.test(txt) && /\$168\.2K more budget would fund Hire 2 SDRs, Hire 2 AEs and Partner program and add \$43\.5K of value/.test(txt), txt);
+      /Adding Paid social test would fit but lower the value/.test(txt) && /It returns \$1\.3M of net cash by Dec 2029 and pays back in Oct 2028/.test(txt) && /\$168\.2K more budget would fund Hire 2 SDRs, Hire 2 AEs and Partner program and add \$43\.5K of value/.test(txt), txt);
     t.ok('No gut-feel comparison remains', !/gut/i.test(txt));
   });
   test('T158', 'C24 (e) can fail: a wrong dashboard plan, build-up, reason or next step is caught (SPEC.md 13.2)', function (t) {
@@ -11598,7 +11611,7 @@ window.TestSuite = (function () {
   }
   function chipText(c) {
     if (!isNum(c.value)) return 'n/a';
-    if (c.key === 'budget' || c.key === 'committed') return compact(c.value);
+    if (c.key === 'budget' || c.key === 'committed' || c.key === 'revenue') return compact(c.value);
     if (c.unit === 'money') return signedCompact(c.value);
     if (c.unit === 'perDollar') return '$' + c.value.toFixed(2);
     if (c.unit === 'pct') return signed(pct(Math.abs(c.value), c.key === 'roi' ? 0 : 1), c.value);
@@ -11618,7 +11631,7 @@ window.TestSuite = (function () {
     var g = svg('svg', { class: 'd-spark', viewBox: '0 0 ' + w + ' ' + h, width: w, height: h, 'aria-hidden': 'true' });
     var base = card.zero ? Y(0) : h - pad, dw = path(s.with);
     if (dw) g.appendChild(svg('path', { d: dw + 'L' + X(H) + ',' + base + 'L' + X(1) + ',' + base + 'Z', fill: 'var(--d-plan-wash)', stroke: 'none' }));
-    if (card.key === 'arr') g.appendChild(svg('path', { d: path(s.plan), fill: 'none', stroke: 'var(--d-slate)', 'stroke-width': 1.2, 'stroke-dasharray': '3 3' }));
+    if (card.key === 'arr' || card.showPlan) g.appendChild(svg('path', { d: path(s.plan), fill: 'none', stroke: 'var(--d-slate)', 'stroke-width': 1.2, 'stroke-dasharray': '3 3' }));
     if (card.zero) g.appendChild(svg('line', { x1: pad, x2: w - pad, y1: Y(0), y2: Y(0), stroke: 'var(--d-slate)', 'stroke-width': 1, 'stroke-dasharray': '3 3' }));
     g.appendChild(svg('path', { d: dw, fill: 'none', stroke: 'var(--d-plan)', 'stroke-width': 2 }));
     if (isNum(s.with[card.month])) g.appendChild(svg('circle', { cx: X(card.month), cy: Y(s.with[card.month]), r: 3.5, fill: 'var(--d-gold)', stroke: 'var(--d-card)', 'stroke-width': 1.5 }));

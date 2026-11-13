@@ -17,8 +17,8 @@ Two scripts: a 70-second screen recording for LinkedIn (the dashboard), and a 5-
 **0:22 to 0:32. 03 Where the value comes from.** Point at the green steps.
 > "Here is where the value comes from, initiative by initiative. The trade show adds less here than on its own, because it competes for the same sales capacity in April."
 
-**0:32 to 0:48. 01 Where we stand, then click 2028 and 2029.** Let the cards count up.
-> "In 2027 we are investing: $439K in, still underwater. It pays back in October 2028. By 2029: $1.26M of cash back, a 136% return. And underneath, every guardrail holds: cash never goes below $18.9M against a $15M floor, the burn multiple stays under 2."
+**0:32 to 0:48. 01 Where we stand.** Sweep across the cards, then the guardrails; click 2028 and 2029.
+> "The scoreboard: ARR $30.5M, revenue growing 27%. We invest $928K and get $1.3M of cash back, a 136% return, paid back by October 2028. Underneath, every guardrail holds: cash never goes below $18.9M against a $15M floor, the burn multiple stays under 2. Click through the years and growth keeps going."
 
 **0:48 to 1:00. Click 2027 again and drag the budget to $700K.**
 > "Give it more budget and the answer changes: now it hires account executives instead of running the trade show. The briefing rewrites itself."
@@ -28,7 +28,7 @@ Two scripts: a 70-second screen recording for LinkedIn (the dashboard), and a 5-
 
 **Optional extras** (for a longer cut): move **Win rate** to +25% to show everything recalculating, show the **cash river**, or click **Analyst view** to show the full model behind it.
 
-**Caption idea:** "Eight proposals, one $500K budget. The model ran every combination: fund three, create $920K of value, pay back by October 2028, keep every guardrail. Fictional company, real method: a 3-statement model with 24 integrity checks on every recalculation."
+**Caption idea:** "Eight proposals, one $500K budget. The model ran every combination: fund three, return $1.3M on $928K (136%), pay back by October 2028, keep every guardrail. Fictional company, real method: a 3-statement model with 24 integrity checks on every recalculation."
 
 ---
 

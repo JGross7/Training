@@ -3393,14 +3393,18 @@ Cash in equals cash out to the cent, because this is the direct cash formula of 
 
 ### 13.4 Cards, guardrails and briefing
 
-Four cards for the year shown, each with its line over the model, from the plan's run `R` against the plan with no initiatives `B` (`NF`, `Investment` and the monthly rate `r` of section 2.17):
+Four cards, each with its line over the model, from the plan's run `R` against the plan with no initiatives `B` (`NF`, `Investment` of section 2.17). The first two follow the year shown; the last two are the plan's return over the whole model, so they read the same in every year:
 
 ```
 ARR               = ARR_m of R; against B, and against the target in the objective's year (otherwise ARR growth)
-Invested          = Σ_{k ≤ m} Investment_k                  (cash and staff time); chips: budget cost this year, total committed
-Net cash return   = Σ_{k ≤ m} NF_k                          chip: ROI to date = Net cash return / Invested; caption: the payback month
-Value created     = Σ_{k ≤ m} NF_k / (1 + r)^k              equals the plan's NPV in the last month; chip: value per dollar committed
+Revenue growth    = RevenueGrowth_m of R (section 2.15): year on year from the second year; in the first year the model
+                    has no prior-year revenue, so it is ARR growth, and the card says so. Chips: against B (points), and
+                    revenue in the year. Its line starts at month 12.
+Invested          = Σ_{k ≤ H} Investment_k                  cash and staff time committed; chip: budget cost this year
+Net cash return   = Σ_{k ≤ H} NF_k                          chip: ROI = Net cash return / Invested; caption: the payback month
 ```
+
+At 500,000: ARR growth 27.0426% in 2027 (1.84 points above the plan), invested 928,437.67, net cash return 1,258,869.63, ROI 135.59%, paid back in October 2028. The returns block of the view also keeps the figures to the end of the year shown (in 2027: 439,166.67 invested and −239,669.38 returned so far).
 
 Below the cards, the guardrail strip shows the active strategy's guardrails and watch line for the run `R`, over their own windows (cash floor, runway, CAC payback, burn multiple, gross margin, covenant): value, limit and pass. Lowest cash and the burn multiple appear there, not as cards.
 
@@ -3411,6 +3415,6 @@ The briefing has three short sections: what happened (ARR against the target, th
 | Test | Scenario | Expected |
 |---|---|---|
 | T156 | The plan | The table of 13.1, a brute-force scan agreeing with the plan, the build-up adding up, the left-out reasons and the next steps |
-| T157 | Dashboard view | For 200,000, 500,000 and 1,000,000 and each year: the cards equal the sums of 13.4, the guardrails are the strategy's rows, the cash river balances, and no number lies outside the recorded facts. At 500,000: 2027 invested 439,166.67, net cash return −239,669.38, value to date −232,849.43; paid back in October 2028; 2029 net cash return 1,258,869.63 and value 919,707.86 |
+| T157 | Dashboard view | For 200,000, 500,000 and 1,000,000 and each year: the cards equal the formulas of 13.4, the guardrails are the strategy's rows, the cash river balances, the net cash return is positive, and no number lies outside the recorded facts. At 500,000: revenue growth 27.0426% in 2027 (on ARR), invested 928,437.67, net cash return 1,258,869.63, ROI 1.355901, paid back in October 2028 |
 | T158 | C24 (e) can fail | A plan that is not the most value, a build-up step off by 1.00, a wrong left-out reason, a wrong next step and a plan value off by 1.00 each fail C24 |
-| UI | The dashboard | It is the first screen with five numbered sections, the four cards and six guardrail tiles all passing, the badge at 24/24 and no comparison with a gut-feel pick; at 500,000 it funds set 35 with the build-up and reasons of 13.1; 2029 shows the full return; at 700,000 the plan becomes set 38 and the briefing rewrites itself; a win-rate slider lifts ARR with every check passing; Reset restores; the Analyst view opens and returns; no em dashes; no sideways scrolling at 390px |
+| UI | The dashboard | It is the first screen with five numbered sections, the four cards (ARR, revenue growth, invested, net cash return) and six guardrail tiles all passing, the badge at 24/24 and no comparison with a gut-feel pick; at 500,000 it funds set 35 with the build-up and reasons of 13.1; the year toggle moves ARR, revenue growth and the cash river while the return stays the plan's; at 700,000 the plan becomes set 38 and the briefing rewrites itself; a win-rate slider lifts ARR with every check passing; Reset restores; the Analyst view opens and returns; no em dashes; no sideways scrolling at 390px |
