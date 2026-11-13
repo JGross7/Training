@@ -421,6 +421,22 @@ body.is-dash .topbar, body.is-dash #app, body.is-dash #input-error, body.is-dash
 .d-spark { display: block; width: 100%; height: 46px; overflow: visible; }
 .d-cap { margin: 0; font-family: var(--serif); font-size: 14px; line-height: 1.4; color: var(--d-ink2); }
 .d-fact { font-family: system-ui, sans-serif; font-weight: 650; color: var(--d-ink); font-variant-numeric: tabular-nums; }
+.d-chip.neutral { color: var(--d-ink2); background: var(--d-grid); }
+.d-label.plain::before { display: none; }
+.d-guards-head { display: flex; align-items: baseline; gap: 6px 12px; flex-wrap: wrap; margin: 16px 0 8px; }
+.d-guards { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); }
+.d-guard { display: grid; gap: 1px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--d-line); background: var(--d-card); position: relative; }
+.d-guard::after { content: "\2713"; position: absolute; top: 8px; right: 10px; font-size: 12px; font-weight: 800; color: var(--d-good); }
+.d-guard.fail { background: var(--d-bad-wash); border-color: transparent; }
+.d-guard.fail::after { content: "!"; color: var(--d-bad); }
+.d-guard.warn::after { content: "!"; color: var(--d-gold); }
+.d-g-name { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--d-ink2); padding-right: 16px; }
+.d-g-val { font-size: 17px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.d-g-lim { font-size: 12px; color: var(--d-muted); }
+.d-out { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
+.d-out li { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; font-size: 13.5px; border-bottom: 1px dashed var(--d-line); padding-bottom: 6px; }
+.d-out small { font-size: 12px; color: var(--d-muted); text-align: right; }
+.d-out small[data-reason="lowers_value"], .d-out small[data-reason="breaks_guardrail"] { color: var(--d-bad); }
 /* The decision */
 .d-hero { display: grid; gap: 2px; padding: 14px 16px; border-radius: 14px; background: var(--d-gold-wash); margin-bottom: 14px; }
 .d-hero .big { font-size: 40px; font-weight: 700; letter-spacing: -0.02em; color: var(--d-gold); line-height: 1.05; font-variant-numeric: tabular-nums; }
@@ -552,15 +568,18 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
     <section class="d-card" id="d-stand" aria-labelledby="d-stand-h">
       <div class="d-head"><h2 id="d-stand-h"><span class="d-num">01</span>Where we stand</h2><p class="d-sub" id="d-stand-sub"></p></div>
       <div class="d-kpis" id="d-kpis"></div>
+      <div class="d-guards-head"><span class="d-label plain">Guardrails</span><span class="d-sub">The funded plan against the strategy's limits</span></div>
+      <ul class="d-guards" id="d-guards" aria-label="Guardrails of the strategy for the funded plan"></ul>
     </section>
     <div class="d-row d-row-a">
       <section class="d-card" id="d-decision" aria-labelledby="d-decision-h">
-        <div class="d-head"><h2 id="d-decision-h"><span class="d-num">02</span>Same budget, two ways to spend it</h2><p class="d-sub" id="d-decision-sub"></p></div>
+        <div class="d-head"><h2 id="d-decision-h"><span class="d-num">02</span>The plan for this budget</h2><p class="d-sub" id="d-decision-sub"></p></div>
         <div class="d-hero" id="d-hero" aria-live="polite"></div>
         <div class="d-vs" id="d-vs"></div>
+        <p class="d-note" id="d-next"></p>
       </section>
       <section class="d-card" id="d-bridge" aria-labelledby="d-bridge-h">
-        <div class="d-head"><h2 id="d-bridge-h"><span class="d-num">03</span>Where the extra value comes from</h2><p class="d-sub">Value created (NPV), gut feel to data-driven</p></div>
+        <div class="d-head"><h2 id="d-bridge-h"><span class="d-num">03</span>Where the value comes from</h2><p class="d-sub">Value created (NPV), initiative by initiative</p></div>
         <div class="d-chart" id="d-bridge-chart"></div>
       </section>
     </div>
@@ -779,7 +798,7 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
   <div class="modal-head"><h2 id="howto-title">How to read this</h2><button type="button" class="btn" id="close-howto">Close</button></div>
   <div class="modal-body">
     <h3>The dashboard</h3>
-    <p>The first screen asks one question: what is deciding with data worth? Eight proposals compete for one budget. <b>Gut feel</b> funds the biggest promises first. <b>Data-driven</b> runs every combination through the model and keeps the one with the most value (NPV) that fits the budget and breaks no guardrail. Move the sliders at the bottom and everything recalculates.</p>
+    <p>The first screen asks one question: what return does a data-driven plan earn? Eight proposals compete for one budget. The model runs every combination and funds the one with the most value (NPV) that fits the budget and breaks no guardrail. The cards show what it costs and returns, year by year; the guardrails show it stays inside its limits. Move the sliders at the bottom and everything recalculates.</p>
     <h3>Four tabs, one decision (Analyst view)</h3>
     <ul>
       <li><b>Where we stand:</b> the plan for a fictional SaaS company. KPI cards, the ARR bridge, 13-week cash against the floor and the covenant, and the three statements.</li>
@@ -3237,7 +3256,7 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
       frontier: frontier, counts: { total: table.total, valid: table.validCount, invalid: table.invalidCount, allowed: table.allowedCount, notAllowed: table.notAllowedCount },
       strategy: { id: s.id, name: s.name, unit: s.objective.unit, riskMethod: s.risk.method, percentile: s.risk.percentile },
       planObjective: setup.plan.objective, haircuts: risk.haircuts, columns: cols,
-      picks: dashboardPicks(table, budget) // the dashboard's two ways to spend the budget (SPEC.md 13.1), checked by C24 (e)
+      picks: dashboardPicks(table, budget) // the dashboard's plan for this budget (SPEC.md 13.1), checked by C24 (e)
     };
   }
 
@@ -3441,13 +3460,10 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
 
 
   // ---------------------------------------------------------------------
-  // Dashboard: the ROI of deciding with data (SPEC.md section 13)
+  // Dashboard: the return on deciding with data (SPEC.md section 13)
   // ---------------------------------------------------------------------
-  // Two ways to spend the same budget, both read from the stored table (no model run):
-  //   gut feel: fund the biggest promises first (each initiative's headline new ARR over the model, largest first),
-  //             adding one if the combination is valid and still fits the budget; it does not look at guardrails.
-  //   data:     the valid, allowed combination with the highest NPV that fits the budget (ties: lower budget cost,
-  //             then lower set number).
+  // The data-driven plan: the valid, allowed combination with the highest NPV that fits the budget
+  // (ties: lower budget cost, then lower set number). Read from the stored table; no model run.
   function pickValue(table, budget) {
     var best = null;
     table.rows.forEach(function (r) {
@@ -3457,49 +3473,48 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
     });
     return best ? best.set : 0;
   }
-  function gutOrder(setup) {
-    return setup.parts.K.map(function (i, j) { return { j: j, id: setup.list[i].id, promise: setup.alone[setup.list[i].id].extraNewArr }; })
-      .sort(function (a, b) { return b.promise - a.promise || a.j - b.j; });
-  }
-  function pickGut(table, budget) {
-    var set = 0;
-    gutOrder(table.setup).forEach(function (x) {
-      var next = set | (1 << x.j), r = table.rows[next];
-      if (r && r.valid && r.budgetCost <= budget + TOL_DOLLAR) set = next;
-    });
-    return set;
-  }
-  function pickSummary(table, set) {
-    var r = table.rows[set], setup = table.setup;
-    var names = r.members.map(function (id) { return setup.list.filter(function (i) { return i.id === id; })[0].name; });
-    return { set: set, members: r.members, names: names, budgetCost: r.budgetCost, totalInvestment: r.totalInvestment, npv: r.npv,
-      valuePerDollar: r.totalInvestment > EPS_COST ? r.npv / r.totalInvestment : null, contribution: r.contribution, value: r.value,
-      allowed: r.allowed, broken: r.broken, guardrails: r.guardrails };
-  }
-  // The value bridge from the gut-feel set to the data set: drop what data drops, then add what data adds,
-  // each step the difference of two stored rows (a step into a combination that is not valid is merged with the next).
-  function pickBridge(table, gutSet, valueSet) {
-    var setup = table.setup, steps = [], cur = gutSet, pend = null;
-    var K = setup.parts.K.map(function (i) { return setup.list[i]; });
-    var moves = [];
-    K.forEach(function (init, j) { if ((gutSet & (1 << j)) && !(valueSet & (1 << j))) moves.push({ j: j, kind: 'drop', name: init.name }); });
-    K.forEach(function (init, j) { if (!(gutSet & (1 << j)) && (valueSet & (1 << j))) moves.push({ j: j, kind: 'add', name: init.name }); });
-    moves.forEach(function (mv, k) {
-      var next = mv.kind === 'drop' ? cur & ~(1 << mv.j) : cur | (1 << mv.j);
-      pend = pend || { labels: [], from: cur };
-      pend.labels.push((mv.kind === 'drop' ? 'Drop ' : 'Add ') + mv.name);
-      cur = next;
-      if (table.rows[cur].valid || k === moves.length - 1) {
-        steps.push({ label: pend.labels.join(', '), kind: mv.kind, from: pend.from, to: cur, delta: table.rows[cur].npv - table.rows[pend.from].npv });
+  function nameOf(setup, id) { var x = setup.list.filter(function (i) { return i.id === id; })[0]; return x ? x.name : id; }
+  // How the plan's value builds up: add the funded initiatives one at a time, largest value alone first; each step is the
+  // NPV difference of two stored rows, so what they share (leads, sales capacity) lands on the later step.
+  function valueBuildUp(table, set) {
+    var setup = table.setup, K = setup.parts.K, C = setup.parts.C, steps = [], cur = 0, pend = null;
+    var order = K.map(function (i, j) { return { j: j, id: setup.list[i].id }; }).filter(function (x) { return set & (1 << x.j); })
+      .sort(function (a, b) { return setup.alone[b.id].npv - setup.alone[a.id].npv || a.j - b.j; });
+    order.forEach(function (x, k) {
+      pend = pend || { labels: [], ids: [], from: cur };
+      pend.labels.push(nameOf(setup, x.id)); pend.ids.push(x.id);
+      cur = cur | (1 << x.j);
+      if (table.rows[cur].valid || k === order.length - 1) {
+        steps.push({ label: pend.labels.join(' and '), ids: pend.ids, from: pend.from, to: cur, delta: table.rows[cur].npv - table.rows[pend.from].npv });
         pend = null;
       }
     });
-    return { start: table.rows[gutSet].npv, end: table.rows[valueSet].npv, steps: steps };
+    return { start: table.rows[0].npv, startLabel: C.length ? 'Committed' : null, end: table.rows[set].npv, steps: steps };
   }
   function dashboardPicks(table, budget) {
-    var g = pickGut(table, budget), v = pickValue(table, budget);
-    return { budget: budget, gut: pickSummary(table, g), value: pickSummary(table, v), bridge: pickBridge(table, g, v),
-      gutOrder: gutOrder(table.setup).map(function (x) { return { id: x.id, promise: x.promise }; }) };
+    var setup = table.setup, v = pickValue(table, budget), r = table.rows[v];
+    var others = [];
+    setup.parts.K.forEach(function (i, j) {
+      var id = setup.list[i].id; if (v & (1 << j)) return;
+      var w = table.rows[v | (1 << j)];
+      var reason = !w.valid ? 'conflict' : w.budgetCost > budget + TOL_DOLLAR ? 'over_budget' : !w.allowed ? 'breaks_guardrail' : 'lowers_value';
+      others.push({ id: id, name: setup.list[i].name, reason: reason, withSet: w.set, withNpv: w.valid ? w.npv : null, withBudgetCost: w.valid ? w.budgetCost : null });
+    });
+    // The next step: the cheapest allowed combination that creates more value than the plan (it costs more than the budget).
+    var next = null;
+    table.rows.forEach(function (x) {
+      if (!x.valid || !x.allowed || x.npv <= r.npv + TOL_DOLLAR) return;
+      if (!next || x.budgetCost < next.budgetCost - TOL_DOLLAR || (Math.abs(x.budgetCost - next.budgetCost) <= TOL_DOLLAR && (x.npv > next.npv + TOL_DOLLAR || (Math.abs(x.npv - next.npv) <= TOL_DOLLAR && x.set < next.set)))) next = x;
+    });
+    return {
+      budget: budget, set: v, members: r.members, names: r.members.map(function (id) { return nameOf(setup, id); }),
+      budgetCost: r.budgetCost, unspent: budget - r.budgetCost, totalInvestment: r.totalInvestment, npv: r.npv,
+      valuePerDollar: r.totalInvestment > EPS_COST ? r.npv / r.totalInvestment : null, contribution: r.contribution, allowed: r.allowed,
+      others: others, candidates: setup.parts.K.length,
+      next: next ? { set: next.set, names: next.members.map(function (id) { return nameOf(setup, id); }), budgetCost: next.budgetCost,
+        extraBudget: next.budgetCost - budget, extraValue: next.npv - r.npv } : null,
+      buildUp: valueBuildUp(table, v)
+    };
   }
 
   // Cash in and out over months from..to of a run, with the change in cash closing it (SPEC.md 13.3).
@@ -3525,62 +3540,64 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
       openingCash: R.bs.cash[from - 1], closingCash: R.bs.cash[to], imbalance: tin - tout };
   }
 
-  // Everything the dashboard shows for one budget and one year, from the plan B, the run of the data set R and the
-  // table. Sentences are lists of parts; a part with `fact` is an engine number (SPEC.md 13.4).
+  // Everything the dashboard shows for one budget and one year, from the plan B, the run R of the funded set and the
+  // picks. Sentences are lists of parts: text, an engine number ({ fact }) or an initiative name ({ input }) (SPEC.md 13.4).
   function dashboardView(input) {
-    var A = input.assumptions, B = input.baseline, R = input.run, table = input.table, y = input.year || 1, picks = input.picks;
+    var A = input.assumptions, B = input.baseline, R = input.run, y = input.year || 1, p = input.picks;
     var H = R.H, m = Math.min(12 * y, H), from = Math.max(1, m - 11), facts = [];
-    var sv = R.strategy, K = R.kpis, KB = B.kpis, G = A.guardrails;
+    var sv = R.strategy, ret = computeReturns(B, R), rr = ret.monthlyDiscountRate;
     function F(text) { facts.push(String(text)); return { fact: String(text) }; }
     function T(text) { return { text: text }; }
-    function series(get) { var a = [], b = []; for (var k = 0; k <= H; k++) { a.push(get(R, k)); b.push(get(B, k)); } return { with: a, plan: b }; }
-    function lowIn(Rx) { var lo = null, at = null; for (var k = from; k <= m; k++) if (lo === null || Rx.bs.cash[k] < lo) { lo = Rx.bs.cash[k]; at = k; } return { value: lo, month: at }; }
-    var objMonth = sv.objective.month, isTargetYear = sv.objective.metric === 'arr' && objMonth === m;
-    var arr = R.arr.arr[m], arrB = B.arr.arr[m], low = lowIn(R), lowB = lowIn(B);
-    var bm = K.burnMultiple[m], bmB = KB.burnMultiple[m], gm = K.grossMarginTrailing[m], gmB = KB.grossMarginTrailing[m];
+    function N(list) { list.forEach(function (n) { facts.push(n); }); return { input: list.length ? bList(list) : 'nothing new' }; }
+    var inv = [0], cum = [0], disc = [0];
+    for (var k = 1; k <= H; k++) { inv.push(inv[k - 1] + ret.investment[k]); cum.push(ret.cumNetFlow[k]); disc.push(disc[k - 1] + ret.netFlow[k] / Math.pow(1 + rr, k)); }
+    function plan(arr) { return arr.map(function () { return 0; }); }
+    var isTargetYear = sv.objective.metric === 'arr' && sv.objective.month === m;
+    var arr = R.arr.arr[m], arrB = B.arr.arr[m], arrS = { with: R.arr.arr.slice(), plan: B.arr.arr.slice() };
+    var pb = ret.payback, roi = inv[m] > EPS_COST ? cum[m] / inv[m] : null;
     var cards = [
-      { key: 'arr', label: 'ARR', value: arr, unit: 'money', series: series(function (Rx, k) { return Rx.arr.arr[k]; }), month: m,
+      { key: 'arr', label: 'ARR', value: arr, unit: 'money', series: arrS, month: m,
         chips: [{ key: 'plan', value: arr - arrB, unit: 'money', good: arr >= arrB, label: 'vs plan' },
           isTargetYear ? { key: 'target', value: arr - sv.objective.target, unit: 'money', good: arr >= sv.objective.target, label: 'vs target' }
-            : { key: 'growth', value: K.arrGrowth[m], unit: 'pct', good: K.arrGrowth[m] >= 0, label: 'growth' }],
-        caption: [T('Decisions add '), F(bMoney(arr - arrB)), T(' of ARR by '), F(R.months[m]), T(isTargetYear ? '; the target is ' : '.'),
-          isTargetYear ? F(bMoney(sv.objective.target)) : T(''), T(isTargetYear ? '.' : '')] },
-      { key: 'cash', label: 'Lowest cash', value: low.value, unit: 'money', series: series(function (Rx, k) { return Rx.bs.cash[k]; }), month: low.month, floor: G.cashFloor,
-        chips: [{ key: 'plan', value: low.value - lowB.value, unit: 'money', good: low.value >= lowB.value, label: 'vs plan' },
-          { key: 'floor', value: low.value - G.cashFloor, unit: 'money', good: low.value >= G.cashFloor, label: 'above floor' }],
-        caption: [T('Lowest month-end in the year, '), F(R.months[low.month]), T('. The floor is '), F(bMoney(G.cashFloor)), T('.')] },
-      { key: 'burn', label: 'Burn multiple', value: bm, unit: 'multiple', series: series(function (Rx, k) { return k ? Rx.kpis.burnMultiple[k] : null; }), month: m, limit: G.maxBurnMultiple,
-        chips: [{ key: 'plan', value: bm !== null && bmB !== null ? bm - bmB : null, unit: 'multiple', good: bm !== null && bmB !== null && bm <= bmB, label: 'vs plan' },
-          { key: 'limit', value: bm !== null ? G.maxBurnMultiple - bm : null, unit: 'multiple', good: bm === null || bm <= G.maxBurnMultiple, label: 'under limit' }],
-        caption: bm === null ? [T('Not burning cash over the year to '), F(R.months[m]), T('.')]
-          : [T('Cash burned per dollar of net new ARR, year to '), F(R.months[m]), T('. The limit is '), F(G.maxBurnMultiple.toFixed(1) + 'x'), T('.')] },
-      { key: 'margin', label: 'Gross margin', value: gm, unit: 'pct', series: series(function (Rx, k) { return k ? Rx.kpis.grossMarginTrailing[k] : null; }), month: m, limit: G.minGrossMargin,
-        chips: [{ key: 'plan', value: gm - gmB, unit: 'pts', good: gm >= gmB, label: 'vs plan' },
-          { key: 'limit', value: gm - G.minGrossMargin, unit: 'pts', good: gm >= G.minGrossMargin, label: 'above guardrail' }],
-        caption: [T('Over the year to '), F(R.months[m]), T('. The guardrail is '), F((G.minGrossMargin * 100).toFixed(0) + '%'), T('.')] }
+            : { key: 'growth', value: R.kpis.arrGrowth[m], unit: 'pct', good: R.kpis.arrGrowth[m] >= 0, label: 'growth' }],
+        caption: [T('The funded plan adds '), F(bMoney(arr - arrB)), T(' of ARR by '), F(R.months[m])].concat(isTargetYear ? [T('; the target is '), F(bMoney(sv.objective.target)), T('.')] : [T('.')]) },
+      { key: 'invested', label: 'Invested', value: inv[m], unit: 'money', series: { with: inv, plan: plan(inv) }, month: m,
+        chips: [{ key: 'budget', value: p.budgetCost, unit: 'money', good: true, label: 'this year' }, { key: 'committed', value: p.totalInvestment, unit: 'money', good: true, label: 'committed' }],
+        caption: [T('Cash and staff time put into the funded initiatives by '), F(R.months[m]), T('.')] },
+      { key: 'return', label: 'Net cash return', value: cum[m], unit: 'money', series: { with: cum, plan: plan(cum) }, month: m, zero: true,
+        chips: [{ key: 'roi', value: roi, unit: 'pct', good: roi !== null && roi >= 0, label: 'ROI' }],
+        caption: pb.status === 'paid_back' ? (pb.month <= m ? [T('Paid back in '), F(R.months[pb.month]), T('.')] : [T('Pays back in '), F(R.months[pb.month]), T('.')])
+          : pb.status === 'never_negative' ? [T('Ahead from the first month.')] : [T('Not paid back by '), F(R.months[H]), T('.')] },
+      { key: 'value', label: 'Value created', value: disc[m], unit: 'money', series: { with: disc, plan: plan(disc) }, month: m, zero: true,
+        chips: [{ key: 'perDollar', value: p.valuePerDollar, unit: 'perDollar', good: p.valuePerDollar !== null && p.valuePerDollar >= 0, label: 'per $1 committed' }],
+        caption: [T('Net present value to '), F(R.months[m]), T(', at '), F((A.discountRateAnnual * 100).toFixed(0) + '%'), T(' a year; '), F(bMoney(ret.npv)), T(' by '), F(R.months[H]), T('.')] }
     ];
-    // The briefing: three short sections
-    var p = picks, gut = p.gut, val = p.value, more = val.npv - gut.npv, saved = gut.budgetCost - val.budgetCost;
-    function names(list) { var t = list.length ? bList(list) : 'nothing new'; list.forEach(function (n) { facts.push(n); }); return t; }
-    function N(list) { return { input: names(list) }; } // initiative names are inputs: recorded, shown as plain text
-    var happened = [T('With the data-driven plan, ARR reaches '), F(bMoney(arr)), T(' by '), F(R.months[m])];
+    var guards = sv.guardrails.map(function (g) {
+      return { id: g.id, label: g.label, metric: g.metric, unit: g.unit, rule: g.rule, limit: g.limit, value: g.value, pass: g.pass, headroom: g.headroom,
+        month: g.month, fromMonth: g.fromMonth, toMonth: g.toMonth };
+    });
+    var watch = sv.watch.map(function (g) { return { id: g.id, label: g.label, metric: g.metric, unit: g.unit, rule: g.rule, limit: g.limit, value: g.value, pass: g.pass, watch: true }; });
+    // Briefing
+    var low = sv.guardrails.filter(function (g) { return g.metric === 'cashLow'; })[0];
+    var happened = [T('With the funded plan, ARR reaches '), F(bMoney(arr)), T(' by '), F(R.months[m])];
     if (isTargetYear) happened = happened.concat(arr >= sv.objective.target ? [T(', meeting the '), F(bMoney(sv.objective.target)), T(' target.')]
       : [T(', '), F(bMoney(sv.objective.target - arr)), T(' short of the '), F(bMoney(sv.objective.target)), T(' target.')]);
     else happened.push(T('.'));
-    happened = happened.concat([T(' Cash bottoms at '), F(bMoney(low.value)), T(' in '), F(R.months[low.month]),
-      T(low.value >= G.cashFloor ? ', above the ' : ', below the '), F(bMoney(G.cashFloor)), T(' floor.')]);
-    var why = [T('On a '), F(bMoney(p.budget)), T(' budget, gut feel funds the biggest promises first ('), N(gut.names), T(') and creates '), F(bMoney(gut.npv)),
-      T(' of value. The data picks '), N(val.names), T(', worth '), F(bMoney(val.npv)), T('.')];
-    if (val.set === gut.set) why = [T('On a '), F(bMoney(p.budget)), T(' budget, gut feel and the data agree: '), N(val.names), T(', worth '), F(bMoney(val.npv)), T('.')];
-    else if (saved > 0.5) why = why.concat([T(' It spends '), F(bMoney(saved)), T(' less this year and commits '), F(bMoney(gut.totalInvestment - val.totalInvestment)),
-      T(' less over the model.')]);
-    var decide = val.members.length ? [T('Approve '), N(val.names), T(' for '), F(bMoney(val.budgetCost)), T('.')] : [T('Fund nothing new at this budget.')];
-    if (val.set !== gut.set) decide = decide.concat([T(' Deciding with data adds '), F(bMoney(more)), T(' of value'), T(saved > 0.5 ? ' and frees ' : ''),
-      saved > 0.5 ? F(bMoney(p.budget - val.budgetCost)) : T(''), T(saved > 0.5 ? ' of the budget.' : '.')]);
-    decide.push(T(gut.allowed ? ' Every guardrail holds either way.' : ' Gut feel would also break a guardrail; the data plan keeps them all.'));
+    var brokenG = sv.guardrails.filter(function (g) { return !g.pass; });
+    happened = happened.concat(brokenG.length ? [T(' '), { input: bList(brokenG.map(function (g) { facts.push(g.label); return g.label; })) }, T(brokenG.length === 1 ? ' breaks its limit.' : ' break their limits.')]
+      : [T(' All '), F(String(sv.total)), T(' guardrails hold')].concat(low ? [T(', and cash never goes below '), F(bMoney(low.value)), T('.')] : [T('.')]));
+    var why = p.members.length ? [T('Of '), F(String(p.candidates)), T(' proposals, the most value that fits the '), F(bMoney(p.budget)), T(' budget comes from '), N(p.names),
+      T('. Together they create '), F(bMoney(p.npv)), T(' of value on '), F(bMoney(p.totalInvestment)), T(' committed, '), F('$' + p.valuePerDollar.toFixed(2)), T(' per dollar.')]
+      : [T('No proposal fits the '), F(bMoney(p.budget)), T(' budget and adds value.')];
+    var lower = p.others.filter(function (o) { return o.reason === 'lowers_value'; }).map(function (o) { return o.name; });
+    if (lower.length) why = why.concat([T(' Adding '), N(lower), T(lower.length === 1 ? ' would fit but lower the value.' : ' would fit but lower the value.')]);
+    var decide = p.members.length ? [T('Approve '), N(p.names), T(' for '), F(bMoney(p.budgetCost))].concat(p.unspent > 0.5 ? [T(' and keep '), F(bMoney(p.unspent)), T(' of the budget.')] : [T('.')])
+      : [T('Fund nothing new at this budget.')];
+    if (p.next) decide = decide.concat([T(' The next step: '), F(bMoney(p.next.extraBudget)), T(' more budget would fund '), N(p.next.names), T(' and add '), F(bMoney(p.next.extraValue)), T(' of value.')]);
+    else decide.push(T(' More budget would not add value.'));
     return {
-      year: y, month: m, monthLabel: R.months[m], months: R.months, isTargetYear: isTargetYear, cards: cards, picks: p,
-      gain: { value: more, saved: saved, valuePerDollarGain: val.valuePerDollar !== null && gut.valuePerDollar !== null ? val.valuePerDollar - gut.valuePerDollar : null },
+      year: y, month: m, monthLabel: R.months[m], months: R.months, isTargetYear: isTargetYear, cards: cards, guardrails: guards, watch: watch, picks: p,
+      returns: { npv: ret.npv, totalInvestment: ret.totalInvestment, payback: pb, investedToDate: inv[m], returnToDate: cum[m], valueToDate: disc[m] },
       river: cashRiver(R, B, from, m),
       briefing: [{ key: 'happened', title: 'What happened', parts: happened }, { key: 'why', title: 'Why', parts: why }, { key: 'decide', title: 'What to decide', parts: decide }],
       facts: facts, strategyName: sv.name
@@ -3798,7 +3815,7 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
           if (o.bestWith !== null) ck.ok(null, cmp(bw, o.bestWith) >= 0, o.id + ': set ' + bw + ' ranks above the stated best set with it ' + o.bestWith);
         }
       });
-      // (e) the dashboard's two picks (SPEC.md 13.1), recomputed here with separate code
+      // (e) the dashboard's plan (SPEC.md 13.1), recomputed here with separate code
       if (sel.picks) {
         var bestV = null;
         rows2.forEach(function (r) {
@@ -3807,19 +3824,26 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
           var dn = r.npv - bestV.npv;
           if (dn > TOL_DOLLAR || (Math.abs(dn) <= TOL_DOLLAR && (bestV.budgetCost - r.budgetCost > TOL_DOLLAR || (Math.abs(bestV.budgetCost - r.budgetCost) <= TOL_DOLLAR && r.set < bestV.set)))) bestV = r;
         });
-        ck.ok(null, sel.picks.value.set === (bestV ? bestV.set : 0), 'The data pick is set ' + sel.picks.value.set + ' but the highest NPV that fits and is allowed is set ' + (bestV ? bestV.set : 0));
-        var order = setup.parts.K.map(function (k, j) { return { j: j, p: setup.alone[setup.list[k].id].extraNewArr }; }).sort(function (a, b) { return b.p - a.p || a.j - b.j; });
-        var gs = 0;
-        order.forEach(function (o) { var nx = gs | (1 << o.j); if (rows2[nx] && rows2[nx].valid && rows2[nx].budgetCost <= budget + TOL_DOLLAR) gs = nx; });
-        ck.ok(null, sel.picks.gut.set === gs, 'The gut-feel pick is set ' + sel.picks.gut.set + ' but filling by headline promise gives set ' + gs);
-        ['gut', 'value'].forEach(function (k) {
-          var pk = sel.picks[k], r = rows2[pk.set];
-          if (r) { ck.eq(null, pk.npv, r.npv, TOL_DOLLAR, k + ' pick NPV vs its row'); ck.eq(null, pk.budgetCost, r.budgetCost, TOL_DOLLAR, k + ' pick budget cost vs its row'); }
+        var pk = sel.picks, pr = rows2[pk.set];
+        ck.ok(null, pk.set === (bestV ? bestV.set : 0), 'The dashboard plan is set ' + pk.set + ' but the highest NPV that fits and is allowed is set ' + (bestV ? bestV.set : 0));
+        if (pr) { ck.eq(null, pk.npv, pr.npv, TOL_DOLLAR, 'Dashboard plan NPV vs its row'); ck.eq(null, pk.budgetCost, pr.budgetCost, TOL_DOLLAR, 'Dashboard plan budget cost vs its row'); }
+        var bu = pk.buildUp, run = bu.start;
+        ck.eq(null, bu.start, rows2[0].npv, TOL_DOLLAR, 'Value build-up starts at row 0');
+        bu.steps.forEach(function (st) { ck.eq(null, st.delta, rows2[st.to].npv - rows2[st.from].npv, TOL_DOLLAR, 'Build-up step ' + st.label + ' vs two rows'); run += st.delta; });
+        ck.eq(null, run, pr ? pr.npv : 0, TOL_DOLLAR, 'Build-up steps add up to the plan value');
+        var Kids2 = setup.parts.K.map(function (k) { return setup.list[k].id; });
+        (pk.others || []).forEach(function (o) {
+          var w = rows2[pk.set | (1 << Kids2.indexOf(o.id))];
+          var want = !w.valid ? 'conflict' : w.budgetCost > budget + TOL_DOLLAR ? 'over_budget' : !allowed2(w) ? 'breaks_guardrail' : 'lowers_value';
+          ck.ok(null, o.reason === want, 'Left-out reason for ' + o.id + ' is ' + o.reason + ', the row with it says ' + want);
         });
-        var br = sel.picks.bridge, run = br.start;
-        ck.eq(null, br.start, rows2[sel.picks.gut.set].npv, TOL_DOLLAR, 'Bridge starts at the gut-feel value');
-        br.steps.forEach(function (st) { ck.eq(null, st.delta, rows2[st.to].npv - rows2[st.from].npv, TOL_DOLLAR, 'Bridge step ' + st.label + ' vs two rows'); run += st.delta; });
-        ck.eq(null, run, rows2[sel.picks.value.set].npv, TOL_DOLLAR, 'Bridge steps add up to the data value');
+        var nx = null;
+        rows2.forEach(function (r) {
+          if (!r || !r.valid || !allowed2(r) || !pr || r.npv <= pr.npv + TOL_DOLLAR) return;
+          if (!nx || r.budgetCost < nx.budgetCost - TOL_DOLLAR || (Math.abs(r.budgetCost - nx.budgetCost) <= TOL_DOLLAR && (r.npv > nx.npv + TOL_DOLLAR || (Math.abs(r.npv - nx.npv) <= TOL_DOLLAR && r.set < nx.set)))) nx = r;
+        });
+        ck.ok(null, (pk.next ? pk.next.set : null) === (nx ? nx.set : null), 'Next step is ' + (pk.next ? pk.next.set : 'none') + ', the cheapest set with more value is ' + (nx ? nx.set : 'none'));
+        if (pk.next && nx) ck.eq(null, pk.next.extraValue, nx.npv - pr.npv, TOL_DOLLAR, 'Next step extra value vs two rows');
       }
     } catch (err) { ck.fail(null, null, 'Selection check failed: ' + err.message); }
     out.push(ck.out());
@@ -5421,7 +5445,7 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
     LEARNABLE: LEARNABLE, learningChannel: learningChannel, learningExpected: learningExpected, learnFromActuals: learnFromActuals, applyLearning: applyLearning,
     scenarioSummary: scenarioSummary, cfoBriefing: cfoBriefing,
     // Dashboard (SPEC.md section 13)
-    pickValue: pickValue, pickGut: pickGut, dashboardPicks: dashboardPicks, cashRiver: cashRiver, dashboardView: dashboardView
+    pickValue: pickValue, dashboardPicks: dashboardPicks, cashRiver: cashRiver, dashboardView: dashboardView
   };
 })(window);
 </script>
@@ -8413,63 +8437,75 @@ window.TestSuite = (function () {
     t.ok('A scenario whose two cash floors disagree reports the failing check', sb.checks[0].passed < sb.checks[0].total && /C10/.test(sb.checks[0].failures.join(' ')), sb.checks[0].failures.join(' '));
   });
 
-  // ===== 13. Dashboard: the ROI of deciding with data (SPEC.md 13.5) =====
-  test('T156', 'Dashboard picks: gut feel and data on the same budget (SPEC.md 13.1)', function (t) {
+  // ===== 13. Dashboard: the return on a data-driven plan (SPEC.md 13.5) =====
+  test('T156', 'Dashboard plan: most value that fits the budget, reasons, next step, build-up (SPEC.md 13.1)', function (t) {
     var tab = eightTable(), z = zeroHaircuts(eightList(A0));
-    var want = { 500000: [51, 35, 890577.40, 919707.86], 600000: [7, 35, 860154.88, 919707.86], 400000: [34, 34, 771763.80, 771763.80], 1500000: [191, 47, 783572.71, 1191525.17] };
+    var want = { 200000: [33, 507404.08, 200000.00, 3, 83166.67, 149970.47], 500000: [35, 919707.86, 423166.67, 38, 168166.67, 43457.31],
+      700000: [38, 963165.17, 668166.67, 39, 28166.67, 202196.90], 1000000: [47, 1191525.17, 818166.67, null] };
     Object.keys(want).forEach(function (b) {
-      var sel = E.selectPortfolio(tab, z, Number(b)), p = sel.picks, w = want[b];
-      t.eq(b + ': gut-feel set', p.gut.set, w[0]); t.eq(b + ': data set', p.value.set, w[1]);
-      t.near(b + ': gut-feel value', p.gut.npv, w[2], 0.01); t.near(b + ': data value', p.value.npv, w[3], 0.01);
-      // brute force: the most NPV among allowed rows that fit, and the greedy fill by headline promise
+      var p = E.selectPortfolio(tab, z, Number(b)).picks, w = want[b];
+      t.eq(b + ': funded set', p.set, w[0]); t.near(b + ': value', p.npv, w[1], 0.01); t.near(b + ': budget cost', p.budgetCost, w[2], 0.01);
       var best = null; tab.rows.forEach(function (r) { if (r.valid && r.allowed && r.budgetCost <= Number(b) + 0.01 && (!best || r.npv > best.npv)) best = r; });
-      t.eq(b + ': data set is the highest NPV that fits and keeps the guardrails', p.value.set, best.set);
-      t.ok(b + ': data never creates less value than gut feel when gut feel keeps the guardrails', !p.gut.allowed || p.value.npv >= p.gut.npv - 0.01);
-      var run = p.bridge.start; p.bridge.steps.forEach(function (s) { run += s.delta; });
-      t.near(b + ': bridge steps add up', run, p.value.npv, 0.01);
+      t.eq(b + ': brute force agrees', p.set, best.set);
+      t.eq(b + ': next step', p.next ? p.next.set : null, w[3]);
+      if (p.next) { t.near(b + ': next step extra budget', p.next.extraBudget, w[4], 0.01); t.near(b + ': next step extra value', p.next.extraValue, w[5], 0.01); }
+      var run = p.buildUp.start; p.buildUp.steps.forEach(function (s) { run += s.delta; });
+      t.near(b + ': build-up adds up to the value', run, p.npv, 0.01);
+      t.near(b + ': unspent', p.unspent, Number(b) - w[2], 0.01);
     });
-    var p6 = E.selectPortfolio(tab, z, 600000).picks;
-    t.eq('600,000 bridge', p6.bridge.steps.map(function (s) { return s.label; }).join(' | '), 'Drop Hire 2 AEs | Add Partner program');
-    t.near('Drop the AEs', p6.bridge.steps[0].delta, -202780.33, 0.01); t.near('Add the partner program', p6.bridge.steps[1].delta, 262333.31, 0.01);
-    t.near('Data value per $1 committed', p6.value.valuePerDollar, 0.990597, 0.0000005); t.near('Gut value per $1 committed', p6.gut.valuePerDollar, 0.505763, 0.0000005);
-    t.eq('Gut order: headline new ARR, largest first', p6.gutOrder.map(function (x) { return x.id; }).join(','), 'sdrs,aes,partner,hub,show,paid,social,host');
+    var p5 = E.selectPortfolio(tab, z, 500000).picks;
+    t.eq('500,000 left out', p5.others.map(function (o) { return o.id + ':' + o.reason; }).join(' '), 'aes:over_budget paid:over_budget social:lowers_value hub:over_budget host:over_budget');
+    t.eq('500,000 build-up order: largest value alone first', p5.buildUp.steps.map(function (s) { return s.label; }).join(' | '), 'Hire 2 SDRs | Partner program | Trade show');
+    t.near('SDRs', p5.buildUp.steps[0].delta, 466556.62, 0.01); t.near('Partner program', p5.buildUp.steps[1].delta, 305207.18, 0.01);
+    t.near('Trade show, after what it shares with the others', p5.buildUp.steps[2].delta, 147944.06, 0.01);
+    t.near('Value per $1 committed', p5.valuePerDollar, 0.990597, 0.0000005); t.near('Committed over the model', p5.totalInvestment, 928437.67, 0.01);
   });
-  test('T157', 'Dashboard view: cash river balances, every number is an engine fact (SPEC.md 13.3, 13.4)', function (t) {
+  test('T157', 'Dashboard view: ROI cards, guardrails, cash river, numbers from the engine only (SPEC.md 13.3, 13.4)', function (t) {
     var tab = eightTable(), L8 = eightList(A0), B = base();
-    [500000, 600000, 1500000].forEach(function (b) {
-      var p = E.selectPortfolio(tab, zeroHaircuts(L8), b).picks, R = E.runModel(A0, L8.filter(function (i, k) { return p.value.set & (1 << k); }));
+    [200000, 500000, 1000000].forEach(function (b) {
+      var p = E.selectPortfolio(tab, zeroHaircuts(L8), b).picks, R = E.runModel(A0, L8.filter(function (i, k) { return p.set & (1 << k); })), ret = E.computeReturns(B, R);
       [1, 2, 3].forEach(function (y) {
-        var v = E.dashboardView({ assumptions: A0, baseline: B, run: R, table: tab, picks: p, year: y }), rv = v.river, label = b + ' year ' + y;
+        var v = E.dashboardView({ assumptions: A0, baseline: B, run: R, table: tab, picks: p, year: y }), rv = v.river, label = b + ' year ' + y, m = 12 * y, card = {};
+        v.cards.forEach(function (c) { card[c.key] = c; });
+        t.eq(label + ': four cards', v.cards.map(function (c) { return c.key; }).join(','), 'arr,invested,return,value');
+        t.near(label + ': ARR is the model', card.arr.value, R.arr.arr[m], 1e-9);
+        var inv = 0, disc = 0; for (var k = 1; k <= m; k++) { inv += ret.investment[k]; disc += ret.netFlow[k] / Math.pow(1 + ret.monthlyDiscountRate, k); }
+        t.near(label + ': invested to date', card.invested.value, inv, 1e-6); t.near(label + ': net cash return to date', card.return.value, ret.cumNetFlow[m], 1e-6);
+        t.near(label + ': value to date', card.value.value, disc, 1e-6);
+        t.eq(label + ': guardrails are the strategy rows', v.guardrails.map(function (g) { return g.id + ':' + g.pass; }).join(','), R.strategy.guardrails.map(function (g) { return g.id + ':' + g.pass; }).join(','));
         t.near(label + ': cash in equals cash out', rv.imbalance, 0, 1e-6);
         var flowIn = 0, flowOut = 0;
         rv.inflows.forEach(function (x) { if (x.key !== 'reserves') flowIn += x.value; }); rv.outflows.forEach(function (x) { if (x.key !== 'reserves') flowOut += x.value; });
         t.near(label + ': cash in less cash out is the change in cash', flowIn - flowOut, rv.closingCash - rv.openingCash, 1e-6);
-        var coll = 0; for (var m = rv.from; m <= rv.to; m++) coll += R.billing.collections[m];
-        t.near(label + ': customer streams add up to collections', rv.inflows.filter(function (x) { return x.key === 'existing' || x.key === 'decisions'; }).reduce(function (s, x) { return s + x.value; }, 0), coll, 1e-6);
-        t.near(label + ': ARR card is the model', v.cards[0].value, R.arr.arr[12 * y], 1e-9);
         var bad = [], known = {};
-        v.facts.forEach(function (f) { numTokens(f).forEach(function (k) { known[k] = 1; }); });
+        v.facts.forEach(function (f) { numTokens(f).forEach(function (k2) { known[k2] = 1; }); });
         v.briefing.concat(v.cards.map(function (c) { return { parts: c.caption }; })).forEach(function (s) {
-          s.parts.forEach(function (x) { if (x.text) numTokens(x.text).forEach(function (k) { bad.push(k + ' typed in "' + x.text + '"'); }); });
-          numTokens(s.parts.map(function (x) { return x.fact || x.input || x.text || ''; }).join('')).forEach(function (k) { if (!known[k]) bad.push(k); });
+          s.parts.forEach(function (x) { if (x.text) numTokens(x.text).forEach(function (k2) { bad.push(k2 + ' typed in "' + x.text + '"'); }); });
+          numTokens(s.parts.map(function (x) { return x.fact || x.input || x.text || ''; }).join('')).forEach(function (k2) { if (!known[k2]) bad.push(k2); });
         });
         t.ok(label + ': no number outside the recorded facts', bad.length === 0, bad.slice(0, 4).join(' | '));
       });
+      t.near(b + ': value at the end of the model is the plan NPV', E.dashboardView({ assumptions: A0, baseline: B, run: R, table: tab, picks: p, year: 3 }).cards[3].value, p.npv, 0.01);
     });
-    var p6 = E.selectPortfolio(tab, zeroHaircuts(L8), 600000).picks, R6 = E.runModel(A0, L8.filter(function (i, k) { return 35 & (1 << k); }));
-    var v6 = E.dashboardView({ assumptions: A0, baseline: B, run: R6, table: tab, picks: p6, year: 1 });
-    var txt = v6.briefing.map(function (s) { return s.parts.map(function (x) { return x.fact || x.input || x.text; }).join(''); }).join(' ');
-    t.ok('The briefing names both picks and the gain', /gut feel funds the biggest promises first \(Trade show, Hire 2 SDRs and Hire 2 AEs\) and creates \$860\.2K/.test(txt) && /Deciding with data adds \$59\.6K of value and frees \$176\.8K/.test(txt), txt);
-    t.near('Gain', v6.gain.value, 59552.98, 0.01); t.near('Spend saved', v6.gain.saved, 165000, 0.01);
+    var p5 = E.selectPortfolio(tab, zeroHaircuts(L8), 500000).picks, R5 = E.runModel(A0, L8.filter(function (i, k) { return 35 & (1 << k); }));
+    var v1 = E.dashboardView({ assumptions: A0, baseline: B, run: R5, table: tab, picks: p5, year: 1 }), v3 = E.dashboardView({ assumptions: A0, baseline: B, run: R5, table: tab, picks: p5, year: 3 });
+    t.near('2027: invested', v1.cards[1].value, 439166.67, 0.01); t.near('2027: net cash return', v1.cards[2].value, -239669.38, 0.01); t.near('2027: value to date', v1.cards[3].value, -232849.43, 0.01);
+    t.near('2029: net cash return', v3.cards[2].value, 1258869.63, 0.01); t.near('2029: ROI', v3.cards[2].chips[0].value, 1258869.63 / 928437.67, 0.0001);
+    t.eq('Pays back in Oct 2028', v1.returns.payback.month, 22);
+    var txt = v1.briefing.map(function (s) { return s.parts.map(function (x) { return x.fact || x.input || x.text; }).join(''); }).join(' ');
+    t.ok('The briefing names the plan, its value and the next step', /comes from Trade show, Hire 2 SDRs and Partner program\. Together they create \$919\.7K of value on \$928\.4K committed, \$0\.99 per dollar\./.test(txt) &&
+      /Adding Paid social test would fit but lower the value/.test(txt) && /\$168\.2K more budget would fund Hire 2 SDRs, Hire 2 AEs and Partner program and add \$43\.5K of value/.test(txt), txt);
+    t.ok('No gut-feel comparison remains', !/gut/i.test(txt));
   });
-  test('T158', 'C24 (e) can fail: a wrong dashboard pick or bridge is caught (SPEC.md 13.2)', function (t) {
-    var tab = eightTable(), sel = E.selectPortfolio(tab, zeroHaircuts(eightList(A0)), 600000);
+  test('T158', 'C24 (e) can fail: a wrong dashboard plan, build-up, reason or next step is caught (SPEC.md 13.2)', function (t) {
+    var tab = eightTable(), sel = E.selectPortfolio(tab, zeroHaircuts(eightList(A0)), 500000);
     function c24(s) { return E.portfolioChecks({ table: tab, selection: s })[1]; }
     t.ok('C24 passes before', c24(sel).pass, c24(sel).reason);
-    var a = structuredClone(sel); a.picks.value.set = 7; t.eq('A data pick that is not the most value fails C24', c24(a).pass, false);
-    var b = structuredClone(sel); b.picks.gut.set = 35; t.eq('A gut pick that is not the greedy fill fails C24', c24(b).pass, false);
-    var c = structuredClone(sel); c.picks.bridge.steps[0].delta += 1; t.eq('A bridge step off by 1.00 fails C24', c24(c).pass, false);
-    var d = structuredClone(sel); d.picks.value.npv += 1; t.eq('A pick value off by 1.00 fails C24', c24(d).pass, false);
+    var a = structuredClone(sel); a.picks.set = 51; t.eq('A plan that is not the most value fails C24', c24(a).pass, false);
+    var b = structuredClone(sel); b.picks.buildUp.steps[0].delta += 1; t.eq('A build-up step off by 1.00 fails C24', c24(b).pass, false);
+    var c = structuredClone(sel); c.picks.others[2].reason = 'over_budget'; t.eq('A wrong left-out reason fails C24', c24(c).pass, false);
+    var d = structuredClone(sel); d.picks.next.set = 39; t.eq('A wrong next step fails C24', c24(d).pass, false);
+    var e = structuredClone(sel); e.picks.npv += 1; t.eq('A plan value off by 1.00 fails C24', c24(e).pass, false);
   });
 
   function run() {
@@ -11525,11 +11561,11 @@ window.TestSuite = (function () {
     if (S.error) { clear($('d-hero')).appendChild(el('p', { class: 'd-note', role: 'alert' }, 'The search cannot run: ' + S.error + '.')); return; }
     if (!dashReady()) { $('d-main').setAttribute('data-ready', 'no'); return; }
     var picks = S.sel.picks, v;
-    try { v = E.dashboardView({ assumptions: state.A, baseline: state.res.baseline, run: dashRun(picks.value.set), table: S.table, picks: picks, year: state.dashYear }); }
+    try { v = E.dashboardView({ assumptions: state.A, baseline: state.res.baseline, run: dashRun(picks.set), table: S.table, picks: picks, year: state.dashYear }); }
     catch (err) { clear($('d-hero')).appendChild(el('p', { class: 'd-note', role: 'alert' }, String(err.message))); return; }
     state.dashView = v;
     var main = $('d-main');
-    main.setAttribute('data-ready', 'yes'); main.setAttribute('data-value-set', String(picks.value.set)); main.setAttribute('data-gut-set', String(picks.gut.set));
+    main.setAttribute('data-ready', 'yes'); main.setAttribute('data-plan-set', String(picks.set));
     $('d-stand-sub').textContent = v.monthLabel + ', with the data-driven plan';
     renderDashKpis(v); renderDashDecision(v); renderDashBridge(v); renderDashBrief(v); renderDashRiver(v);
   }
@@ -11552,14 +11588,7 @@ window.TestSuite = (function () {
     if (unit === 'multiple') return isNum(x) ? x.toFixed(2) + 'x' : 'Not burning';
     return plain(x);
   }
-  function chipText(c) {
-    if (!isNum(c.value)) return 'n/a';
-    if (c.unit === 'money') return signedCompact(c.value);
-    if (c.unit === 'pct') return signed(pct(Math.abs(c.value), 1), c.value);
-    if (c.unit === 'pts') { var r = Number((c.value * 100).toFixed(1)); return signed(Math.abs(r).toFixed(1) + ' pts', r); }
-    if (c.unit === 'multiple') { var q = Number(c.value.toFixed(2)); return signed(Math.abs(q).toFixed(2) + 'x', q); }
-    return plain(c.value);
-  }
+  // A sentence of parts: engine numbers in bold, initiative names and text as written.
   function partsInto(p, parts) {
     parts.forEach(function (x) {
       if (x.fact !== undefined) p.appendChild(el('b', { class: 'd-fact' }, x.fact));
@@ -11567,73 +11596,99 @@ window.TestSuite = (function () {
     });
     return p;
   }
+  function chipText(c) {
+    if (!isNum(c.value)) return 'n/a';
+    if (c.key === 'budget' || c.key === 'committed') return compact(c.value);
+    if (c.unit === 'money') return signedCompact(c.value);
+    if (c.unit === 'perDollar') return '$' + c.value.toFixed(2);
+    if (c.unit === 'pct') return signed(pct(Math.abs(c.value), c.key === 'roi' ? 0 : 1), c.value);
+    if (c.unit === 'pts') { var r = Number((c.value * 100).toFixed(1)); return signed(Math.abs(r).toFixed(1) + ' pts', r); }
+    if (c.unit === 'multiple') { var q = Number(c.value.toFixed(2)); return signed(Math.abs(q).toFixed(2) + 'x', q); }
+    return plain(c.value);
+  }
   function dashSpark(box, card) {
     var w = Math.max(160, box.clientWidth || 240), h = 46, pad = 4, s = card.series, H = s.with.length - 1, vals = [];
     [s.with, s.plan].forEach(function (a) { for (var k = 1; k <= H; k++) if (isNum(a[k])) vals.push(a[k]); });
-    var ref = card.key === 'cash' ? card.floor : card.key === 'burn' || card.key === 'margin' ? card.limit : null;
-    if (isNum(ref)) vals.push(ref);
+    if (card.zero) vals.push(0);
     if (!vals.length) return;
     var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals); if (hi === lo) hi = lo + 1;
     function X(k) { return pad + (k - 1) / Math.max(1, H - 1) * (w - 2 * pad); }
     function Y(v) { return pad + (hi - v) / (hi - lo) * (h - 2 * pad); }
     function path(a) { var d = ''; for (var k = 1; k <= H; k++) if (isNum(a[k])) d += (d ? 'L' : 'M') + X(k).toFixed(1) + ',' + Y(a[k]).toFixed(1); return d; }
     var g = svg('svg', { class: 'd-spark', viewBox: '0 0 ' + w + ' ' + h, width: w, height: h, 'aria-hidden': 'true' });
-    if (isNum(ref)) g.appendChild(svg('line', { x1: pad, x2: w - pad, y1: Y(ref), y2: Y(ref), stroke: 'var(--d-bad)', 'stroke-width': 1, 'stroke-dasharray': '2 3', opacity: 0.7 }));
-    var dw = path(s.with);
-    if (dw) g.appendChild(svg('path', { d: dw + 'L' + X(H) + ',' + (h - pad) + 'L' + X(1) + ',' + (h - pad) + 'Z', fill: 'var(--d-plan-wash)', stroke: 'none' }));
-    g.appendChild(svg('path', { d: path(s.plan), fill: 'none', stroke: 'var(--d-slate)', 'stroke-width': 1.2, 'stroke-dasharray': '3 3' }));
+    var base = card.zero ? Y(0) : h - pad, dw = path(s.with);
+    if (dw) g.appendChild(svg('path', { d: dw + 'L' + X(H) + ',' + base + 'L' + X(1) + ',' + base + 'Z', fill: 'var(--d-plan-wash)', stroke: 'none' }));
+    if (card.key === 'arr') g.appendChild(svg('path', { d: path(s.plan), fill: 'none', stroke: 'var(--d-slate)', 'stroke-width': 1.2, 'stroke-dasharray': '3 3' }));
+    if (card.zero) g.appendChild(svg('line', { x1: pad, x2: w - pad, y1: Y(0), y2: Y(0), stroke: 'var(--d-slate)', 'stroke-width': 1, 'stroke-dasharray': '3 3' }));
     g.appendChild(svg('path', { d: dw, fill: 'none', stroke: 'var(--d-plan)', 'stroke-width': 2 }));
     if (isNum(s.with[card.month])) g.appendChild(svg('circle', { cx: X(card.month), cy: Y(s.with[card.month]), r: 3.5, fill: 'var(--d-gold)', stroke: 'var(--d-card)', 'stroke-width': 1.5 }));
     box.appendChild(g);
   }
   function renderDashKpis(v) {
     var box = $('d-kpis');
-    if (!box.children.length) v.cards.forEach(function (c) {
-      var k = el('article', { class: 'd-kpi', 'data-dkpi': c.key });
-      k.appendChild(el('div', { class: 'd-label' }, c.label));
-      k.appendChild(el('div', { class: 'd-value' }));
-      k.appendChild(el('div', { class: 'd-chips' }));
-      k.appendChild(el('div', { class: 'd-sparkbox' }));
-      k.appendChild(el('p', { class: 'd-cap' }));
-      box.appendChild(k);
-    });
+    if (box.getAttribute('data-keys') !== v.cards.map(function (c) { return c.key; }).join(',')) {
+      clear(box); box.setAttribute('data-keys', v.cards.map(function (c) { return c.key; }).join(','));
+      v.cards.forEach(function (c) {
+        var k = el('article', { class: 'd-kpi', 'data-dkpi': c.key });
+        k.appendChild(el('div', { class: 'd-label' }, c.label));
+        k.appendChild(el('div', { class: 'd-value' }));
+        k.appendChild(el('div', { class: 'd-chips' }));
+        k.appendChild(el('div', { class: 'd-sparkbox' }));
+        k.appendChild(el('p', { class: 'd-cap' }));
+        box.appendChild(k);
+      });
+    }
     v.cards.forEach(function (c) {
       var k = box.querySelector('[data-dkpi="' + c.key + '"]');
       setNum(k.querySelector('.d-value'), c.value, function (x) { return dashFmt(c.unit, x); });
       var chips = clear(k.querySelector('.d-chips'));
-      c.chips.forEach(function (ch) { var sp = el('span', { class: 'd-chip ' + (ch.good ? 'good' : 'bad'), 'data-chip': ch.key }, chipText(ch)); sp.appendChild(el('small', null, ch.label)); chips.appendChild(sp); });
+      c.chips.forEach(function (ch) {
+        var sp = el('span', { class: 'd-chip ' + (ch.good === true ? 'good' : ch.good === false ? 'bad' : 'neutral'), 'data-chip': ch.key }, chipText(ch));
+        sp.appendChild(el('small', null, ch.label)); chips.appendChild(sp);
+      });
       var sb = clear(k.querySelector('.d-sparkbox')); dashSpark(sb, c);
       partsInto(clear(k.querySelector('.d-cap')), c.caption);
     });
+    // The guardrails of the strategy, for the funded plan over their own windows
+    var gl = clear($('d-guards'));
+    v.guardrails.concat(v.watch).forEach(function (g) {
+      var li = el('li', { class: 'd-guard ' + (g.pass ? 'pass' : g.watch ? 'warn' : 'fail'), 'data-dguard': g.id });
+      li.appendChild(el('span', { class: 'd-g-name' }, (g.watch ? 'Watch: ' : '') + g.label));
+      li.appendChild(el('b', { class: 'd-g-val' }, metricText(g.metric, g.unit, g.value, g.pass)));
+      var lt = limitText(g); li.appendChild(el('span', { class: 'd-g-lim' }, lt.charAt(0).toLowerCase() + lt.slice(1)));
+      gl.appendChild(li);
+    });
   }
+  var REASON_SHORT = { over_budget: 'Over budget', breaks_guardrail: 'Breaks a guardrail', lowers_value: 'Would lower the value', conflict: 'Conflicts with a funded one' };
   function renderDashDecision(v) {
-    var p = v.picks, hero = $('d-hero'), same = p.value.set === p.gut.set, H = state.res.baseline.H;
+    var p = v.picks, hero = $('d-hero'), H = state.res.baseline.H;
     $('d-decision-sub').textContent = compact(p.budget) + ' to spend this year';
     if (!hero.children.length) { hero.appendChild(el('div', { class: 'big' })); hero.appendChild(el('div', { class: 'what' })); hero.appendChild(el('div', { class: 'also' })); }
-    var big = hero.querySelector('.big');
-    if (same) { big.removeAttribute('data-v'); big.textContent = 'Same pick'; }
-    else setNum(big, v.gain.value, function (x) { return signedCompact(x); });
-    hero.querySelector('.what').textContent = same ? 'Gut feel and the data agree at this budget.' : 'more value from deciding with data';
-    hero.querySelector('.also').textContent = same ? 'Move the budget to see where they part ways.' :
-      v.gain.saved > 0.5 ? 'and ' + compact(v.gain.saved) + ' less spent this year' : v.gain.saved < -0.5 ? 'for ' + compact(-v.gain.saved) + ' more spent this year' : 'for the same spend';
+    setNum(hero.querySelector('.big'), p.npv, function (x) { return compact(x); });
+    hero.querySelector('.what').textContent = p.members.length ? 'of value created by the funded plan (NPV over ' + H + ' months)' : 'Nothing at this budget adds value';
+    hero.querySelector('.also').textContent = p.members.length ? compact(p.budgetCost) + ' of the ' + compact(p.budget) + ' budget, $' + p.valuePerDollar.toFixed(2) + ' of value per $1 committed' : '';
     var vs = clear($('d-vs'));
-    [['gut', 'Gut feel', 'Fund the biggest promises first', 'var(--d-slate)'], ['value', 'Data-driven', 'Most value that fits the budget and keeps every guardrail', 'var(--d-gold)']].forEach(function (cfg) {
-      var x = p[cfg[0]], side = el('div', { class: 'd-side ' + (cfg[0] === 'value' ? 'data' : 'gut'), 'data-side': cfg[0] });
-      var h3 = el('h3'); h3.appendChild(el('i', { style: 'background:' + cfg[3] })); h3.appendChild(document.createTextNode(cfg[1])); side.appendChild(h3);
-      side.appendChild(el('p', { class: 'how' }, cfg[2]));
-      var f = el('div', { class: 'd-funds' });
-      if (!x.names.length) f.appendChild(el('span', null, 'Nothing new'));
-      x.names.forEach(function (n) { f.appendChild(el('span', null, n)); });
-      side.appendChild(f);
-      var dl = el('dl');
-      [['Spend this year', compact(x.budgetCost)], ['Committed over ' + H + ' months', compact(x.totalInvestment)], ['Value created (NPV)', compact(x.npv)],
-        ['Guardrails', x.allowed ? 'All hold' : x.broken + ' broken']].forEach(function (r) { dl.appendChild(el('dt', null, r[0])); dl.appendChild(el('dd', null, r[1])); });
-      side.appendChild(dl);
-      var vp = el('div', { class: 'vpd', 'data-vpd': cfg[0] }, isNum(x.valuePerDollar) ? '$' + x.valuePerDollar.toFixed(2) : 'n/a');
-      vp.appendChild(el('small', null, 'VALUE PER $1 COMMITTED'));
-      side.appendChild(vp);
-      vs.appendChild(side);
-    });
+    var fund = el('div', { class: 'd-side data', 'data-side': 'funded' });
+    var h3 = el('h3'); h3.appendChild(el('i', { style: 'background:var(--d-gold)' })); h3.appendChild(document.createTextNode('Fund')); fund.appendChild(h3);
+    var f = el('div', { class: 'd-funds' });
+    if (!p.names.length) f.appendChild(el('span', null, 'Nothing new'));
+    p.names.forEach(function (n) { f.appendChild(el('span', null, n)); });
+    fund.appendChild(f);
+    var dl = el('dl');
+    [['Spend this year', compact(p.budgetCost)], ['Committed over ' + H + ' months', compact(p.totalInvestment)],
+      ['Pays back', v.returns.payback.status === 'paid_back' ? state.res.baseline.months[v.returns.payback.month] : v.returns.payback.status === 'never_negative' ? 'At once' : 'Not within ' + H + ' months'],
+      ['Guardrails', p.allowed ? 'All hold' : 'Broken']].forEach(function (r) { dl.appendChild(el('dt', null, r[0])); dl.appendChild(el('dd', null, r[1])); });
+    fund.appendChild(dl);
+    vs.appendChild(fund);
+    var out = el('div', { class: 'd-side', 'data-side': 'left-out' });
+    var h4 = el('h3'); h4.appendChild(el('i', { style: 'background:var(--d-slate)' })); h4.appendChild(document.createTextNode('Leave out')); out.appendChild(h4);
+    var ul = el('ul', { class: 'd-out' });
+    if (!p.others.length) ul.appendChild(el('li', null, 'Nothing: every proposal is funded.'));
+    p.others.forEach(function (o) { var li = el('li', { 'data-out-id': o.id }); li.appendChild(el('span', null, o.name)); li.appendChild(el('small', { 'data-reason': o.reason }, REASON_SHORT[o.reason])); ul.appendChild(li); });
+    out.appendChild(ul);
+    vs.appendChild(out);
+    var next = $('d-next');
+    next.textContent = p.next ? 'Next step: ' + compact(p.next.extraBudget) + ' more budget would add ' + compact(p.next.extraValue) + ' of value.' : 'More budget would not add value.';
   }
   function wrapLabel(text, max) {
     var words = String(text).split(' '), lines = [''];
@@ -11641,16 +11696,17 @@ window.TestSuite = (function () {
     return lines.slice(0, 3);
   }
   function renderDashBridge(v) {
-    var box = clear($('d-bridge-chart')), b = v.picks.bridge;
-    var bars = [{ label: 'Gut feel', kind: 'start', from: 0, to: b.start }], run = b.start;
+    var box = clear($('d-bridge-chart')), b = v.picks.buildUp;
+    var bars = [], run = b.start;
+    if (b.startLabel) bars.push({ label: b.startLabel, kind: 'start', from: 0, to: b.start });
     b.steps.forEach(function (s) { bars.push({ label: s.label, kind: s.delta >= 0 ? 'up' : 'down', from: run, to: run + s.delta, delta: s.delta }); run += s.delta; });
-    bars.push({ label: 'Data-driven', kind: 'end', from: 0, to: b.end });
+    bars.push({ label: 'Total value', kind: 'end', from: 0, to: b.end });
     var w = Math.max(280, box.clientWidth || 560), h = w < 480 ? 270 : 340, m = { l: 52, r: 8, t: 24, b: 50 }, pw = w - m.l - m.r, ph = h - m.t - m.b;
     var vals = [0]; bars.forEach(function (x) { vals.push(x.from, x.to); });
     var sc = niceScale(Math.min.apply(null, vals), Math.max.apply(null, vals) * 1.08, 4);
     function Y(x) { return m.t + (sc.hi - x) / (sc.hi - sc.lo) * ph; }
     var slot = pw / bars.length, bw = Math.min(64, slot * 0.58);
-    var g = svg('svg', { viewBox: '0 0 ' + w + ' ' + h, width: w, height: h, role: 'img', 'aria-label': 'Value bridge from gut feel to data-driven' });
+    var g = svg('svg', { viewBox: '0 0 ' + w + ' ' + h, width: w, height: h, role: 'img', 'aria-label': 'Value created, initiative by initiative' });
     sc.ticks.forEach(function (tk) { g.appendChild(svg('line', { x1: m.l, x2: w - m.r, y1: Y(tk), y2: Y(tk), stroke: 'var(--d-grid)' })); g.appendChild(svg('text', { x: m.l - 8, y: Y(tk) + 4, 'text-anchor': 'end' }, axisMoney(tk))); });
     var color = { start: 'var(--d-slate)', up: 'var(--d-good)', down: 'var(--d-bad)', end: 'var(--d-gold)' };
     bars.forEach(function (x, i) {
@@ -11665,8 +11721,8 @@ window.TestSuite = (function () {
       g.appendChild(t);
     });
     box.appendChild(g);
-    if (!b.steps.length) box.appendChild(el('p', { class: 'd-note' }, 'Both approaches fund the same initiatives at this budget, so there is nothing to bridge.'));
-    else box.appendChild(el('p', { class: 'd-note' }, 'Each step is a full model run: what dropping or adding that initiative does to the value of the whole set, including how they share leads and sales capacity.'));
+    box.appendChild(el('p', { class: 'd-note' }, b.steps.length ? 'Each step adds one initiative to those before it in a full model run, so what they share (leads, sales capacity) shows up in the later steps.'
+      : 'Nothing is funded at this budget.'));
   }
   function renderDashBrief(v) {
     var box = clear($('d-brief-body'));

@@ -1,37 +1,34 @@
 # Demo scripts: Capital Allocation Copilot
 
-Two scripts: a 75-second screen recording for LinkedIn (the dashboard), and a 5-minute walkthrough for an interview (the Analyst view). Open `index.html` in a browser; no server is needed. The numbers below are what the app shows with the default assumptions; if you change anything first, the app's numbers win.
+Two scripts: a 70-second screen recording for LinkedIn (the dashboard), and a 5-minute walkthrough for an interview (the Analyst view). Open `index.html` in a browser; no server is needed. The numbers below are what the app shows with the default assumptions; if you change anything first, the app's numbers win.
 
 ---
 
-## LinkedIn video: "What is deciding with data worth?" (about 75 seconds)
+## LinkedIn video: "What does a data-driven plan earn?" (about 70 seconds)
 
 **Set-up:** browser at 1366 x 800 or larger, page zoom 100%, the dashboard freshly loaded (it opens on 2027 with a $500K budget). Record the browser window only. Move the mouse slowly; every change animates.
 
 **0:00 to 0:08. The hook.** Hover the title.
-> "Eight teams want money. One budget. Do you trust your gut, or the data? Here is what the difference is worth, in dollars."
+> "Eight teams want money. One budget. Which ones do you fund, and what will it earn? Let the model decide, and show its work."
 
-**0:08 to 0:20. 01 Where we stand.** Sweep left to right across the four cards.
-> "A fictional SaaS company: ARR, cash, burn and margin, each against the plan and its limit. Every number comes from a three-statement model, and the green badge says all 24 integrity checks pass."
+**0:08 to 0:22. 02 The plan for this budget.** Point at the gold number, then the two lists.
+> "The model runs every combination of the eight through a full three-statement forecast. At $500K it funds three: the trade show, two SDRs and the partner program. $920K of value, and every proposal it leaves out says why: over budget, or it would lower the value."
 
-**0:20 to 0:35. 02 Same budget, two ways to spend it.** Point at the two columns, then the gold headline.
-> "Gut feel funds the biggest promises first. The data runs every combination through the model and keeps the one with the most value that fits the budget and breaks no guardrail. At $500K, the data plan creates $29K more value and spends $60K less."
+**0:22 to 0:32. 03 Where the value comes from.** Point at the green steps.
+> "Here is where the value comes from, initiative by initiative. The trade show adds less here than on its own, because it competes for the same sales capacity in April."
 
-**0:35 to 0:50. Drag the budget slider to $600K.** Let the numbers settle.
-> "Give gut feel more money and it hires two account executives because they promise the most ARR. The data plan says no: it keeps the partner program instead. $60K more value, $165K less spent this year, and 99 cents of value per dollar committed against 51."
+**0:32 to 0:48. 01 Where we stand, then click 2028 and 2029.** Let the cards count up.
+> "In 2027 we are investing: $439K in, still underwater. It pays back in October 2028. By 2029: $1.26M of cash back, a 136% return. And underneath, every guardrail holds: cash never goes below $18.9M against a $15M floor, the burn multiple stays under 2."
 
-**0:50 to 0:58. 03 Where the extra value comes from.** Point at the red and green bars.
-> "Here is why: dropping the AEs costs $203K of value, adding the partner program brings $262K. Each bar is a full model run."
+**0:48 to 1:00. Click 2027 again and drag the budget to $700K.**
+> "Give it more budget and the answer changes: now it hires account executives instead of running the trade show. The briefing rewrites itself."
 
-**0:58 to 1:08. Drag the budget to $1.5M, then back to $600K.**
-> "With a big budget, gut feel even funds a hosting project that never pays back. The data plan leaves $682K unspent and still creates $408K more value."
+**1:00 to 1:10. 04 CFO briefing.** Scroll down a little.
+> "What happened, why, what to decide. Every number in it comes from the model, and 24 integrity checks run on every change. That is what data-driven capital allocation looks like."
 
-**1:08 to 1:15. 04 CFO briefing.** Scroll down a little.
-> "And the briefing writes itself from the model: what happened, why, what to decide. Change any slider and it rewrites. Deciding with data is not a feeling; it is a number."
+**Optional extras** (for a longer cut): move **Win rate** to +25% to show everything recalculating, show the **cash river**, or click **Analyst view** to show the full model behind it.
 
-**Optional extras** (if you want a longer cut): click **2029** to show the three-year view, move **Win rate** to +25% to show everything recalculating, or click **Analyst view** to show the full model behind it.
-
-**Caption idea:** "Same budget. Gut feel vs data. The data plan created $60K more value and spent $165K less. Fictional company, real method: every combination run through a 3-statement model, 24 integrity checks on every recalculation."
+**Caption idea:** "Eight proposals, one $500K budget. The model ran every combination: fund three, create $920K of value, pay back by October 2028, keep every guardrail. Fictional company, real method: a 3-statement model with 24 integrity checks on every recalculation."
 
 ---
 

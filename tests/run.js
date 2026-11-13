@@ -624,43 +624,46 @@ const APP = PAGE + '?mode=analyst'; // the detailed app (the bare page opens the
     dp.on('pageerror', e => errors.push(String(e)));
     dp.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
     await dp.goto(PAGE);
-    const dready = () => dp.waitForFunction(() => document.getElementById('d-main').getAttribute('data-ready') === 'yes', null, { timeout: 120000 });
-    await dready();
+    await dp.waitForFunction(() => document.getElementById('d-main').getAttribute('data-ready') === 'yes', null, { timeout: 120000 });
     const d0 = await dp.evaluate(() => ({ dash: !document.getElementById('dash').hidden, analystHidden: getComputedStyle(document.getElementById('app')).display === 'none',
       sections: Array.from(document.querySelectorAll('#dash .d-card h2')).map(h => h.textContent), kpis: Array.from(document.querySelectorAll('[data-dkpi]')).map(k => k.getAttribute('data-dkpi')).join(','),
-      badge: document.getElementById('d-badge').textContent, fictional: document.getElementById('dash').innerText.includes('Fictional company, for demonstration.') }));
-    check('Dashboard is the first screen, with five numbered sections', d0.dash && d0.analystHidden && d0.sections.length === 5 && /^01Where we stand/.test(d0.sections[0]) && /^05Cash river/.test(d0.sections[4]), JSON.stringify(d0.sections));
-    check('Dashboard: four KPI cards, integrity badge 24/24, labelled fictional', d0.kpis === 'arr,cash,burn,margin' && d0.badge === 'Integrity 24/24' && d0.fictional, JSON.stringify(d0));
-    const read = () => dp.evaluate(() => ({ value: document.getElementById('d-main').getAttribute('data-value-set'), gut: document.getElementById('d-main').getAttribute('data-gut-set'),
-      big: document.querySelector('#d-hero .big').getAttribute('data-v'), also: document.querySelector('#d-hero .also').textContent,
-      vpd: Array.from(document.querySelectorAll('[data-vpd]')).map(e => e.firstChild.textContent).join(','),
-      bars: Array.from(document.querySelectorAll('#d-bridge-chart [data-bar-value]')).map(t => t.textContent).join(' '),
-      brief: document.getElementById('d-brief-body').innerText, arr: document.querySelector('[data-dkpi="arr"] .d-value').getAttribute('data-v') }));
+      guards: Array.from(document.querySelectorAll('[data-dguard]')).map(g => g.getAttribute('data-dguard') + ':' + g.classList.contains('pass')).join(','),
+      badge: document.getElementById('d-badge').textContent, text: document.getElementById('dash').innerText }));
+    check('Dashboard is the first screen, with five numbered sections', d0.dash && d0.analystHidden && d0.sections.length === 5 && d0.sections[1] === '02The plan for this budget' && /^05Cash river/.test(d0.sections[4]), JSON.stringify(d0.sections));
+    check('Dashboard cards are about return: ARR, invested, net cash return, value created', d0.kpis === 'arr,invested,return,value', d0.kpis);
+    check('Lowest cash and burn multiple are guardrails, all passing', d0.guards === 'cashFloor:true,runway:true,cacPayback:true,burnMultiple:true,grossMargin:true,covenant:true', d0.guards);
+    check('Dashboard: badge 24/24, labelled fictional, no gut-feel comparison', d0.badge === 'Integrity 24/24' && d0.text.includes('Fictional company, for demonstration.') && !/gut/i.test(d0.text), d0.badge);
+    const read = () => dp.evaluate(() => ({ set: document.getElementById('d-main').getAttribute('data-plan-set'), big: Number(document.querySelector('#d-hero .big').getAttribute('data-v')),
+      out: Array.from(document.querySelectorAll('[data-out-id]')).map(li => li.firstChild.textContent + ':' + li.querySelector('[data-reason]').getAttribute('data-reason')).join(', '),
+      bars: Array.from(document.querySelectorAll('#d-bridge-chart [data-bar-value]')).map(t => t.textContent).join(' '), next: document.getElementById('d-next').textContent,
+      brief: document.getElementById('d-brief-body').innerText, ret: Number(document.querySelector('[data-dkpi="return"] .d-value').getAttribute('data-v')),
+      value: Number(document.querySelector('[data-dkpi="value"] .d-value').getAttribute('data-v')), arr: Number(document.querySelector('[data-dkpi="arr"] .d-value').getAttribute('data-v')) }));
     const at500 = await read();
-    check('At $500K: data picks set 35, gut feel set 51, +$29.1K of value and $60.0K less spend', at500.value === '35' && at500.gut === '51' && Math.abs(Number(at500.big) - 29130.25) < 1 &&
-      at500.also === 'and $60.0K less spent this year' && at500.bars === '$890.6K +$29.1K $919.7K', JSON.stringify(at500));
-    await dp.evaluate(() => { const r = document.querySelector('[data-slider="budget"]'); r.value = '600000'; r.dispatchEvent(new Event('input')); });
-    await dp.waitForFunction(() => document.getElementById('d-main').getAttribute('data-gut-set') === '7', null, { timeout: 30000 }).catch(() => {});
-    await dp.waitForTimeout(600);
-    const at600 = await read();
-    check('At $600K: gut feel funds the AEs, data the partner program; bridge drops one and adds the other', at600.value === '35' && at600.gut === '7' &&
-      at600.bars === '$860.2K -$202.8K +$262.3K $919.7K' && at600.vpd === '$0.51,$0.99', JSON.stringify(at600));
-    check('The dashboard briefing rewrites itself with the budget', /On a \$600\.0K budget, gut feel funds the biggest promises first/.test(at600.brief) && /adds \$59\.6K of value/.test(at600.brief), at600.brief.slice(0, 300));
-    const engine600 = await dp.evaluate(() => { const v = window.__APP__.state.dashView; return { gain: v.gain.value, value: v.picks.value.npv, gut: v.picks.gut.npv }; });
-    check('Dashboard numbers are the engine\'s', Math.abs(engine600.gain - (engine600.value - engine600.gut)) < 0.01 && Math.abs(Number(at600.big) - engine600.gain) < 0.01, JSON.stringify(engine600));
+    check('At $500K: fund trade show, SDRs and partner program for $919.7K of value', at500.set === '35' && Math.abs(at500.big - 919707.86) < 0.01 &&
+      at500.bars === '+$466.6K +$305.2K +$147.9K $919.7K', JSON.stringify(at500).slice(0, 300));
+    check('Each proposal left out says why', at500.out === 'Hire 2 AEs:over_budget, Paid search campaign:over_budget, Paid social test:lowers_value, Hub pull-in:over_budget, Hosting pull-in:over_budget', at500.out);
+    check('The next step is named', at500.next === 'Next step: $168.2K more budget would add $43.5K of value.', at500.next);
     await dp.click('.d-seg [data-year="3"]');
-    const y3 = await dp.evaluate(() => ({ sub: document.getElementById('d-stand-sub').textContent, river: document.getElementById('d-river-sub').textContent,
-      arr: document.querySelector('[data-dkpi="arr"] [data-chip="growth"]') !== null }));
-    check('Year toggle moves the cards and the cash river to 2029', /^Dec 2029/.test(y3.sub) && /Jan 2029 to Dec 2029/.test(y3.river) && y3.arr, JSON.stringify(y3));
+    const y3 = await read();
+    check('2029: the plan has paid back and created its full value', Math.abs(y3.ret - 1258869.63) < 0.01 && Math.abs(y3.value - 919707.86) < 0.01 &&
+      /^Dec 2029/.test(await dp.textContent('#d-stand-sub')) && /Jan 2029 to Dec 2029/.test(await dp.textContent('#d-river-sub')), JSON.stringify({ ret: y3.ret, value: y3.value }));
     await dp.click('.d-seg [data-year="1"]');
+    await dp.evaluate(() => { const r = document.querySelector('[data-slider="budget"]'); r.value = '700000'; r.dispatchEvent(new Event('input')); });
+    await dp.waitForFunction(() => document.getElementById('d-main').getAttribute('data-plan-set') === '38', null, { timeout: 30000 }).catch(() => {});
+    await dp.waitForTimeout(600);
+    const at700 = await read();
+    check('At $700K the plan changes: SDRs, AEs and partner program, $963.2K of value', at700.set === '38' && Math.abs(at700.big - 963165.17) < 0.01, JSON.stringify(at700).slice(0, 200));
+    check('The dashboard briefing rewrites itself with the budget', /fits the \$700\.0K budget comes from Hire 2 SDRs, Hire 2 AEs and Partner program/.test(at700.brief), at700.brief.slice(0, 300));
+    const eng = await dp.evaluate(() => { const v = window.__APP__.state.dashView; return { npv: v.picks.npv, ret: v.returns.returnToDate }; });
+    check('Dashboard numbers are the engine\'s', Math.abs(eng.npv - at700.big) < 0.01 && Math.abs(eng.ret - at700.ret) < 0.01, JSON.stringify(eng));
     await dp.evaluate(() => { const r = document.querySelector('[data-slider="winRate"]'); r.value = '1.25'; r.dispatchEvent(new Event('input')); });
     await dp.waitForFunction(() => window.__APP__.state.A.cockpit.winRate === 1.25 && document.getElementById('d-busy').hidden && document.getElementById('d-main').getAttribute('data-ready') === 'yes' &&
-      Number(document.querySelector('[data-dkpi="arr"] .d-value').getAttribute('data-v')) > 30600000, null, { timeout: 60000 }).catch(() => {});
+      Number(document.querySelector('[data-dkpi="arr"] .d-value').getAttribute('data-v')) > 30700000, null, { timeout: 60000 }).catch(() => {});
     const wr = await dp.evaluate(() => ({ arr: Number(document.querySelector('[data-dkpi="arr"] .d-value').getAttribute('data-v')), out: document.querySelector('[data-out="winRate"]').textContent,
       badge: document.getElementById('d-badge').textContent }));
-    check('Win rate +25% lifts ARR and keeps every check passing', wr.arr > Number(at600.arr) && wr.out === '+25%' && wr.badge === 'Integrity 24/24', JSON.stringify(wr));
+    check('Win rate +25% lifts ARR and keeps every check passing', wr.arr > at700.arr && wr.out === '+25%' && wr.badge === 'Integrity 24/24', JSON.stringify(wr));
     await dp.click('#d-reset');
-    await dp.waitForFunction(() => window.__APP__.state.A.cockpit.winRate === 1 && window.__APP__.state.A.portfolio.budget === 500000 && document.getElementById('d-main').getAttribute('data-value-set') === '35', null, { timeout: 60000 }).catch(() => {});
+    await dp.waitForFunction(() => window.__APP__.state.A.cockpit.winRate === 1 && window.__APP__.state.A.portfolio.budget === 500000 && document.getElementById('d-main').getAttribute('data-plan-set') === '35', null, { timeout: 60000 }).catch(() => {});
     check('Reset restores the sliders', await dp.evaluate(() => window.__APP__.state.A.cockpit.winRate === 1 && window.__APP__.state.A.portfolio.budget === 500000));
     await dp.click('#d-analyst');
     const an = await dp.evaluate(() => ({ dash: document.getElementById('dash').hidden, app: getComputedStyle(document.getElementById('app')).display !== 'none', n: window.__APP__.state.initiatives.length }));
