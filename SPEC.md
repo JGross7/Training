@@ -3332,7 +3332,7 @@ A scenario is the assumptions object plus the initiative list (with statuses, co
 
 ## 13. Dashboard: the return on a data-driven plan
 
-The first screen of the app is a dashboard for a short video: one question (what does a data-driven plan earn?), five numbered sections and a few sliders. It adds no formula to the model. It reads the portfolio table of section 11.7, and check C24 (e) verifies what it shows. The detailed app of sections 1 to 12 is one click away ("Analyst view", or `index.html?mode=analyst`).
+The first screen of the app is a dashboard for a short video: one question (what does a data-driven plan earn?), six numbered sections and a few sliders, including one place to test a single decision near term and long term (13.6). It adds no formula to the model. It reads the portfolio table of section 11.7, and check C24 (e) verifies what it shows. The detailed app of sections 1 to 12 is one click away ("Analyst view", or `index.html?mode=analyst`).
 
 ### 13.1 The plan for a budget
 
@@ -3410,11 +3410,31 @@ Below the cards, the guardrail strip shows the active strategy's guardrails and 
 
 The briefing has three short sections: what happened (ARR against the target, the guardrails, the lowest cash), why (the plan, its value and value per dollar, and what would fit but lower the value) and what to decide (approve the plan, what stays unspent, the next step). Every sentence is a list of parts: text, an engine number (a fact) or an initiative or guardrail name (an input, recorded as given). No text part contains a digit.
 
+### 13.6 Test a decision
+
+One proposal, with its key inputs changed if wanted (for a trade show: booth and sponsorship, expected leads, event month), tested on top of the rest of the plan. `Base` is the plan of 13.1 without that proposal (plus anything committed); the decision is that proposal with the inputs as set. Two runs, `R0 = runModel(Base)` and `R1 = runModel(Base + decision)`:
+
+```
+Investment_m = Investment_m of R1 − of R0        the decision's own cost, including what it changes in the plan's
+NF_m         = (FCF_m of R1 − of R0) − (AllocatedCost_m of R1 − of R0)            (section 2.17)
+Budget used  = Σ over the budget window of (Investment_m − ΔAllocatedCost_m)
+Near term    (to month 12):  ARR added = ARR_12 of R1 − of R0;  deals added, Σ ΔDeals_1..12;  net cash this year = Σ_{m ≤ 12} NF_m
+Long term    (to month H):   ARR added = ARR_H of R1 − of R0;  net cash return = Σ NF_m;  ROI = net cash return / Σ Investment_m;
+                             payback month (section 2.17) on NF and Investment;  NPV = Σ NF_m / (1 + r)^m
+Guardrails   = the strategy's rows on R1, with those R0 passes and R1 breaks named
+Budget       = budget cost of R1 (the plan with the decision) against portfolio.budget
+```
+
+For a proposal in the plan this is what it adds to the plan (its NPV is the difference of two table rows); for one outside it is what adding it would do. Alone (an empty base) it reduces to the decision card of sections 2.17 and 4.3. The verdict follows the rule of 13.4: every number is a recorded fact, every name an input, no digit in plain text. Checks C1 to C22 run on `R1` and their count is shown. Changing the inputs runs two models and changes nothing else; "Use these inputs in the plan" writes them into the proposal, and the plan of 13.1 is chosen again.
+
+**Reference values (default assumptions, budget 500,000, test T159):** the trade show on top of the SDRs and the partner program uses 60,000.00 of the budget and 76,000.00 in all; by Dec 2027 it adds 107,000.68 of ARR from 1.926120 deals and a net cash effect of −18,985.09; through Dec 2029 it adds 131,355.16 of ARR and 199,709.74 of net cash, an ROI of 262.78%, paying back in June 2028 (month 18); its NPV, 147,944.06, is row 35 minus row 34. Alone it is the trade show of 4.3 (NPV 202,196.90, payback month 14). Adding the two AEs to the plan does not fit: the plan would need 228,166.67 more than the budget.
+
 ### 13.5 Tests
 
 | Test | Scenario | Expected |
 |---|---|---|
 | T156 | The plan | The table of 13.1, a brute-force scan agreeing with the plan, the build-up adding up, the left-out reasons and the next steps |
 | T157 | Dashboard view | For 200,000, 500,000 and 1,000,000 and each year: the cards equal the formulas of 13.4, the guardrails are the strategy's rows, the cash river balances, the net cash return is positive, and no number lies outside the recorded facts. At 500,000: revenue growth 27.0426% in 2027 (on ARR), invested 928,437.67, net cash return 1,258,869.63, ROI 1.355901, paid back in October 2028 |
+| T159 | Test a decision | The values of 13.6, the identity with section 4.3 alone, the budget note for the AEs, every verdict number a recorded fact, and more expected leads giving more return |
 | T158 | C24 (e) can fail | A plan that is not the most value, a build-up step off by 1.00, a wrong left-out reason, a wrong next step and a plan value off by 1.00 each fail C24 |
-| UI | The dashboard | It is the first screen with five numbered sections, the four cards (ARR, revenue growth, invested, net cash return) and six guardrail tiles all passing, the badge at 24/24 and no comparison with a gut-feel pick; at 500,000 it funds set 35 with the build-up and reasons of 13.1; the year toggle moves ARR, revenue growth and the cash river while the return stays the plan's; at 700,000 the plan becomes set 38 and the briefing rewrites itself; a win-rate slider lifts ARR with every check passing; Reset restores; the Analyst view opens and returns; no em dashes; no sideways scrolling at 390px |
+| UI | The dashboard | It is the first screen with six numbered sections, the four cards (ARR, revenue growth, invested, net cash return) and six guardrail tiles all passing, the badge at 24/24 and no comparison with a gut-feel pick; at 500,000 it funds set 35 with the build-up and reasons of 13.1; the year toggle moves ARR, revenue growth and the cash river while the return stays the plan's; at 700,000 the plan becomes set 38 and the briefing rewrites itself; a win-rate slider lifts ARR with every check passing; Reset restores; Test a decision starts on the trade show with the values of 13.6, updates live when expected leads move to 350 (ROI 311%, payback April 2028), explains a proposal outside the plan, and "Use these inputs in the plan" re-plans with more value; the Analyst view opens and returns; no em dashes; no sideways scrolling at 390px |

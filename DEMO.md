@@ -1,10 +1,10 @@
 # Demo scripts: Capital Allocation Copilot
 
-Two scripts: a 70-second screen recording for LinkedIn (the dashboard), and a 5-minute walkthrough for an interview (the Analyst view). Open `index.html` in a browser; no server is needed. The numbers below are what the app shows with the default assumptions; if you change anything first, the app's numbers win.
+Two scripts: an 85-second screen recording for LinkedIn (the dashboard), and a 5-minute walkthrough for an interview (the Analyst view). Open `index.html` in a browser; no server is needed. The numbers below are what the app shows with the default assumptions; if you change anything first, the app's numbers win.
 
 ---
 
-## LinkedIn video: "What does a data-driven plan earn?" (about 70 seconds)
+## LinkedIn video: "What does a data-driven plan earn?" (about 85 seconds)
 
 **Set-up:** browser at 1366 x 800 or larger, page zoom 100%, the dashboard freshly loaded (it opens on 2027 with a $500K budget). Record the browser window only. Move the mouse slowly; every change animates.
 
@@ -20,10 +20,13 @@ Two scripts: a 70-second screen recording for LinkedIn (the dashboard), and a 5-
 **0:32 to 0:48. 01 Where we stand.** Sweep across the cards, then the guardrails; click 2028 and 2029.
 > "The scoreboard: ARR $30.5M, revenue growing 27%. We invest $928K and get $1.3M of cash back, a 136% return, paid back by October 2028. Underneath, every guardrail holds: cash never goes below $18.9M against a $15M floor, the burn multiple stays under 2. Click through the years and growth keeps going."
 
-**0:48 to 1:00. Click 2027 again and drag the budget to $700K.**
+**0:48 to 1:05. 04 Test a decision.** The trade show is already selected.
+> "Now the question every marketing lead asks: should we go to the trade show? It costs $60K this year. Near term it adds $107K of ARR by December, and this year's cash is $19K down. Long term it returns $200K, a 263% ROI, paying back in June 2028. Watch what happens if the booth brings 350 leads instead of 200." Drag Expected leads to 350: ROI 311%, payback April 2028. "ARR this year moves less than you would think, because April's sales team is already full. That is the kind of thing a spreadsheet hides."
+
+**1:05 to 1:15. Click 2027 again and drag the budget to $700K.**
 > "Give it more budget and the answer changes: now it hires account executives instead of running the trade show. The briefing rewrites itself."
 
-**1:00 to 1:10. 04 CFO briefing.** Scroll down a little.
+**1:15 to 1:25. 05 CFO briefing.** Scroll down a little.
 > "What happened, why, what to decide. Every number in it comes from the model, and 24 integrity checks run on every change. That is what data-driven capital allocation looks like."
 
 **Optional extras** (for a longer cut): move **Win rate** to +25% to show everything recalculating, show the **cash river**, or click **Analyst view** to show the full model behind it.

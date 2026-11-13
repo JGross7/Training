@@ -629,7 +629,8 @@ const APP = PAGE + '?mode=analyst'; // the detailed app (the bare page opens the
       sections: Array.from(document.querySelectorAll('#dash .d-card h2')).map(h => h.textContent), kpis: Array.from(document.querySelectorAll('[data-dkpi]')).map(k => k.getAttribute('data-dkpi')).join(','),
       guards: Array.from(document.querySelectorAll('[data-dguard]')).map(g => g.getAttribute('data-dguard') + ':' + g.classList.contains('pass')).join(','),
       badge: document.getElementById('d-badge').textContent, text: document.getElementById('dash').innerText }));
-    check('Dashboard is the first screen, with five numbered sections', d0.dash && d0.analystHidden && d0.sections.length === 5 && d0.sections[1] === '02The plan for this budget' && /^05Cash river/.test(d0.sections[4]), JSON.stringify(d0.sections));
+    check('Dashboard is the first screen, with six numbered sections', d0.dash && d0.analystHidden && d0.sections.length === 6 && d0.sections[1] === '02The plan for this budget' &&
+      d0.sections[3] === '04Test a decision' && /^06Cash river/.test(d0.sections[5]), JSON.stringify(d0.sections));
     check('Dashboard cards: ARR, revenue growth, invested, net cash return', d0.kpis === 'arr,growth,invested,return', d0.kpis);
     check('Lowest cash and burn multiple are guardrails, all passing', d0.guards === 'cashFloor:true,runway:true,cacPayback:true,burnMultiple:true,grossMargin:true,covenant:true', d0.guards);
     check('Dashboard: badge 24/24, labelled fictional, no gut-feel comparison', d0.badge === 'Integrity 24/24' && d0.text.includes('Fictional company, for demonstration.') && !/gut/i.test(d0.text), d0.badge);
@@ -668,6 +669,36 @@ const APP = PAGE + '?mode=analyst'; // the detailed app (the bare page opens the
     await dp.click('#d-reset');
     await dp.waitForFunction(() => window.__APP__.state.A.cockpit.winRate === 1 && window.__APP__.state.A.portfolio.budget === 500000 && document.getElementById('d-main').getAttribute('data-plan-set') === '35', null, { timeout: 60000 }).catch(() => {});
     check('Reset restores the sliders', await dp.evaluate(() => window.__APP__.state.A.cockpit.winRate === 1 && window.__APP__.state.A.portfolio.budget === 500000));
+    await dp.waitForFunction(() => document.getElementById('d-main').getAttribute('data-ready') === 'yes' && document.getElementById('d-busy').hidden, null, { timeout: 60000 }).catch(() => {});
+    // Test a decision (SPEC.md 13.6): the trade show on top of the rest of the plan
+    await dp.waitForFunction(() => document.getElementById('d-test').getAttribute('data-test-uid'), null, { timeout: 30000 });
+    const tv = () => dp.evaluate(() => ({ uid: document.getElementById('d-test').getAttribute('data-test-uid'),
+      vals: Object.fromEntries(Array.from(document.querySelectorAll('#d-test [data-test]')).map(e => [e.getAttribute('data-test'), e.textContent])),
+      verdict: document.getElementById('d-verdict').innerText, use: document.getElementById('d-test-use').disabled,
+      pressed: Array.from(document.querySelectorAll('[data-test-pick][aria-pressed="true"]')).map(b => b.textContent).join(',') }));
+    const tv0 = await tv();
+    check('Test a decision starts on the trade show, with near and long term', tv0.pressed === 'Trade show' && tv0.vals.budget === '$60.0K' && tv0.vals.nearArr === '+$107.0K' &&
+      tv0.vals.nearCash === '-$19.0K' && tv0.vals.longCash === '+$199.7K' && tv0.vals.roi === '+263%' && tv0.vals.payback === 'Jun 2028' && tv0.use === true, JSON.stringify(tv0.vals));
+    check('The decision verdict is written from the model', /Trade show is in the plan\. It uses \$60\.0K of this year's budget/.test(tv0.verdict) && /All 22 model checks pass on this run/.test(tv0.verdict), tv0.verdict.slice(0, 200));
+    await dp.evaluate(() => { const r = document.querySelector('[data-test-field="expectedLeads"]'); r.value = '350'; r.dispatchEvent(new Event('input')); });
+    await dp.waitForFunction(() => document.querySelector('#d-test [data-test="roi"]').textContent !== '+263%', null, { timeout: 10000 }).catch(() => {});
+    const tv1 = await tv();
+    check('More expected leads: the ROI and payback update live', tv1.vals.roi === '+311%' && tv1.vals.payback === 'Apr 2028' && tv1.use === false, JSON.stringify(tv1.vals));
+    const aesUid = await dp.evaluate(() => window.__APP__.state.initiatives.filter(i => i.params.name === 'Hire 2 AEs')[0].uid);
+    await dp.click('[data-test-pick="' + aesUid + '"]');
+    await dp.waitForFunction(u => document.getElementById('d-test').getAttribute('data-test-uid') === u, aesUid, { timeout: 10000 });
+    const tv2 = await tv();
+    check('Testing a proposal not in the plan says what adding it would do and that it needs more budget', /Hire 2 AEs is not in the plan/.test(tv2.verdict) && /more than the \$500\.0K budget/.test(tv2.verdict), tv2.verdict.slice(0, 260));
+    const tShowUid = await dp.evaluate(() => window.__APP__.state.initiatives[0].uid);
+    await dp.click('[data-test-pick="' + tShowUid + '"]');
+    await dp.evaluate(() => { const r = document.querySelector('[data-test-field="expectedLeads"]'); r.value = '350'; r.dispatchEvent(new Event('input')); });
+    await dp.waitForTimeout(200);
+    await dp.click('#d-test-use');
+    await dp.waitForFunction(() => window.__APP__.state.initiatives[0].params.expectedLeads === 350 && document.getElementById('d-main').getAttribute('data-ready') === 'yes' &&
+      !document.getElementById('d-busy').hidden === false, null, { timeout: 60000 }).catch(() => {});
+    await dp.waitForTimeout(800);
+    const applied = await dp.evaluate(() => ({ leads: window.__APP__.state.initiatives[0].params.expectedLeads, value: window.__APP__.state.dashView.picks.npv, badge: document.getElementById('d-badge').textContent }));
+    check('Use these inputs in the plan: the proposal changes and the plan re-optimizes', applied.leads === 350 && applied.value > 919707.86 + 1 && applied.badge === 'Integrity 24/24', JSON.stringify(applied));
     await dp.click('#d-analyst');
     const an = await dp.evaluate(() => ({ dash: document.getElementById('dash').hidden, app: getComputedStyle(document.getElementById('app')).display !== 'none', n: window.__APP__.state.initiatives.length }));
     check('Analyst view opens the detailed app with the same eight initiatives', an.dash && an.app && an.n === 8, JSON.stringify(an));

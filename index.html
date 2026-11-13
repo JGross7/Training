@@ -504,6 +504,32 @@ body.is-dash .topbar, body.is-dash #app, body.is-dash #input-error, body.is-dash
 @media (prefers-reduced-motion: reduce) { .dash * { transition: none !important; animation: none !important; } }
 .analyst-dash { margin-left: 4px; }
 
+/* Test a decision */
+.d-pick { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.d-pick button { display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border-radius: 999px; border: 1px solid var(--d-line); background: var(--d-card); color: var(--d-ink); font-size: 13px; font-weight: 600; cursor: pointer; }
+.d-pick button i { width: 8px; height: 8px; border-radius: 50%; background: var(--d-line); }
+.d-pick button.in i { background: var(--d-gold); }
+.d-pick button[aria-pressed="true"] { border-color: var(--d-gold); background: var(--d-gold-wash); box-shadow: inset 0 0 0 1px var(--d-gold); }
+.d-test-grid { display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 900px) { .d-test-grid { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1fr); } }
+.d-test-inputs { display: grid; gap: 12px; align-content: start; padding: 12px 14px; border-radius: 14px; background: var(--d-grid); }
+.d-test-inputs .d-sl-top output { font-size: 13px; }
+.d-test-inputs .d-actions { margin-top: 2px; }
+.d-test-inputs .d-btn.primary { background: var(--d-gold); color: #fff; border-color: var(--d-gold); }
+.d-test-inputs .d-btn[disabled] { opacity: 0.45; cursor: default; }
+.d-test-inputs .d-err { margin: 0; font-size: 12.5px; color: var(--d-bad); }
+.d-term { border: 1px solid var(--d-line); border-radius: 14px; padding: 12px 14px; display: grid; gap: 10px; align-content: start; }
+.d-term h3 { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--d-gold); }
+.d-term dl { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 10px; align-items: baseline; }
+.d-term dt { font-size: 13px; color: var(--d-ink2); }
+.d-term dd { margin: 0; text-align: right; font-size: 20px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.d-term dd.good { color: var(--d-good); }
+.d-term dd.bad { color: var(--d-bad); }
+.d-test-low { display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); margin-top: 14px; }
+@media (min-width: 900px) { .d-test-low { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); } }
+.d-verdict p { font-size: 16px; }
+.d-verdict section { margin-bottom: 10px; }
+
 /* Strategy view */
 .obj { display: grid; gap: 10px; padding: 12px 14px; border-radius: 10px; background: var(--surface-2); }
 .obj-top { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; align-items: baseline; }
@@ -583,13 +609,26 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
         <div class="d-chart" id="d-bridge-chart"></div>
       </section>
     </div>
+    <section class="d-card" id="d-test" aria-labelledby="d-test-h">
+      <div class="d-head"><h2 id="d-test-h"><span class="d-num">04</span>Test a decision</h2><p class="d-sub" id="d-test-sub">What one decision does on top of the rest of the plan: this year, and over the whole model</p></div>
+      <div class="d-pick" id="d-pick" role="group" aria-label="Decision to test"></div>
+      <div class="d-test-grid">
+        <div class="d-test-inputs" id="d-test-inputs"></div>
+        <div class="d-term" id="d-near" data-term="near"></div>
+        <div class="d-term" id="d-long" data-term="long"></div>
+      </div>
+      <div class="d-test-low">
+        <div class="d-chart" id="d-test-chart"></div>
+        <div class="d-brief d-verdict" id="d-verdict" aria-live="polite"></div>
+      </div>
+    </section>
     <div class="d-row d-row-b">
       <section class="d-card" id="d-brief" aria-labelledby="d-brief-h">
-        <div class="d-head"><h2 id="d-brief-h"><span class="d-num">04</span>CFO briefing</h2><p class="d-sub">Written from the model</p></div>
+        <div class="d-head"><h2 id="d-brief-h"><span class="d-num">05</span>CFO briefing</h2><p class="d-sub">Written from the model</p></div>
         <div class="d-brief" id="d-brief-body" aria-live="polite"></div>
       </section>
       <section class="d-card" id="d-river" aria-labelledby="d-river-h">
-        <div class="d-head"><h2 id="d-river-h"><span class="d-num">05</span>Cash river</h2><p class="d-sub" id="d-river-sub"></p></div>
+        <div class="d-head"><h2 id="d-river-h"><span class="d-num">06</span>Cash river</h2><p class="d-sub" id="d-river-sub"></p></div>
         <div class="d-chart" id="d-river-chart"></div>
       </section>
     </div>
@@ -798,7 +837,7 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
   <div class="modal-head"><h2 id="howto-title">How to read this</h2><button type="button" class="btn" id="close-howto">Close</button></div>
   <div class="modal-body">
     <h3>The dashboard</h3>
-    <p>The first screen asks one question: what return does a data-driven plan earn? Eight proposals compete for one budget. The model runs every combination and funds the one with the most value (NPV) that fits the budget and breaks no guardrail. The cards show what it costs and returns, year by year; the guardrails show it stays inside its limits. Move the sliders at the bottom and everything recalculates.</p>
+    <p>The first screen asks one question: what return does a data-driven plan earn? Eight proposals compete for one budget. The model runs every combination and funds the one with the most value (NPV) that fits the budget and breaks no guardrail. The cards show what it costs and returns; the guardrails show it stays inside its limits. <b>Test a decision</b> takes one proposal, such as a trade show, lets you change its inputs and shows what it does on top of the rest of the plan this year and over the whole model. Move the sliders at the bottom and everything recalculates.</p>
     <h3>Four tabs, one decision (Analyst view)</h3>
     <ul>
       <li><b>Where we stand:</b> the plan for a fictional SaaS company. KPI cards, the ARR bridge, 13-week cash against the floor and the covenant, and the three statements.</li>
@@ -3517,6 +3556,55 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
     };
   }
 
+  // One decision tested on top of the rest of the plan (SPEC.md 13.6): the plan without it (base) against the plan with
+  // it, in two runs. Near term is the first year; long term runs to the end of the model. The decision's own cost is the
+  // difference in initiative cost between the two runs, so what it shares with the plan is in its figures.
+  function decisionImpact(input) {
+    var A = input.assumptions, base = input.base || [], d = input.decision, inPlan = !!input.inPlan;
+    var R0 = runModel(A, base), R1 = runModel(A, base.concat([d])), H = R1.H, m1 = Math.min(12, H), P = A.portfolio, facts = [];
+    var r = Math.pow(1 + A.discountRateAnnual, 1 / 12) - 1;
+    var NF = zeros(H + 1), inv = zeros(H + 1), cum = zeros(H + 1), dArr = zeros(H + 1), npv = 0, total = 0, budgetCost = 0, nearNew = 0, nearDeals = 0, newArr = 0;
+    for (var m = 1; m <= H; m++) {
+      var dAlloc = R1.initiativeCost.allocated[m] - R0.initiativeCost.allocated[m];
+      inv[m] = R1.initiativeCost.investment[m] - R0.initiativeCost.investment[m];
+      NF[m] = (R1.cf.fcf[m] - R0.cf.fcf[m]) - dAlloc;
+      cum[m] = cum[m - 1] + NF[m];
+      dArr[m] = R1.arr.arr[m] - R0.arr.arr[m];
+      npv += NF[m] / Math.pow(1 + r, m); total += inv[m];
+      if (m >= P.budgetFromMonth && m <= Math.min(P.budgetToMonth, H)) budgetCost += inv[m] - dAlloc;
+      newArr += R1.arr.newArr[m] - R0.arr.newArr[m];
+      if (m <= m1) { nearNew += R1.arr.newArr[m] - R0.arr.newArr[m]; nearDeals += R1.arr.deals[m] - R0.arr.deals[m]; }
+    }
+    var investedNear = 0; for (m = 1; m <= m1; m++) investedNear += inv[m];
+    var pb = paybackMonth(NF, inv, H), roi = total > EPS_COST ? cum[H] / total : null;
+    var g1 = R1.strategy.guardrails, g0 = R0.strategy.guardrails;
+    var guards = g1.map(function (g, i) { return { id: g.id, label: g.label, metric: g.metric, unit: g.unit, rule: g.rule, limit: g.limit, value: g.value, pass: g.pass, basePass: g0[i].pass }; });
+    var breaks = guards.filter(function (g) { return !g.pass && g.basePass; }), budgetAll = budgetCostOf(A, R1);
+    var checks = runChecks(R1);
+    function F(text) { facts.push(String(text)); return { fact: String(text) }; }
+    function T(text) { return { text: text }; }
+    var name = d.name; facts.push(name);
+    var near = [{ input: name }, T(inPlan ? ' is in the plan. It uses ' : ' is not in the plan. It would use '), F(bMoney(budgetCost)), T(' of this year\'s budget. By '), F(R1.months[m1]),
+      T(inPlan ? ' it adds ' : ' it would add '), F(bMoney(dArr[m1])), T(' of ARR from '), F(Number(nearDeals.toFixed(1)).toLocaleString('en-US')), T(nearDeals.toFixed(1) === '1.0' ? ' deal' : ' deals'),
+      T(', and the year\'s net cash effect is '), F(bChange('arr', 'dollars', cum[m1])), T('.')];
+    var long = [T('Through '), F(R1.months[H]), T(inPlan ? ' it returns ' : ' it would return '), F(bChange('arr', 'dollars', cum[H])), T(' of net cash on '), F(bMoney(total)), T(' invested')]
+      .concat(roi !== null ? [T(', an ROI of '), F((roi * 100).toFixed(0) + '%')] : [])
+      .concat(pb.status === 'paid_back' ? [T(', paying back in '), F(R1.months[pb.month]), T('.')] : pb.status === 'never_negative' ? [T(', ahead from the first month.')] : [T(', and does not pay back within the model.')]);
+    var fit = breaks.length ? [T('It breaks the '), { input: bList(breaks.map(function (g) { facts.push(g.label); return g.label.toLowerCase(); })) }, T(breaks.length === 1 ? ' guardrail.' : ' guardrails.')]
+      : [T('Every guardrail holds with it.')];
+    if (budgetAll > P.budget + TOL_DOLLAR) fit = fit.concat([T(' With the rest of the plan it needs '), F(bMoney(budgetAll - P.budget)), T(' more than the '), F(bMoney(P.budget)), T(' budget.')]);
+    return {
+      name: name, inPlan: inPlan, months: R1.months, H: H, nearMonth: m1,
+      budgetCost: budgetCost, totalInvestment: total,
+      near: { month: m1, label: R1.months[m1], invested: investedNear, arr: dArr[m1], newArr: nearNew, deals: nearDeals, netReturn: cum[m1], cashChange: R1.bs.cash[m1] - R0.bs.cash[m1] },
+      long: { month: H, label: R1.months[H], arr: dArr[H], newArr: newArr, netReturn: cum[H], roi: roi, payback: pb, npv: npv, cashLowChange: R1.cashTests.lowPoint - R0.cashTests.lowPoint },
+      series: { netReturn: cum, arr: dArr }, guardrails: guards, breaks: breaks.map(function (g) { return g.id; }),
+      withinBudget: budgetAll <= P.budget + TOL_DOLLAR, planBudgetCost: budgetAll,
+      checks: { passed: checks.filter(function (c) { return c.pass; }).length, total: checks.length, failures: checks.filter(function (c) { return !c.pass; }).map(function (c) { return c.id + ' ' + c.reason; }) },
+      verdict: [{ key: 'near', parts: near }, { key: 'long', parts: long }, { key: 'fit', parts: fit }], facts: facts
+    };
+  }
+
   // Cash in and out over months from..to of a run, with the change in cash closing it (SPEC.md 13.3).
   function cashRiver(R, B, from, to) {
     var s = { coll: 0, collPlan: 0, intIn: 0, team: 0, vendors: 0, capex: 0, intTax: 0, debt: 0 };
@@ -5452,7 +5540,7 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
     LEARNABLE: LEARNABLE, learningChannel: learningChannel, learningExpected: learningExpected, learnFromActuals: learnFromActuals, applyLearning: applyLearning,
     scenarioSummary: scenarioSummary, cfoBriefing: cfoBriefing,
     // Dashboard (SPEC.md section 13)
-    pickValue: pickValue, dashboardPicks: dashboardPicks, cashRiver: cashRiver, dashboardView: dashboardView
+    pickValue: pickValue, dashboardPicks: dashboardPicks, cashRiver: cashRiver, dashboardView: dashboardView, decisionImpact: decisionImpact
   };
 })(window);
 </script>
@@ -8521,6 +8609,36 @@ window.TestSuite = (function () {
     var e = structuredClone(sel); e.picks.npv += 1; t.eq('A plan value off by 1.00 fails C24', c24(e).pass, false);
   });
 
+  test('T159', 'Test a decision: one proposal on top of the rest of the plan, near and long term (SPEC.md 13.6)', function (t) {
+    var L8 = eightList(A0), show = L8[0], sdrs = L8[1], aes = L8[2], partner = L8[5], tab = eightTable();
+    var d = E.decisionImpact({ assumptions: A0, base: [sdrs, partner], decision: show, inPlan: true });
+    t.near('Value it adds to the plan equals two table rows', d.long.npv, tab.rows[35].npv - tab.rows[34].npv, 0.01);
+    t.near('Budget used this year', d.budgetCost, 60000, 0.01); t.near('Invested over the model, staff time included', d.totalInvestment, 76000, 0.01);
+    t.near('Near term: ARR added by Dec 2027', d.near.arr, 107000.68, 0.01); t.near('Near term: deals', d.near.deals, 1.926120, 0.000001);
+    t.near('Near term: net cash this year', d.near.netReturn, -18985.09, 0.01);
+    t.near('Long term: ARR added by Dec 2029', d.long.arr, 131355.16, 0.01); t.near('Long term: net cash return', d.long.netReturn, 199709.74, 0.01);
+    t.near('ROI', d.long.roi, 199709.74 / 76000, 0.0001); t.eq('Pays back in Jun 2028', d.long.payback.month, 18);
+    t.eq('Every guardrail holds', d.breaks.length, 0); t.eq('Fits the budget', d.withinBudget, true);
+    t.eq('Every model check passes on the run', d.checks.passed + '/' + d.checks.total, E.MODEL_CHECK_COUNT + '/' + E.MODEL_CHECK_COUNT);
+    var alone = E.decisionImpact({ assumptions: A0, base: [], decision: show });
+    t.d('Alone it is the trade show of section 4.3: NPV', alone.long.npv, 202196.90); t.eq('and payback month 14', alone.long.payback.month, 14);
+    var x = E.applyInitiatives(A0, [show]);
+    t.d('Alone, net cash return equals applyInitiatives', alone.long.netReturn, x.returns.cumNetFlow[36]); t.d('Alone, investment equals applyInitiatives', alone.totalInvestment, x.returns.totalInvestment);
+    var add = E.decisionImpact({ assumptions: A0, base: [show, sdrs, partner], decision: aes });
+    t.eq('Adding the AEs to the $500K plan does not fit the budget', add.withinBudget, false);
+    var txt = add.verdict.map(function (v) { return v.parts.map(function (q) { return q.fact || q.input || q.text; }).join(''); }).join(' ');
+    t.ok('The verdict says it is not in the plan and how much more budget it needs', /Hire 2 AEs is not in the plan/.test(txt) && /needs \$228\.2K more than the \$500\.0K budget/.test(txt), txt);
+    [d, alone, add].forEach(function (r, i) {
+      var known = {}, bad = [];
+      r.facts.forEach(function (f) { numTokens(f).forEach(function (k) { known[k] = 1; }); });
+      r.verdict.forEach(function (v) { v.parts.forEach(function (q) { if (q.text) numTokens(q.text).forEach(function (k) { bad.push(k + ' typed in "' + q.text + '"'); }); });
+        numTokens(v.parts.map(function (q) { return q.fact || q.input || q.text || ''; }).join('')).forEach(function (k) { if (!known[k]) bad.push(k); }); });
+      t.ok('Verdict ' + (i + 1) + ': every number is an engine fact', bad.length === 0, bad.join(' | '));
+    });
+    var more = E.decisionImpact({ assumptions: A0, base: [sdrs, partner], decision: E.templates.tradeShow(A0, { id: 'show', name: 'Trade show', expectedLeads: 350 }), inPlan: true });
+    t.ok('More expected leads, more return', more.long.netReturn > d.long.netReturn && more.long.roi > d.long.roi);
+  });
+
   function run() {
     var results = [];
     tests.forEach(function (tc) {
@@ -8588,6 +8706,8 @@ window.TestSuite = (function () {
     mode: 'dash',               // 'dash' (the first screen) or 'analyst' (every view)
     dashYear: 1,                // year shown on the dashboard
     dashView: null,
+    tester: null,               // the decision being tested on the dashboard: { uid, params (draft inputs) }
+    testView: null,
     learned: {},                // assumption paths updated from a completed initiative's actuals: path -> initiative name
     compare: {},                // saved scenarios ticked for comparison
     storeNote: ''
@@ -11580,7 +11700,7 @@ window.TestSuite = (function () {
     var main = $('d-main');
     main.setAttribute('data-ready', 'yes'); main.setAttribute('data-plan-set', String(picks.set));
     $('d-stand-sub').textContent = v.monthLabel + ', with the data-driven plan';
-    renderDashKpis(v); renderDashDecision(v); renderDashBridge(v); renderDashBrief(v); renderDashRiver(v);
+    renderDashKpis(v); renderDashDecision(v); renderDashBridge(v); renderDashTester(false); renderDashBrief(v); renderDashRiver(v);
   }
   // Numbers ease to their new value for the video, and always land on the engine's figure.
   function setNum(node, value, fmt) {
@@ -11818,6 +11938,136 @@ window.TestSuite = (function () {
       var loop = function (now) { var dt = Math.min(64, now - last); last = now; if (!document.hidden) place(dt / 16); riverAnim = requestAnimationFrame(loop); };
       riverAnim = requestAnimationFrame(loop);
     }
+  }
+  // --- Test a decision (SPEC.md 13.6): one proposal on top of the rest of the plan ------------
+  var TEST_FIELDS = {
+    tradeShow: [['booth', 'Booth and sponsorship', 0, 150000, 5000, 'money'], ['expectedLeads', 'Expected leads', 0, 600, 10, 'count'], ['month', 'Event month', 1, 12, 1, 'month']],
+    paidCampaign: [['budget', 'Campaign budget', 0, 300000, 5000, 'money'], ['months', 'Months it runs', 1, 12, 1, 'count'], ['startMonth', 'First month', 1, 12, 1, 'month']],
+    hireSdrs: [['count', 'SDRs hired', 1, 6, 1, 'count'], ['startMonth', 'Start month', 1, 12, 1, 'month']],
+    hireAes: [['count', 'AEs hired', 1, 6, 1, 'count'], ['startMonth', 'Start month', 1, 12, 1, 'month']],
+    partnerProgram: [['coMarketingMonthly', 'Co-marketing per month', 0, 40000, 1000, 'money'], ['months', 'Months it runs', 1, 24, 1, 'count'], ['startMonth', 'First month', 1, 12, 1, 'month']],
+    accelerateRevenue: [['contractors', 'Contract engineers', 0, 16, 1, 'count'], ['engineers', 'Engineers hired', 0, 6, 1, 'count']],
+    accelerateCost: [['contractors', 'Contract engineers', 0, 16, 1, 'count'], ['engineers', 'Engineers hired', 0, 6, 1, 'count']]
+  };
+  function testFieldText(kind, v) { return kind === 'money' ? compact(v) : kind === 'month' ? monthName(v) : String(v); }
+  function testerCandidates() { return state.initiatives.filter(function (it) { return !it.completed; }); }
+  function ensureTester() {
+    var list = testerCandidates();
+    if (!list.length) { state.tester = null; return null; }
+    var cur = state.tester && list.filter(function (it) { return it.uid === state.tester.uid; })[0];
+    if (!cur) {
+      cur = list.filter(function (it) { return it.template === 'tradeShow'; })[0] || list[0];
+      state.tester = { uid: cur.uid, params: cloneParams(cur.params) };
+    }
+    return cur;
+  }
+  function selectTester(uid) {
+    var it = state.initiatives.filter(function (x) { return x.uid === uid; })[0];
+    if (!it) return;
+    state.tester = { uid: uid, params: cloneParams(it.params) };
+    renderDashTester(true);
+  }
+  function testerDirty(it) { return JSON.stringify(state.tester.params) !== JSON.stringify(it.params); }
+  var testerTimer = null;
+  function renderDashTester(rebuildInputs) {
+    var S = state.strat, it = ensureTester(), pick = clear($('d-pick'));
+    if (!it || !dashReady()) return;
+    var planIds = {}; S.sel.picks.members.forEach(function (id) { planIds[id] = 1; });
+    testerCandidates().forEach(function (x) {
+      var b = el('button', { type: 'button', class: planIds[x.uid] ? 'in' : '', 'aria-pressed': String(x.uid === it.uid), 'data-test-pick': x.uid, title: planIds[x.uid] ? 'In the plan' : 'Not in the plan' });
+      b.appendChild(el('i')); b.appendChild(document.createTextNode(x.params.name));
+      b.addEventListener('click', function () { selectTester(x.uid); });
+      pick.appendChild(b);
+    });
+    var box = $('d-test-inputs'), fields = TEST_FIELDS[it.template] || [];
+    if (rebuildInputs || box.getAttribute('data-for') !== it.uid) {
+      clear(box); box.setAttribute('data-for', it.uid);
+      box.appendChild(el('div', { class: 'd-label plain' }, 'Inputs for ' + it.params.name));
+      fields.forEach(function (f) {
+        var wrap = el('label', { class: 'd-sl' }), top = el('span', { class: 'd-sl-top' });
+        top.appendChild(el('span', null, f[1]));
+        var out = el('output', { 'data-test-out': f[0] }, testFieldText(f[5], state.tester.params[f[0]])); top.appendChild(out); wrap.appendChild(top);
+        var inp = el('input', { type: 'range', min: f[2], max: f[3], step: f[4], 'data-test-field': f[0], 'aria-label': f[1] });
+        inp.value = String(state.tester.params[f[0]]);
+        inp.addEventListener('input', function () {
+          state.tester.params[f[0]] = Number(inp.value); out.textContent = testFieldText(f[5], Number(inp.value));
+          clearTimeout(testerTimer); testerTimer = setTimeout(function () { renderDashTester(false); }, 60);
+        });
+        wrap.appendChild(inp); box.appendChild(wrap);
+      });
+      box.appendChild(el('p', { class: 'd-err', 'data-test-err': '' }));
+      var acts = el('div', { class: 'd-actions' });
+      var use = el('button', { type: 'button', class: 'd-btn primary', id: 'd-test-use' }, 'Use these inputs in the plan');
+      use.addEventListener('click', function () {
+        var target = state.initiatives.filter(function (x) { return x.uid === state.tester.uid; })[0];
+        if (!target) return;
+        target.params = cloneParams(state.tester.params); dashPending = true; recalc();
+      });
+      var rs = el('button', { type: 'button', class: 'd-btn', id: 'd-test-reset' }, 'Reset inputs');
+      rs.addEventListener('click', function () { selectTester(state.tester.uid); });
+      acts.appendChild(use); acts.appendChild(rs); box.appendChild(acts);
+    }
+    var dirty = testerDirty(it);
+    $('d-test-use').disabled = !dirty; $('d-test-reset').disabled = !dirty;
+    var probs = E.checkTemplateParams(state.A, it.template, state.tester.params).filter(function (p) { return p.level === 'error'; });
+    box.querySelector('[data-test-err]').textContent = probs.length ? probs[0].message + '.' : '';
+    if (probs.length) return;
+    // base: the rest of the plan (and anything committed); the decision: this proposal with the inputs above
+    var base = testerCandidates().filter(function (x) { return x.uid !== it.uid && (planIds[x.uid] || statusOf(x) === 'committed'); }).map(portfolioInit);
+    var dp = cloneParams(state.tester.params); dp.id = it.uid;
+    var decision = E.templates[it.template](state.A, dp);
+    var r;
+    try { r = E.decisionImpact({ assumptions: state.A, base: base, decision: decision, inPlan: !!planIds[it.uid] }); }
+    catch (err) { box.querySelector('[data-test-err]').textContent = String(err.message).replace(/^Invalid input: /, '') + '.'; return; }
+    state.testView = r;
+    $('d-test').setAttribute('data-test-uid', it.uid);
+    function term(id, title, rows) {
+      var t = clear($(id)); t.appendChild(el('h3', null, title));
+      var dl = el('dl');
+      rows.forEach(function (rw) { dl.appendChild(el('dt', null, rw[0])); dl.appendChild(el('dd', { class: rw[2] || '', 'data-test': rw[3] }, rw[1])); });
+      t.appendChild(dl);
+    }
+    var pb = r.long.payback;
+    term('d-near', 'Near term, to ' + r.near.label, [
+      ['Budget used this year', compact(r.budgetCost), '', 'budget'],
+      ['ARR added by ' + r.near.label, signedCompact(r.near.arr), r.near.arr >= 0 ? 'good' : 'bad', 'nearArr'],
+      ['Deals won', count(r.near.deals, 1), '', 'deals'],
+      ['Net cash this year', signedCompact(r.near.netReturn), r.near.netReturn >= 0 ? 'good' : 'bad', 'nearCash']]);
+    term('d-long', 'Long term, to ' + r.long.label, [
+      ['ARR added by ' + r.long.label, signedCompact(r.long.arr), r.long.arr >= 0 ? 'good' : 'bad', 'longArr'],
+      ['Net cash return', signedCompact(r.long.netReturn), r.long.netReturn >= 0 ? 'good' : 'bad', 'longCash'],
+      ['ROI', isNum(r.long.roi) ? signed(Math.abs(Math.round(r.long.roi * 100)) + '%', r.long.roi) : 'n/a', isNum(r.long.roi) && r.long.roi >= 0 ? 'good' : 'bad', 'roi'],
+      ['Pays back', pb.status === 'paid_back' ? r.months[pb.month] : pb.status === 'never_negative' ? 'At once' : 'Not by ' + r.long.label, pb.status === 'not_within_horizon' ? 'bad' : '', 'payback']]);
+    testerChart($('d-test-chart'), r);
+    var vb = clear($('d-verdict'));
+    r.verdict.forEach(function (v) { var sec = el('section', { 'data-verdict-part': v.key }); sec.appendChild(partsInto(el('p'), v.parts)); vb.appendChild(sec); });
+    vb.appendChild(el('p', { class: 'd-note', 'data-test-checks': '' }, r.checks.passed === r.checks.total ? 'All ' + r.checks.total + ' model checks pass on this run.' : 'Model checks failing: ' + r.checks.failures.join('; ')));
+  }
+  // The decision's cumulative net cash, month by month: near term shaded, the payback month marked.
+  function testerChart(box, r) {
+    clear(box);
+    var s = r.series.netReturn, H = r.H, w = Math.max(280, box.clientWidth || 560), h = 220, m = { l: 56, r: 10, t: 18, b: 26 }, pw = w - m.l - m.r, ph = h - m.t - m.b;
+    var vals = [0]; for (var k = 1; k <= H; k++) vals.push(s[k]);
+    var sc = niceScale(Math.min.apply(null, vals), Math.max.apply(null, vals), 4);
+    function X(k) { return m.l + (k - 1) / Math.max(1, H - 1) * pw; }
+    function Y(v) { return m.t + (sc.hi - v) / (sc.hi - sc.lo) * ph; }
+    var g = svg('svg', { viewBox: '0 0 ' + w + ' ' + h, width: w, height: h, role: 'img', 'aria-label': 'Cumulative net cash of ' + r.name });
+    g.appendChild(svg('rect', { x: X(1), y: m.t, width: X(r.nearMonth) - X(1), height: ph, fill: 'var(--d-gold-wash)' }));
+    g.appendChild(svg('text', { x: X(1) + 6, y: m.t + 12, class: 'lbl' }, 'Near term'));
+    g.appendChild(svg('text', { x: X(r.nearMonth) + 6, y: m.t + 12, class: 'lbl' }, 'Long term'));
+    sc.ticks.forEach(function (tk) { g.appendChild(svg('line', { x1: m.l, x2: w - m.r, y1: Y(tk), y2: Y(tk), stroke: 'var(--d-grid)' })); g.appendChild(svg('text', { x: m.l - 8, y: Y(tk) + 4, 'text-anchor': 'end' }, axisMoney(tk))); });
+    g.appendChild(svg('line', { x1: m.l, x2: w - m.r, y1: Y(0), y2: Y(0), stroke: 'var(--d-slate)', 'stroke-dasharray': '3 3' }));
+    var d = ''; for (k = 1; k <= H; k++) d += (d ? 'L' : 'M') + X(k).toFixed(1) + ',' + Y(s[k]).toFixed(1);
+    g.appendChild(svg('path', { d: d + 'L' + X(H) + ',' + Y(0) + 'L' + X(1) + ',' + Y(0) + 'Z', fill: 'var(--d-plan-wash)' }));
+    g.appendChild(svg('path', { d: d, fill: 'none', stroke: 'var(--d-plan)', 'stroke-width': 2.2, 'data-series': 'decision' }));
+    [1, r.nearMonth, H].forEach(function (k2) { g.appendChild(svg('text', { x: X(k2), y: h - 6, 'text-anchor': k2 === 1 ? 'start' : k2 === H ? 'end' : 'middle' }, r.months[k2])); });
+    var pb = r.long.payback;
+    if (pb.status === 'paid_back') {
+      g.appendChild(svg('circle', { cx: X(pb.month), cy: Y(s[pb.month]), r: 4.5, fill: 'var(--d-gold)', stroke: 'var(--d-card)', 'stroke-width': 1.5, 'data-payback': String(pb.month) }));
+      g.appendChild(svg('text', { x: X(pb.month), y: Y(s[pb.month]) - 10, 'text-anchor': 'middle', class: 'v' }, 'Pays back ' + r.months[pb.month]));
+    }
+    g.appendChild(svg('text', { x: X(H), y: Y(s[H]) - 8, 'text-anchor': 'end', class: 'v' }, signedCompact(s[H])));
+    box.appendChild(g);
   }
   function addExampleInitiatives() {
     EXAMPLES.forEach(function (x) {
