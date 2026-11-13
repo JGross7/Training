@@ -188,7 +188,7 @@ const PAGE = 'file://' + path.join(ROOT, 'index.html');
     const verdict = await ev.textContent('.decision [data-verdict]');
     check('Trade show verdict in plain English', verdict === 'Costs $76.0K in Apr 2027. Adds 2.5 deals and $130.0K of new ARR, starting Sep 2027. Pays back in cash by Month 14, Feb 2028. NPV $202.2K. Keeps all 5 guardrails.', verdict);
     const effects = await ev.$$eval('.decision [data-guard-effect]', els => els.map(e => e.getAttribute('data-guard-effect')).join(','));
-    check('Trade show guardrails: all five pass, objective still not met', effects === 'objective:fails,cashFloor:passes,covenant:passes,runway:passes,cacPayback:passes,burnMultiple:passes,grossMargin:passes', effects);
+    check('Trade show guardrails: all five pass, objective still not met', effects === 'objective:fails,cashFloor:passes,runway:passes,cacPayback:passes,burnMultiple:passes,grossMargin:passes,covenant:passes', effects);
     const kpiRows = await ev.$$eval('.decision [data-kpi-row]', els => els.map(e => Array.from(e.children).map(c => c.textContent).join('|')));
     check('Trade show effect on CAC payback, burn multiple, runway, cash low point', kpiRows.join(' / ') ===
       'Blended CAC payback (Dec 2027)|18.0 months|17.9 months|-0.2 months / Burn multiple (Dec 2027)|1.76x|1.72x|-0.04x / ' +
@@ -484,6 +484,31 @@ const PAGE = 'file://' + path.join(ROOT, 'index.html');
     }
     check('Switching strategy reproduces T142', t142.every(x => !/want/.test(x)), t142.join(' '));
     check('A draft strategy is labelled Draft in the view', /Draft/.test(await st.textContent('#strategy-summary')));
+    // AUDIT-FINAL F3: decision cards show the active strategy's rows (SPEC.md 11.1)
+    await st.selectOption('#strategy-select', 'margin_expansion');
+    await st.waitForTimeout(300);
+    await st.click('[data-view-tab="initiatives"]');
+    const showUid = await st.evaluate(() => window.__APP__.state.initiatives[0].uid);
+    const me = await st.evaluate(u => ({ keys: Array.from(document.querySelectorAll('[data-init="' + u + '"] [data-guard-effect]')).map(e => e.getAttribute('data-guard-effect').split(':')[0]).join(','),
+      first: document.querySelector('[data-init="' + u + '"] [data-guard-effect] .gl-label').textContent }), showUid);
+    check('Decision card shows the active strategy\'s rows (margin expansion)', me.keys === 'objective,arrGrowth,cashFloor,grossMargin,covenant' && /^Objective: EBITDA margin/.test(me.first), JSON.stringify(me));
+    // AUDIT-FINAL F6 and F9: committed initiatives over the budget, and the badge note while the table rebuilds
+    await st.click('[data-view-tab="strategy"]');
+    await st.selectOption('#strategy-select', 'arr_growth_30');
+    await st.waitForTimeout(300);
+    await ready();
+    await st.fill('#budget-input', '500000'); await st.press('#budget-input', 'Enter');
+    const hubUid = await st.evaluate(() => window.__APP__.state.initiatives.filter(i => i.params.name === 'Hub pull-in')[0].uid);
+    await st.selectOption('[data-status-for="' + hubUid + '"]', 'committed');
+    const noteDuring = await st.evaluate(() => !document.getElementById('badge-note').hidden);
+    await ready();
+    await st.waitForFunction(() => document.getElementById('badge-note').hidden, null, { timeout: 30000 }).catch(() => {});
+    const ob = await st.evaluate(() => ({ note: document.querySelector('[data-tile="budgetUsed"] .t-note').textContent, explain: document.querySelector('[data-explain]').textContent,
+      badgeNote: document.getElementById('badge-note').hidden }));
+    check('Committed over budget: the tile says by how much, nothing is clipped', /^Over budget by \$981\.2K\./.test(ob.note) && /cost \$981\.2K more than the budget/.test(ob.explain), JSON.stringify(ob));
+    check('The badge says it is updating while the table rebuilds, and stops when done', noteDuring && ob.badgeNote, 'during ' + noteDuring + ', hidden after ' + ob.badgeNote);
+    await st.selectOption('[data-status-for="' + hubUid + '"]', 'candidate');
+    await ready();
     check('Badge 24/24 under another strategy', (await st.textContent('#badge')).trim() === 'Integrity 24/24', await st.textContent('#badge'));
     const stText = await st.evaluate(() => document.body.innerText);
     check('No em dashes in the Strategy view', !stText.includes('—'));
@@ -570,6 +595,28 @@ const PAGE = 'file://' + path.join(ROOT, 'index.html');
     await bph.click('#open-howto');
     const hw = await bph.evaluate(() => { const r = document.getElementById('howto').getBoundingClientRect(); return { l: r.left, r: r.right }; });
     check('Phone: the overlay fits the screen', hw.l >= 0 && hw.r <= 390, JSON.stringify(hw));
+
+    // AUDIT-FINAL F1: on a phone, the finished simulation tables and the learning tables scroll inside the card, not the page
+    const fp = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    fp.on('pageerror', e => errors.push(String(e)));
+    await fp.goto(PAGE);
+    await fp.click('[data-view-tab="initiatives"]'); await fp.click('#init-submit');
+    await fp.waitForSelector('[data-sim-table]', { timeout: 120000 });
+    await fp.waitForSelector('[data-sens]', { state: 'attached', timeout: 120000 });
+    await fp.evaluate(() => document.querySelectorAll('.decision details').forEach(d => { d.open = true; }));
+    const fuid = await fp.evaluate(() => window.__APP__.state.initiatives[0].uid);
+    const FL = '[data-learn="' + fuid + '"]';
+    await fp.check('[data-complete="' + fuid + '"]'); await fp.waitForSelector(FL + ' [data-actual]');
+    for (const [k, v] of [['leads', '160'], ['deals', '1'], ['arr', '48000']]) { await fp.fill(FL + ' [data-actual="' + k + '"]', v); await fp.press(FL + ' [data-actual="' + k + '"]', 'Tab'); }
+    await fp.waitForSelector(FL + ' [data-learn-updates]');
+    await fp.waitForSelector('[data-sens]', { state: 'attached', timeout: 120000 });
+    await fp.evaluate(() => document.querySelectorAll('.decision details').forEach(d => { d.open = true; }));
+    const fw = await fp.evaluate(() => document.documentElement.scrollWidth);
+    check('Phone: finished simulation, sensitivity and learning tables do not widen the page', fw <= 390, String(fw));
+    // AUDIT-FINAL F5: every compare column is integrity-checked
+    await fp.click('[data-view-tab="briefing"]');
+    const integ = await fp.$$eval('[data-compare-row="integrity"] td', tds => tds.map(td => td.textContent));
+    check('Compare columns carry the model checks of their runs', integ.length === 2 && integ.every(x => x === 'All pass'), integ.join(' | '));
 
     const text = await app.evaluate(() => document.body.innerText);
     const src = require('fs').readFileSync(path.join(ROOT, 'index.html'), 'utf8');

@@ -62,6 +62,8 @@ h1, h2, h3 { margin: 0; line-height: 1.25; }
 #badge.bad { color: var(--critical-ink); background: var(--critical-wash); border-color: transparent; }
 #badge.ok::before { content: "\2713"; }
 #badge.bad::before { content: "!"; font-weight: 800; }
+.badge-note { font-size: 12px; color: var(--ink-2); white-space: nowrap; }
+.badge-note[hidden] { display: none; }
 .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); cursor: pointer; font-size: 14px; font-weight: 550; }
 .btn:hover { background: var(--surface-2); }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
@@ -331,6 +333,7 @@ table.trace tbody th { min-width: 96px; }
 .scn-list .scn-when { color: var(--ink-2); font-size: 12px; }
 .scn-list label { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; cursor: pointer; }
 .learn { border-top: 1px solid var(--grid); padding-top: 14px; }
+.scroll-x { overflow-x: auto; max-width: 100%; }
 .learn-grid { display: grid; gap: 10px 16px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 170px), 1fr)); margin: 10px 0; }
 .learn-grid label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; }
 .learn-grid .control input { text-align: right; }
@@ -409,6 +412,7 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
     <div class="top-actions">
       <button type="button" class="btn ghost" id="open-howto" aria-haspopup="dialog" aria-controls="howto">How to read this</button>
       <div id="badge" role="status" aria-live="polite">Integrity: not run</div>
+      <span class="badge-note" id="badge-note" hidden>Updating</span>
       <button type="button" class="btn" id="open-assumptions" aria-controls="assumptions" aria-expanded="false">Assumptions <span class="count" id="change-count" hidden>0</span></button>
     </div>
   </div>
@@ -2344,11 +2348,10 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
       var x = { baseline: B, scenario: S, delta: deltaSeries(S, B), returns: computeReturns(B, S) };
       var SO = shiftOnly(row.shipMonth), benefitNpv = computeReturns(B, SO).npv;
       var vsR0 = computeReturns(R0, S), fr = freedTeam(A, ms, row.shipMonth, r);
-      var g = S.guardrails.items, pass = {};
-      GUARD_KEYS.forEach(function (k) { pass[k] = g[k].pass; });
+      var pass = strategyPassMap(S.strategy);
       return { k: row.k, shipMonth: row.shipMonth, p: row.p, monthsGained: P - row.shipMonth, x: x, shiftOnly: SO, vsR0: vsR0,
         returns: x.returns, benefitNpv: benefitNpv, costNpv: benefitNpv - x.returns.npv, freed: fr, npvWithFreedTeam: x.returns.npv + fr.presentValue,
-        costLines: S.acceleration[0].costLines, guardrails: pass, guardrailsPassed: S.guardrails.guardrailsPassed,
+        costLines: S.acceleration[0].costLines, guardrails: pass, guardrailsPassed: S.strategy.passed,
         sideBySide: sideBySide(sch, R0, B, [{ p: 1, S: S, vsR0: vsR0 }], row.shipMonth, firstDelay) };
     });
     // Expected case: every series weighted by the outcome probabilities.
@@ -2391,7 +2394,7 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
       presentValue: E(function (o) { return o.freed.presentValue; }) };
     ex.npvWithFreedTeam = ex.npv + ex.freed.presentValue;
     ex.guardrailPassShare = {};
-    GUARD_KEYS.forEach(function (k) { ex.guardrailPassShare[k] = E(function (o) { return o.guardrails[k] ? 1 : 0; }); });
+    Object.keys(outcomes[0].guardrails).forEach(function (k) { ex.guardrailPassShare[k] = E(function (o) { return o.guardrails[k] ? 1 : 0; }); });
     ex.sideBySide = sideBySide(sch, R0, B, outcomes.map(function (o) { return { p: o.p, S: o.x.scenario, vsR0: o.vsR0 }; }), sch.slip.expectedShipMonth, firstDelay);
 
     var on = outcomes[0];
@@ -2793,6 +2796,12 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
     }
     return null;
   }
+  // C23 (e)'s second path: budget cost rebuilt from the initiative inputs, not from a model run.
+  function rebuiltBudgetCost(A, inits) {
+    var H = A.horizonMonths, rb = rebuildInitiativeCosts(A, inits, H), cost = 0;
+    for (var m = A.portfolio.budgetFromMonth; m <= Math.min(A.portfolio.budgetToMonth, H); m++) cost += rb.investment[m] - rb.allocated[m];
+    return cost;
+  }
   // New cash inside the budget window, without the cost of existing staff time (SPEC.md 11.5).
   function budgetCostOf(A, R) {
     var P = A.portfolio, ic = R.initiativeCost, t = 0;
@@ -2855,6 +2864,7 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
     var setup = { A: A, strategy: s, list: list, parts: parts, n: parts.K.length, total: Math.pow(2, parts.K.length), B: B, plan: plan, alone: alone,
       tol: unitTol(s.objective.unit), ref: null };
     setup.ref = rowFromRun(setup, 0, runModel(A, parts.C.map(function (i) { return list[i]; })), true);
+    setup.rebuiltCost = [rebuiltBudgetCost(A, parts.C.map(function (i) { return list[i]; }))];
     return setup;
   }
   function rowFromRun(setup, set, R, isRef) {
@@ -2887,7 +2897,9 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
       if (set === 0) { out.push(setup.ref); continue; }
       var idxs = membersOfSet(setup.parts, set), why = invalidReason(setup.list, idxs);
       if (why) { out.push({ set: set, valid: false, reason: why, members: membersOfSet({ C: [], K: setup.parts.K }, set).map(function (i) { return setup.list[i].id; }) }); continue; }
-      out.push(rowFromRun(setup, set, runModel(setup.A, idxs.map(function (i) { return setup.list[i]; }))));
+      var members = idxs.map(function (i) { return setup.list[i]; });
+      out.push(rowFromRun(setup, set, runModel(setup.A, members)));
+      if (setup.rebuiltCost) setup.rebuiltCost[set] = rebuiltBudgetCost(setup.A, members); // checked by C23 (e)
     }
     return out;
   }
@@ -3103,7 +3115,9 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
     return { strategyId: sv.id, strategyName: sv.name, objective: sv.objective, guardrails: sv.guardrails, guardrailsPassed: sv.passed, guardrailsTotal: sv.total,
       arr12: S.arr.arr[gm], arrEnd: S.arr.arr[S.H], cashLow: S.cashTests.lowPoint, cashLowMonth: S.cashTests.lowPointMonth, cashLowLabel: S.months[S.cashTests.lowPointMonth],
       cashEnd: S.bs.cash[S.H], burnMultiple12: S.kpis.burnMultiple[gm], initiativeCost: x.returns.totalInvestment, npv: x.returns.npv,
-      initiatives: (initiatives || []).length, endLabel: S.months[S.H], H: S.H, cashFloor: A.guardrails.cashFloor };
+      initiatives: (initiatives || []).length, endLabel: S.months[S.H], H: S.H, cashFloor: A.guardrails.cashFloor,
+      checks: [x.baseline, S].map(function (R) { var c = runChecks(R); return { passed: c.filter(function (k) { return k.pass; }).length, total: c.length,
+        failures: c.filter(function (k) { return !k.pass; }).map(function (k) { return k.id + ' ' + k.reason; }) }; }) };
   }
 
   // ---------------------------------------------------------------------
@@ -3151,7 +3165,7 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
       var p0 = metricValue(P0, o), d = o.direction === 'down' ? -1 : 1;
       if (p0 !== null && o.value !== null) hap.push('That is ' + f(bChange(o.metric, o.unit, d * (o.value - p0))) + ' against the plan, from ' +
         (nChanged ? n(nChanged) + (nChanged === 1 ? ' changed assumption' : ' changed assumptions') : '') + (nChanged && nInc ? ' and ' : '') +
-        (nInc ? n(nInc) + (nInc === 1 ? ' initiative' : ' initiatives') + ' in the scenario (' + bList(input.included) + ')' : '') + '.');
+        (nInc ? n(nInc) + (nInc === 1 ? ' initiative' : ' initiatives') + ' in the scenario (' + bList(input.included.map(f)) + ')' : '') + '.');
     } else hap.push('This is the plan: the default assumptions with no initiatives added.');
     var low = R.cashTests.lowPoint, floor = A.guardrails.cashFloor;
     hap.push('Cash bottoms at ' + f(bMoney(low)) + ' in ' + f(R.months[R.cashTests.lowPointMonth]) + ', ' +
@@ -3161,8 +3175,8 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
       : 'All ' + n(sv.total) + ' guardrails hold.');
     (input.learning || []).forEach(function (l) {
       var r = {}; l.result.rows.forEach(function (x) { r[x.key] = x; });
-      hap.push(l.name + ' is complete: ' + f(Math.round(r.leads.actual).toLocaleString('en-US')) + ' leads against ' + f(Math.round(r.leads.expected).toLocaleString('en-US')) +
-        ' expected, ' + f(Number(r.deals.actual.toFixed(1)).toLocaleString('en-US')) + ' deals against ' + f(Number(r.deals.expected.toFixed(1)).toLocaleString('en-US')) +
+      hap.push(f(l.name) + ' is complete: ' + f(Math.round(r.leads.actual).toLocaleString('en-US')) + ' leads against ' + f(Math.round(r.leads.expected).toLocaleString('en-US')) +
+        ' expected, ' + f(Number(r.deals.actual.toFixed(1)).toLocaleString('en-US')) + (Number(r.deals.actual.toFixed(1)) === 1 ? ' deal' : ' deals') + ' against ' + f(Number(r.deals.expected.toFixed(1)).toLocaleString('en-US')) +
         ', and ' + f(bMoney(r.arr.actual)) + ' of new ARR against ' + f(bMoney(r.arr.expected)) + '.' +
         (l.applied ? ' The ' + l.result.channelName + ' conversion assumptions now reflect these actuals.' : ' Its lessons are not yet applied to the ' + l.result.channelName + ' assumptions.'));
     });
@@ -3174,7 +3188,7 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
       ', expansion adds ' + f(bMoney(ex)) + ', and churn and contraction take away ' + f(bMoney(lost)) + '.');
     var best = null;
     A.channelOrder.forEach(function (c) { var t = 0; for (var k = 1; k <= om; k++) t += R.funnel[c].newArr[k]; if (!best || t > best.t) best = { c: c, t: t }; });
-    if (best) why.push(A.channels[best.c].name + ' brings the most new ARR, ' + f(bMoney(best.t)) + ' of it.');
+    if (best) why.push(f(A.channels[best.c].name) + ' brings the most new ARR, ' + f(bMoney(best.t)) + ' of it.');
     if (nChanged || nInc) {
       var parts = [['new ARR', 'newArr'], ['expansion', 'expansion'], ['churn', 'churn'], ['contraction', 'contraction']].map(function (q) {
         var a1 = 0, b1 = 0; for (var k2 = 1; k2 <= om; k2++) { a1 += R.arr[q[1]][k2]; b1 += P0.arr[q[1]][k2]; }
@@ -3187,7 +3201,7 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
       if (g.headroom === null || !isFinite(g.headroom) || !g.limit) return;
       var rel = g.headroom / Math.abs(g.limit); if (!tight || rel < tight.rel) tight = { g: g, rel: rel };
     });
-    if (tight) why.push('The tightest guardrail is ' + tight.g.label.toLowerCase() + ': ' + f(bMetric(tight.g.metric, tight.g.unit, tight.g.value)) + ' against ' +
+    if (tight) why.push('Closest to its limit, measured as a share of that limit: ' + tight.g.label.toLowerCase() + ', ' + f(bMetric(tight.g.metric, tight.g.unit, tight.g.value)) + ' against ' +
       (tight.g.rule === 'at_least' ? 'a minimum of ' : 'a maximum of ') + f(bMetric(tight.g.metric, tight.g.unit, tight.g.limit)) + '.');
     sections.push({ key: 'why', title: 'Why', sentences: why });
     // 3. What to decide, and 4. the recommended portfolio with the main risk
@@ -3197,7 +3211,7 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
       rec.sentences.push('No recommendation until there are initiatives to choose from.');
     } else {
       var names = {}, ch = sel.chosen, u = sel.strategy.unit, met = o.metric;
-      sel.members.concat(sel.others).concat(sel.committed).forEach(function (x) { names[x.id] = x.name; });
+      sel.members.concat(sel.others).concat(sel.committed).forEach(function (x) { names[x.id] = x.name; f(x.name); }); // names are inputs, echoed as given
       var nm = function (ids) { return bList(ids.map(function (id) { return names[id] || id; })); };
       if (sel.overBudget) dec.push('The committed initiatives alone are ' + f(bMoney(sel.overBudget.amount)) + ' over the ' + f(bMoney(sel.budget)) + ' budget. Raise the budget or uncommit one.');
       else if (ch.members.length) dec.push('Approve ' + nm(ch.members) + ' for ' + f(bMoney(ch.budgetCost)) + ' of the ' + f(bMoney(sel.budget)) + ' budget.');
@@ -3226,7 +3240,7 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
       } else {
         var tg = null;
         sel.plan.guardrails.forEach(function (g) { if (g.headroom === null || !isFinite(g.headroom) || !g.limit) return; var rel = g.headroom / Math.abs(g.limit); if (!tg || rel < tg.rel) tg = { g: g, rel: rel }; });
-        if (tg) rec.sentences.push('Main risk (the stress test has not run yet): ' + tg.g.label.toLowerCase() + ' is the closest to its limit, at ' + f(bMetric(tg.g.metric, tg.g.unit, tg.g.value)) +
+        if (tg) rec.sentences.push('Main risk (the stress test has not run yet): ' + tg.g.label.toLowerCase() + ' is the closest to its limit as a share of that limit, at ' + f(bMetric(tg.g.metric, tg.g.unit, tg.g.value)) +
           ' against ' + f(bMetric(tg.g.metric, tg.g.unit, tg.g.limit)) + '.');
       }
     }
@@ -3335,18 +3349,18 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
         ck.ok(null, hit.count === MODEL_CHECK_COUNT && !hit.failures.length, 'Set ' + st + ' fails ' + hit.failures.join('; '));
       });
       // (e) budget cost rebuilt from the initiative inputs
-      var costSets = [];
-      if (total <= 4096) for (var e = 0; e < total; e++) costSets.push(e);
-      else { costSets = Object.keys(sets).map(Number); parts.K.forEach(function (k, jj) { costSets.push(1 << jj); }); }
-      costSets.forEach(function (st) {
-        var r = rows[st];
+      // Every valid row (AUDIT-FINAL F4). The rebuilt cost is recorded while the table is built, from the inputs.
+      var rebuilt = setup.rebuiltCost || [];
+      rows.forEach(function (r) {
         if (!r || !r.valid) return;
-        var idx3 = parts.C.slice();
-        for (var q = 0; q < n; q++) if (st & (1 << q)) idx3.push(parts.K[q]);
-        idx3.sort(function (a, b) { return a - b; });
-        var rb = rebuildInitiativeCosts(A, idx3.map(function (k) { return list[k]; }), H), cost = 0;
-        for (var m = A.portfolio.budgetFromMonth; m <= Math.min(A.portfolio.budgetToMonth, H); m++) cost += rb.investment[m] - rb.allocated[m];
-        ck.eq(null, r.budgetCost, cost, TOL_DOLLAR, 'Set ' + st + ' budget cost vs the initiative inputs');
+        var cost = rebuilt[r.set];
+        if (typeof cost !== 'number') {
+          var idx3 = parts.C.slice();
+          for (var q = 0; q < n; q++) if (r.set & (1 << q)) idx3.push(parts.K[q]);
+          idx3.sort(function (a, b) { return a - b; });
+          cost = rebuiltBudgetCost(A, idx3.map(function (k) { return list[k]; }));
+        }
+        ck.eq(null, r.budgetCost, cost, TOL_DOLLAR, 'Set ' + r.set + ' budget cost vs the initiative inputs');
       });
       // (f) the risk columns follow their formulas from the members' haircuts
       if (sel) {
@@ -4829,8 +4843,30 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
     };
   }
 
-  var GUARD_KEYS = ['objective', 'cashFloor', 'covenant', 'runway', 'cacPayback', 'burnMultiple', 'grossMargin'];
-  var FIVE_GUARDRAILS = ['cashFloor', 'runway', 'cacPayback', 'burnMultiple', 'grossMargin'];
+  // The objective, guardrail and watch rows of the active strategy for a run and its plan (SPEC.md 11.1: wherever
+  // the app shows "objective and guardrails" it shows the active strategy's rows). For the growth strategy these
+  // are the rows of section 2.18, which check C21 asserts.
+  function strategyGuardRows(S, B) {
+    var a = S.strategy, b = B.strategy, o = a.objective, ob = b.objective;
+    function effect(sp, bp) { return sp === bp ? (sp ? 'passes' : 'fails') : (sp ? 'fixes' : 'breaks'); }
+    var rows = [{ key: 'objective', kind: 'objective', label: o.label, metric: o.metric, unit: o.unit, rule: o.direction === 'down' ? 'at_most' : 'at_least',
+      target: o.target, scenario: o.value, baseline: ob.value, scenarioMonth: o.month || o.toMonth, baselineMonth: ob.month || ob.toMonth,
+      pass: o.met, baselinePass: ob.met, delta: finiteDelta(o.value, ob.value), effect: effect(o.met, ob.met) }];
+    [['guardrails', 'guardrail'], ['watch', 'watch']].forEach(function (k) {
+      a[k[0]].forEach(function (g, i) {
+        var gb = b[k[0]][i];
+        rows.push({ key: g.id, kind: k[1], label: g.label, metric: g.metric, unit: g.unit, rule: g.rule, target: g.limit, scenario: g.value, baseline: gb.value,
+          scenarioMonth: g.month || g.toMonth, baselineMonth: gb.month || gb.toMonth, pass: g.pass, baselinePass: gb.pass, delta: finiteDelta(g.value, gb.value),
+          effect: effect(g.pass, gb.pass) });
+      });
+    });
+    return rows;
+  }
+  function strategyPassMap(sr) {
+    var pass = { objective: sr.objective.met };
+    sr.guardrails.concat(sr.watch).forEach(function (g) { pass[g.id] = g.pass; });
+    return pass;
+  }
 
   // Everything a decision card shows, for one applyInitiatives result.
   function decisionView(x) {
@@ -4869,13 +4905,7 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
       return { id: id, label: label, unit: unit, better: better, month: month, baseline: pair.baseline, scenario: pair.scenario, delta: finiteDelta(pair.scenario, pair.baseline) };
     }
     var cl = r.cashLowPoint;
-    var guards = GUARD_KEYS.map(function (k) {
-      var s = S.guardrails.items[k], b = B.guardrails.items[k];
-      return { key: k, label: s.label, target: s.target, scenario: s.value, scenarioMonth: s.month, baseline: b.value, baselineMonth: b.month,
-        pass: s.pass, baselinePass: b.pass, delta: finiteDelta(s.value, b.value),
-        effect: s.pass === b.pass ? (s.pass ? 'passes' : 'fails') : (s.pass ? 'fixes' : 'breaks') };
-    });
-    function byKey(k) { return guards.filter(function (g) { return g.key === k; })[0]; }
+    var guards = strategyGuardRows(S, B);
     return {
       months: S.months, H: H, rows: rows, totals: t,
       cost: { total: r.totalInvestment, cash: t.cash, allocated: t.allocated, firstMonth: first, lastMonth: lastM, peakMonth: peak,
@@ -4894,8 +4924,8 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
           scenario: cl.scenario, scenarioMonth: cl.scenarioMonth, delta: cl.change }
       ],
       guardrails: guards,
-      guardrailsPassed: FIVE_GUARDRAILS.filter(function (k) { return byKey(k).pass; }).length,
-      guardrailsTotal: FIVE_GUARDRAILS.length,
+      guardrailsPassed: guards.filter(function (g) { return g.kind === 'guardrail' && g.pass; }).length,
+      guardrailsTotal: guards.filter(function (g) { return g.kind === 'guardrail'; }).length,
       breaks: guards.filter(function (g) { return g.effect === 'breaks'; }).map(function (g) { return g.key; }),
       fixes: guards.filter(function (g) { return g.effect === 'fixes'; }).map(function (g) { return g.key; }),
       trace: initiativeTrace(x)
@@ -7791,6 +7821,12 @@ window.TestSuite = (function () {
     });
     t.eq('Plan-case frontier steps', last.none.frontier.length, 82); t.eq('Risk-adjusted frontier steps', last.downside.frontier.length, 72);
     portfolioOk(t, 'The fifteen at 5,000,000, risk-adjusted', tab, last.downside);
+    // AUDIT-FINAL F4: C23 (e) covers every valid row, not only the rows that are rerun.
+    var rerun = {}; last.downside.frontier.forEach(function (f) { rerun[f.set] = 1; }); rerun[last.downside.chosenSet] = 1;
+    var victim = tab.rows.filter(function (r) { return r.valid && !rerun[r.set] && r.members.length >= 3 && r.set < 30000; })[0];
+    var tampered = Object.assign({}, tab, { rows: tab.rows.map(function (r) { return r.set === victim.set ? Object.assign({}, r, { budgetCost: r.budgetCost + 1 }) : r; }) });
+    var c23 = E.portfolioChecks({ table: tampered, selection: last.downside })[0];
+    t.ok('A wrong budget cost on row ' + victim.set + ' (not rerun) fails C23', !c23.pass && /budget cost vs the initiative inputs/.test(c23.reason), c23.reason);
     var sixteen = L.concat([E.templates.tradeShow(A0, { id: 'extra', month: 7 })]);
     rejected(t, 'Sixteen candidates', function () { E.portfolioSetup(A0, null, sixteen); }, 'Choose at most 15 candidates');
   });
@@ -7923,14 +7959,17 @@ window.TestSuite = (function () {
     t.ok(label + ': every number is an engine fact', r.bad.length === 0, r.bad.slice(0, 5).join(' | '));
     return r.text;
   }
+  // Number tokens: an exact match against the number tokens of the recorded facts (AUDIT-FINAL F2: a substring
+  // match let the 2 of a typed "2" pass because "$223.2K" contains a 2).
+  function numTokens(text) {
+    return (String(text).match(/[-+]?\$?\d[\d,]*(\.\d+)?[KMB%x]?/g) || []).map(function (tok) { return tok.replace(/^[+]/, '').replace(/,+$/, ''); });
+  }
   function briefScan(br) {
-    var text = [], bad = [];
+    var text = [], bad = [], known = {};
+    br.facts.forEach(function (f) { numTokens(f).forEach(function (k) { known[k] = 1; }); });
     br.sections.forEach(function (s) { text = text.concat(s.sentences); (s.items || []).forEach(function (x) { text.push(x.text); }); });
     text.forEach(function (sentence) {
-      (sentence.match(/[-+]?\$?\d[\d,]*(\.\d+)?[KMB%x]?/g) || []).forEach(function (tok) {
-        var core = tok.replace(/^[+]/, '').replace(/,+$/, '');
-        if (!br.facts.some(function (f) { return f.indexOf(core) >= 0; })) bad.push(tok + ' in "' + sentence + '"');
-      });
+      numTokens(sentence).forEach(function (core) { if (!known[core]) bad.push(core + ' in "' + sentence + '"'); });
     });
     return { text: text.join(' '), bad: bad };
   }
@@ -7948,6 +7987,8 @@ window.TestSuite = (function () {
     t.ok('Plan: nothing to decide yet', /nothing to decide yet/.test(txt));
     var typed = JSON.parse(JSON.stringify(br)); typed.sections[1].sentences.push('Sales should grow about $9.9M next year.');
     t.eq('A typed-in number is caught', briefScan(typed).bad.length, 1);
+    var part = JSON.parse(JSON.stringify(br)); part.sections[1].sentences.push('About $1.2 of it.');
+    t.eq('A number that is only part of a fact is caught ($1.2 is not $1.2M)', briefScan(part).bad.length, 1);
     var tab = eightTable(), sel = E.selectPortfolio(tab, eightScores().h, 500000), L8 = eightList(A0);
     var stress = E.simulatePortfolio(A0, null, L8, 51);
     var R51 = E.runModel(A0, L8.filter(function (i, k) { return 51 & (1 << k); }));
@@ -7968,7 +8009,7 @@ window.TestSuite = (function () {
     t.ok('At 600,000 it recommends set 45', /Approve Trade show, Hire 2 AEs, Paid search campaign and Partner program for \$595\.0K of the \$600\.0K budget/.test(tb), tb);
     var ex = E.learningExpected(A0, E.templates.tradeShow(A0)), L = E.learnFromActuals(A0, ex, { leads: 160, deals: 1, arr: 48000 });
     var c = briefFor(A0, B, B, null, null, { learning: [{ name: 'Trade show', result: L, applied: false }] }), tc = briefNumbersOk(t, 'With actuals', c);
-    t.ok('Completed trade show reported under What happened', /Trade show is complete: 160 leads against 200 expected, 1 deals against 2\.5, and \$48\.0K of new ARR against \$130\.0K/.test(c.sections[0].sentences.join(' ')), tc);
+    t.ok('Completed trade show reported under What happened', /Trade show is complete: 160 leads against 200 expected, 1 deal against 2\.5, and \$48\.0K of new ARR against \$130\.0K/.test(c.sections[0].sentences.join(' ')), tc);
     var edited = withA(function (x) { x.channels.paid.winRate = 0.2; }), Re = E.runModel(edited, []);
     var d = briefFor(edited, Re, Re, null, null, { changed: ['channels.paid.winRate'] }), td = briefNumbersOk(t, 'Edited assumption', d);
     t.ok('An edited assumption is reported against the plan', /against the plan, from 1 changed assumption\./.test(td), td);
@@ -7980,6 +8021,33 @@ window.TestSuite = (function () {
     t.d('ARR at month 12 equals applyInitiatives', s2.arr12, x.scenario.arr.arr[12]); t.d('Cost equals applyInitiatives', s2.initiativeCost, x.returns.totalInvestment);
     t.d('NPV equals applyInitiatives', s2.npv, x.returns.npv); t.d('Cash low point equals applyInitiatives', s2.cashLow, x.scenario.cashTests.lowPoint);
     t.d('Objective value equals the stored strategy row', s2.objective.value, x.scenario.strategy.objective.value);
+  });
+
+  // ===== Final audit regressions (AUDIT-FINAL.md) =====
+  test('T154', 'Audit F3: decision views show the active strategy\'s rows (SPEC.md 11.1)', function (t) {
+    var x = E.applyInitiatives(A0, [TRADE_SHOW]), v = E.decisionView(x), G = E.guardrails(x.scenario).items;
+    t.eq('Growth strategy rows', v.guardrails.map(function (g) { return g.key; }).join(','), 'objective,cashFloor,runway,cacPayback,burnMultiple,grossMargin,covenant');
+    v.guardrails.forEach(function (g) {
+      var row = G[g.key];
+      if (row.value === Infinity) t.eq(g.key + ' equals the 2.18 row', g.scenario, Infinity); else t.near(g.key + ' equals the 2.18 row', g.scenario, row.value, 1e-9);
+      t.eq(g.key + ' pass equals the 2.18 row', g.pass, row.pass);
+    });
+    t.eq('Five guardrails counted', v.guardrailsPassed + ' of ' + v.guardrailsTotal, '5 of 5');
+    var Am = withA(function (a) { a.activeStrategy = 'margin_expansion'; }), xm = E.applyInitiatives(Am, [E.templates.tradeShow(Am)]), vm = E.decisionView(xm);
+    t.eq('Margin expansion rows', vm.guardrails.map(function (g) { return g.key; }).join(','), 'objective,arrGrowth,cashFloor,grossMargin,covenant');
+    t.eq('Margin expansion objective label', vm.guardrails[0].label, 'EBITDA margin, trailing 12 months');
+    t.near('Objective value is the strategy row', vm.guardrails[0].scenario, xm.scenario.strategy.objective.value, 1e-12);
+    t.eq('Three guardrails counted', vm.guardrailsTotal, 3);
+    var ev = E.evaluateAcceleration(Am, E.templates.accelerateRevenue(Am));
+    t.eq('Pull-in pass shares use the strategy rows', Object.keys(ev.expected.guardrailPassShare).sort().join(','), 'arrGrowth,cashFloor,covenant,grossMargin,objective');
+    t.eq('Pull-in outcomes count the strategy guardrails', ev.outcomes[0].guardrailsPassed, ev.outcomes[0].x.scenario.strategy.passed);
+  });
+  test('T155', 'Audit F5: scenario summaries carry the model checks of their runs', function (t) {
+    var s = E.scenarioSummary(A0, [TRADE_SHOW]);
+    t.eq('Plan and scenario both checked', s.checks.length, 2);
+    s.checks.forEach(function (c, i) { t.eq('Run ' + (i + 1) + ' passes every model check', c.passed + '/' + c.total, E.MODEL_CHECK_COUNT + '/' + E.MODEL_CHECK_COUNT); });
+    var bad = withA(function (a) { a.guardrails.cashFloor = 14000000; }), sb = E.scenarioSummary(bad, []);
+    t.ok('A scenario whose two cash floors disagree reports the failing check', sb.checks[0].passed < sb.checks[0].total && /C10/.test(sb.checks[0].failures.join(' ')), sb.checks[0].failures.join(' '));
   });
 
   function run() {
@@ -8362,6 +8430,8 @@ window.TestSuite = (function () {
     badge.textContent = all.label;
     badge.className = all.passed === all.total ? 'ok' : 'bad';
     var building = state.strat.build || state.strat.checking;
+    $('badge-note').hidden = !building;
+    $('badge-note').textContent = 'Updating: portfolio checks show the last result';
     badge.title = (all.passed === all.total ? 'Every integrity check in SPEC.md passes on this recalculation.' : 'Some integrity checks fail. See the list below the header.') +
       (building ? ' The portfolio checks show the last complete result while it updates.' : '');
     var fails = [];
@@ -9264,8 +9334,6 @@ window.TestSuite = (function () {
   }
 
   // --- Words built from engine numbers --------------------------------------
-  var GUARD_NAMES = { objective: 'ARR objective', cashFloor: 'cash floor', covenant: 'covenant', runway: 'runway', cacPayback: 'CAC payback',
-    burnMultiple: 'burn multiple', grossMargin: 'gross margin' };
   function listWords(items) { return items.length <= 1 ? items.join('') : items.slice(0, -1).join(', ') + ' and ' + items[items.length - 1]; }
   function verdict(v) {
     var r = v.returns, c = v.cost, parts = [];
@@ -9277,9 +9345,9 @@ window.TestSuite = (function () {
     var pb = r.payback;
     parts.push(pb.status === 'paid_back' ? 'Pays back in cash by ' + monthPhrase(pb.month) + '.' : pb.status === 'not_within_horizon' ? 'Does not pay back within ' + v.H + ' months.' : '');
     parts.push('NPV ' + compact(r.npv) + '.');
-    if (v.breaks.length) parts.push('Breaks the ' + listWords(v.breaks.map(function (k) { return GUARD_NAMES[k]; })) + (v.breaks.length > 1 ? ' guardrails.' : ' guardrail.'));
+    if (v.breaks.length) parts.push('Breaks the ' + listWords(v.breaks.map(function (k) { return guardName(v.guardrails, k); })) + (v.breaks.length > 1 ? ' guardrails.' : ' guardrail.'));
     else parts.push(v.guardrailsPassed === v.guardrailsTotal ? 'Keeps all ' + v.guardrailsTotal + ' guardrails.' : 'Changes no guardrail result (' + v.guardrailsPassed + ' of ' + v.guardrailsTotal + ' pass).');
-    if (v.fixes.length) parts.push('Fixes the ' + listWords(v.fixes.map(function (k) { return GUARD_NAMES[k]; })) + '.');
+    if (v.fixes.length) parts.push('Fixes the ' + listWords(v.fixes.map(function (k) { return guardName(v.guardrails, k); })) + '.');
     return parts.filter(Boolean).join(' ');
   }
   function kpiValue(k, x, month) {
@@ -9294,18 +9362,13 @@ window.TestSuite = (function () {
     var txt = k.unit === 'money' ? compact(Math.abs(k.delta)) : k.unit === 'multiple' ? Math.abs(k.delta).toFixed(2) + 'x' : Math.abs(k.delta).toFixed(1) + ' months';
     return { text: signed(txt, k.delta), cls: (k.delta > 0) === (k.better === 'up') ? 'good' : 'bad' };
   }
+  // One row of the active strategy (objective, guardrail or watch line), formatted by its metric.
   function guardText(g) {
-    function val(x) {
-      if (g.key === 'objective' || g.key === 'cashFloor' || g.key === 'covenant') return compact(x);
-      if (g.key === 'grossMargin') return pct(x);
-      if (g.key === 'burnMultiple') return isNum(x) && x >= 0 ? x.toFixed(2) + 'x' : 'Not burning';
-      return x === Infinity ? 'Not burning' : isNum(x) ? x.toFixed(1) + ' months' : 'n/a';
-    }
-    var target = g.key === 'objective' || g.key === 'cashFloor' || g.key === 'covenant' ? compact(g.target) : g.key === 'grossMargin' ? pct(g.target, 0)
-      : g.key === 'burnMultiple' ? plain(g.target) + 'x' : plain(g.target) + ' months';
-    var op = g.key === 'cacPayback' || g.key === 'burnMultiple' ? 'at most ' : 'at least ';
-    return val(g.scenario) + ' with it, ' + val(g.baseline) + ' in the plan. Needs ' + op + target + '.';
+    function val(x, pass) { return metricText(g.metric, g.unit, x, pass); }
+    var op = g.kind === 'objective' ? 'Target ' : g.rule === 'at_most' ? 'Needs at most ' : 'Needs at least ';
+    return val(g.scenario, g.pass) + ' with it, ' + val(g.baseline, g.baselinePass) + ' in the plan. ' + op + metricText(g.metric, g.unit, g.target, true) + '.';
   }
+  function guardName(rows, k) { var r = rows.filter(function (g) { return g.key === k; })[0]; return r ? (r.kind === 'objective' ? 'objective' : r.label.toLowerCase()) : k; }
   var EFFECT = { passes: ['pass', 'Passes'], fails: ['fail', 'Still fails'], breaks: ['fail', 'Breaks'], fixes: ['pass', 'Fixes'] };
 
   function calcNotes(v, it) {
@@ -9673,7 +9736,7 @@ window.TestSuite = (function () {
     });
     t.appendChild(tb);
     var g = el('div', { class: 'd-grid d-section' }), c1 = el('div'), c2 = el('div');
-    c1.appendChild(t);
+    var tw = el('div', { class: 'scroll-x' }); tw.appendChild(t); c1.appendChild(tw); // phones: the table scrolls, not the page
     c1.appendChild(el('p', { class: 'd-note' }, 'For payback, P10 is the earliest tenth of runs and P90 the latest. "Plan" is the deterministic case' +
       (d.paybackStatus && TEMPLATE_UI[state.initiatives.filter(function (x) { return x.uid === uid; })[0].template].accel ? ': the expected case over the ship dates.' : '.')));
     var nc = el('div', { class: 'chart', 'data-chart': 'npv-spread' });
@@ -9695,7 +9758,7 @@ window.TestSuite = (function () {
       [DRIVER_NAMES[x.key] || x.key, driverEnd(x, x.low), compact(x.npvLow), driverEnd(x, x.high), compact(x.npvHigh), x.swing < 0.5 ? 'None' : compact(x.swing)].forEach(function (v) { tr.appendChild(el('td', null, v)); });
       stb.appendChild(tr);
     });
-    st.appendChild(stb); sd.appendChild(st);
+    st.appendChild(stb); var sw = el('div', { class: 'scroll-x' }); sw.appendChild(st); sd.appendChild(sw); // phones: the table scrolls, not the page
     sd.appendChild(el('p', { class: 'd-note' }, 'Each driver is moved to the ends of its simulation range on every channel or milestone at once, with everything else as planned.'));
     c2.appendChild(sd);
     g.appendChild(c1); g.appendChild(c2); box.appendChild(g);
@@ -9725,14 +9788,13 @@ window.TestSuite = (function () {
     parts.push('Expected cost ' + compact(av.cost.expected.total) + (av.cost.span.first ? ', from ' + monthName(av.cost.span.first) + ' to ' + monthName(av.cost.span.last) : '') + '.');
     parts.push('Expected NPV ' + compact(r.npv) + (r.payback.status === 'paid_back' ? ', paying back in cash by ' + monthPhrase(r.payback.month) : r.payback.status === 'not_within_horizon' ? ', not paid back within ' + av.H + ' months' : '') + '.');
     if (isNum(r.valuePerMonthGained)) parts.push('A month sooner is worth ' + compact(r.valuePerMonthGained) + ' and costs ' + compact(r.costPerMonthGained) + ' to buy.');
-    var weak = FIVE.filter(function (k) { return av.passShare[k] < 1 - 1e-9; });
     var pv = av.planning;
-    if (pv.breaks.length) parts.push('Breaks the ' + listWords(pv.breaks.map(function (k) { return GUARD_NAMES[k]; })) + ' in the planning case.');
+    var weak = pv.guardrails.filter(function (g) { return g.kind === 'guardrail'; }).map(function (g) { return g.key; }).filter(function (k) { return av.passShare[k] < 1 - 1e-9; });
+    if (pv.breaks.length) parts.push('Breaks the ' + listWords(pv.breaks.map(function (k) { return guardName(pv.guardrails, k); })) + ' in the planning case.');
     else parts.push(pv.guardrailsPassed === pv.guardrailsTotal ? 'Keeps all ' + pv.guardrailsTotal + ' guardrails in the planning case.' : pv.guardrailsPassed + ' of ' + pv.guardrailsTotal + ' guardrails pass in the planning case.');
-    if (weak.length) parts.push(listWords(weak.map(function (k) { return 'The ' + GUARD_NAMES[k] + ' passes in ' + pct(av.passShare[k], 0) + ' of outcomes'; })) + '.');
+    if (weak.length) parts.push(listWords(weak.map(function (k) { return 'The ' + guardName(pv.guardrails, k) + ' passes in ' + pct(av.passShare[k], 0) + ' of outcomes'; })) + '.');
     return parts.join(' ');
   }
-  var FIVE = ['cashFloor', 'runway', 'cacPayback', 'burnMultiple', 'grossMargin'];
 
   // Stacked monthly bars (cost by line) or simple bars with an optional line (benefit).
   function monthBars(box, v, rows, series, opts) {
@@ -10036,7 +10098,7 @@ window.TestSuite = (function () {
     var gl = el('ul', { class: 'guard-list' });
     pv.guardrails.forEach(function (x) {
       var li = el('li', { 'data-guard-effect': x.key + ':' + x.effect });
-      li.appendChild(el('span', { class: 'gl-label' }, x.key === 'objective' ? 'ARR objective, ' + monthName(x.scenarioMonth) : x.label));
+      li.appendChild(el('span', { class: 'gl-label' }, x.kind === 'objective' ? 'Objective: ' + x.label + ', ' + monthName(x.scenarioMonth) : (x.kind === 'watch' ? 'Watch: ' : '') + x.label));
       var e = x.key === 'objective' ? (x.pass ? ['pass', x.baselinePass ? 'Met' : 'Now met'] : ['fail', 'Not met']) : EFFECT[x.effect];
       li.appendChild(el('span', { class: 'pill ' + e[0] }, e[1]));
       var share = av.passShare[x.key];
@@ -10157,7 +10219,7 @@ window.TestSuite = (function () {
     var gl = el('ul', { class: 'guard-list' });
     v.guardrails.forEach(function (x) {
       var li = el('li', { 'data-guard-effect': x.key + ':' + x.effect });
-      li.appendChild(el('span', { class: 'gl-label' }, x.key === 'objective' ? 'ARR objective, ' + monthName(x.scenarioMonth) : x.label));
+      li.appendChild(el('span', { class: 'gl-label' }, x.kind === 'objective' ? 'Objective: ' + x.label + ', ' + monthName(x.scenarioMonth) : (x.kind === 'watch' ? 'Watch: ' : '') + x.label));
       var e = x.key === 'objective' ? (x.pass ? ['pass', x.baselinePass ? 'Met' : 'Now met'] : ['fail', 'Not met']) : EFFECT[x.effect];
       li.appendChild(el('span', { class: 'pill ' + e[0] }, e[1]));
       li.appendChild(el('span', { class: 'gl-note' }, guardText(x)));
@@ -10196,7 +10258,7 @@ window.TestSuite = (function () {
     tiles.appendChild(tile('New ARR', compact(T.newArr), null, 'newArr'));
     tiles.appendChild(tile('ARR change, ' + monthName(v.arr.objectiveMonth), signedCompact(v.arr.atObjective), null, 'arr'));
     tiles.appendChild(tile('Guardrails', v.guardrailsPassed + ' of ' + v.guardrailsTotal + ' pass',
-      v.breaks.length ? 'Breaks the ' + listWords(v.breaks.map(function (k) { return GUARD_NAMES[k]; })) : 'None broken', 'guardrails'));
+      v.breaks.length ? 'Breaks the ' + listWords(v.breaks.map(function (k) { return guardName(v.guardrails, k); })) : 'None broken', 'guardrails'));
     box.appendChild(tiles);
   }
   function renderInitiatives() {
@@ -10290,7 +10352,7 @@ window.TestSuite = (function () {
       return;
     }
     S.build = { setup: setup, rows: [], total: setup.total, started: Date.now() };
-    renderStrategy();
+    renderStrategy(); renderBadge(); // the badge says it shows the last complete portfolio result (SPEC.md 11.10)
     function step() {
       if (gen !== S.gen) return;
       var b = S.build, to = Math.min(b.total, b.rows.length + STRAT_CHUNK);
@@ -10494,7 +10556,7 @@ window.TestSuite = (function () {
     if (document.activeElement !== input) input.value = whole(A.portfolio.budget);
     $('budget-window').textContent = monthName(A.portfolio.budgetFromMonth) + ' to ' + monthName(Math.min(A.portfolio.budgetToMonth, A.horizonMonths));
     $('risk-toggle').checked = !none;
-    $('risk-label').textContent = 'Count only what we can rely on (P' + Math.round((raw.risk.percentile || 0.1) * 100) + ' of each initiative\'s simulation)';
+    $('risk-label').textContent = 'Count only what we can rely on' + (isNum(raw.risk.percentile) ? ' (P' + Math.round(raw.risk.percentile * 100) + ' of each initiative\'s simulation)' : '');
     $('budget-hint').textContent = none ? 'Plan case: every initiative counts at its planned value.'
       : 'Each initiative counts at its plan value less a haircut for risk, so the pick favors what is likely to arrive.';
     if (S.error) { box.appendChild(el('div', { class: 'status-note', role: 'alert' }, 'The search cannot run: ' + S.error + '.')); return; }
@@ -10518,7 +10580,8 @@ window.TestSuite = (function () {
     else head += c.members.length ? 'The best one that fits ' + compact(sel.budget) + ' is ' + nm(c.members) + '.' : 'Within ' + compact(sel.budget) + ', the best choice is to add nothing.';
     box.appendChild(el('p', { class: 'explain', 'data-explain': '' }, head));
     var tiles = el('ul', { class: 'tiles' });
-    tiles.appendChild(tile('Budget used', compact(c.budgetCost), 'Unspent ' + compact(Math.max(0, sel.plan.unspent)) + '. ' + compact(c.totalInvestment) + ' over 36 months.', 'budgetUsed'));
+    tiles.appendChild(tile('Budget used', compact(c.budgetCost), (sel.overBudget ? 'Over budget by ' + compact(sel.overBudget.amount) : 'Unspent ' + compact(sel.plan.unspent)) + '. ' +
+      compact(c.totalInvestment) + ' over ' + state.res.baseline.H + ' months.', 'budgetUsed'));
     tiles.appendChild(tile('Adds to objective', changeText(metric, unit, c.contribution), 'Plan case, all together', 'contribution'));
     if (!none) tiles.appendChild(tile('We can count on', changeText(metric, unit, c.riskAdjusted), 'After a ' + changeText(metric, unit, c.haircut).replace(/^\+/, '') + ' haircut for risk', 'riskAdjusted'));
     tiles.appendChild(tile('Gap still open', metricText(metric, unit, c.shortfall), none ? 'Target minus the plan with these initiatives' : 'Counting only what we can rely on', 'shortfall'));
@@ -10553,7 +10616,7 @@ window.TestSuite = (function () {
       sel.others.forEach(function (o) {
         var tr = el('tr', { 'data-other': o.id }); tr.appendChild(el('th', { scope: 'row' }, o.name));
         var whyText = REASON_WORDS[o.reason];
-        if (o.reason === 'breaks_guardrail' && o.detail) whyText += ': ' + o.detail.map(function (g) { return g.label.toLowerCase() + ' ' + metricText(S.table.setup.strategy.guardrails.filter(function (x) { return x.id === g.id; })[0].metric, null, g.value); }).join(', ');
+        if (o.reason === 'breaks_guardrail' && o.detail) whyText += ': ' + o.detail.map(function (g) { var line = S.table.setup.strategy.guardrails.filter(function (x) { return x.id === g.id; })[0]; return g.label.toLowerCase() + ' ' + metricText(line.metric, line.unit, g.value); }).join(', ');
         if (o.reason === 'conflict' && o.detail) whyText += o.detail.kind === 'requires' ? ': needs ' + (names[o.detail.missing] || o.detail.missing) : o.detail.kind === 'exclusive' ? ': one of a group' : ': same milestone';
         tr.appendChild(el('td', { class: 'wrap', 'data-reason': o.reason }, whyText));
         tr.appendChild(el('td', { class: 'wrap' }, o.bestWith === null ? (o.reason === 'excluded' ? '' : 'None within the budget') : nm(o.bestWithMembers)));
@@ -10796,7 +10859,7 @@ window.TestSuite = (function () {
       tr.appendChild(el('td', { class: isNum(r.ratio) ? (r.ratio >= 1 ? 'good' : 'bad') : '' }, isNum(r.ratio) ? pct(r.ratio, 0) : 'n/a'));
       tb.appendChild(tr);
     });
-    t.appendChild(tb); box.appendChild(t);
+    t.appendChild(tb); var sx = el('div', { class: 'scroll-x' }); sx.appendChild(t); box.appendChild(sx);
     var notes = [];
     var lr = L.rows[0];
     if (isNum(lr.ratio) && Math.abs(lr.ratio - 1) > 1e-9) notes.push('Lead volume came in at ' + pct(lr.ratio, 0) + ' of expected. That is about this one initiative, so it changes no channel rate.');
@@ -10815,7 +10878,7 @@ window.TestSuite = (function () {
       var tr = el('tr', { 'data-update': x.path }); tr.appendChild(el('td', null, x.label)); tr.appendChild(el('td', null, fm(x.from)));
       tr.appendChild(el('td', { class: 'moved' }, fm(x.to))); ub.appendChild(tr);
     });
-    u.appendChild(ub); box.appendChild(u);
+    u.appendChild(ub); var sx2 = el('div', { class: 'scroll-x' }); sx2.appendChild(u); box.appendChild(sx2);
     var act = el('div', { class: 'form-actions' });
     if (c.applied) {
       box.appendChild(el('p', { class: 'd-note', 'data-applied': '' }, 'Applied. Every estimate that uses the ' + L.channelName + ' funnel now uses these rates; they show as changed in Assumptions.'));
@@ -10939,6 +11002,9 @@ window.TestSuite = (function () {
     row('initiatives', 'Initiatives included', function (s) { return String(s.initiatives); });
     row('cost', 'Initiative cost, 36 months', function (s) { return compact(s.initiativeCost); });
     row('npv', 'Initiative NPV', function (s) { return compact(s.npv); });
+    row('integrity', 'Model checks (plan and scenario)', function (s) {
+      return s.checks.every(function (c) { return c.passed === c.total; }) ? 'All pass' : 'Failing: ' + s.checks.map(function (c) { return c.failures.join('; '); }).join(' ');
+    });
     t.appendChild(tb); w.appendChild(t); cbox.appendChild(w);
     cbox.appendChild(el('p', { class: 'd-note' }, 'Each column runs its own saved assumptions and the initiatives it included. Initiatives not included in a scenario are left out of its figures.'));
   }
