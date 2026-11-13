@@ -3805,7 +3805,7 @@ table.fin td select { padding: 4px 24px 4px 8px; font-size: 12.5px; }
           isTargetYear ? { key: 'target', value: arr - sv.objective.target, unit: 'money', good: arr >= sv.objective.target, label: 'vs target' }
             : { key: 'growth', value: R.kpis.arrGrowth[m], unit: 'pct', good: R.kpis.arrGrowth[m] >= 0, label: 'growth' }],
         caption: [T('The funded plan adds '), F(bMoney(arr - arrB)), T(' of ARR by '), F(R.months[m])].concat(isTargetYear ? [T('; the target is '), F(bMoney(sv.objective.target)), T('.')] : [T('.')]) },
-      { key: 'growth', label: 'Revenue growth', value: rg, unit: 'pct', series: { with: R.kpis.revenueGrowth.map(function (x, k) { return k < 12 ? null : x; }), plan: B.kpis.revenueGrowth.map(function (x, k) { return k < 12 ? null : x; }) }, month: m, showPlan: true,
+      { key: 'growth', label: 'Revenue growth', basis: onArr ? 'arr' : 'revenue', value: rg, unit: 'pct', series: { with: R.kpis.revenueGrowth.map(function (x, k) { return k < 12 ? null : x; }), plan: B.kpis.revenueGrowth.map(function (x, k) { return k < 12 ? null : x; }) }, month: m, showPlan: true,
         chips: [{ key: 'plan', value: rg !== null && rgB !== null ? rg - rgB : null, unit: 'pts', good: rg !== null && rgB !== null && rg >= rgB, label: 'vs plan' },
           { key: 'revenue', value: rev, unit: 'money', good: null, label: 'revenue in the year' }],
         caption: onArr ? [T('The model starts in '), F(R.months[1]), T(', so the first year is measured on ARR.')]
@@ -12005,6 +12005,8 @@ window.TestSuite = (function () {
     }
     v.cards.forEach(function (c) {
       var k = box.querySelector('[data-dkpi="' + c.key + '"]');
+      // In the first year the model has no prior-year revenue, so growth is measured on ARR, and the card says so
+      k.querySelector('.d-label').textContent = c.label + (c.basis === 'arr' ? ' (on ARR)' : '');
       setNum(k.querySelector('.d-value'), c.value, function (x) { return dashFmt(c.unit, x); });
       var chips = clear(k.querySelector('.d-chips'));
       c.chips.forEach(function (ch) {

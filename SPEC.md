@@ -3408,7 +3408,7 @@ At 500,000: ARR growth 27.0426% in 2027 (1.84 points above the plan), invested 9
 
 Below the cards, the guardrail strip shows the active strategy's guardrails and watch line for the run `R`, over their own windows (cash floor, runway, CAC payback, burn multiple, gross margin, covenant): value, limit and pass. Lowest cash and the burn multiple appear there, not as cards.
 
-The briefing has three short sections: what happened (ARR against the target, the guardrails, the lowest cash), why (the plan, its value and value per dollar, and what would fit but lower it) and what to decide (approve the plan against the budget, and the next step). The cards carry no caption on screen; the view keeps them for the Analyst view and the tests. Every sentence is a list of parts: text, an engine number (a fact) or an initiative or guardrail name (an input, recorded as given). No text part contains a digit.
+The briefing has three short sections: what happened (ARR against the target, the guardrails, the lowest cash), why (the plan, its value and value per dollar, and what would fit but lower it) and what to decide (approve the plan against the budget, and the next step). In the first year the growth card is labelled "Revenue growth (on ARR)". The cards carry no caption on screen; the view keeps them for the Analyst view and the tests. Every sentence is a list of parts: text, an engine number (a fact) or an initiative or guardrail name (an input, recorded as given). No text part contains a digit.
 
 ### 13.6 Test a decision
 

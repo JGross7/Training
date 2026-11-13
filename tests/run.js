@@ -642,12 +642,14 @@ const APP = PAGE + '?mode=analyst'; // the detailed app (the bare page opens the
     const at500 = await read();
     check('Net cash return is the plan\'s return over the model: +$1.26M, positive', Math.abs(at500.ret - 1258869.63) < 0.01, String(at500.ret));
     check('Revenue growth for 2027 is shown', Math.abs(at500.growth - 0.270426) < 0.000001, String(at500.growth));
+    check('The first year says its growth is measured on ARR', (await dp.textContent('[data-dkpi="growth"] .d-label')) === 'Revenue growth (on ARR)');
     check('At $500K: fund trade show, SDRs and partner program for $919.7K of value', at500.set === '35' && Math.abs(at500.big - 919707.86) < 0.01 &&
       at500.bars === '+$466.6K +$305.2K +$147.9K $919.7K', JSON.stringify(at500).slice(0, 300));
     check('Each proposal left out says why', at500.out === 'AE hires:over_budget, Paid search campaign:over_budget, Paid social test:lowers_value, Hub pull-in:over_budget, Hosting pull-in:over_budget', at500.out);
     check('The next step is named', at500.next === 'Next step: +$168.2K budget adds $43.5K.', at500.next);
     await dp.click('.d-seg [data-year="3"]');
     const y3 = await read();
+    check('Later years are plain revenue growth', (await dp.textContent('[data-dkpi="growth"] .d-label')) === 'Revenue growth');
     const growth29 = await dp.evaluate(() => window.__APP__.state.dashView.cards[1].value);
     check('2029: revenue growth and the cash river move to the year; the return stays the whole plan\'s', Math.abs(y3.growth - growth29) < 1e-9 && y3.growth !== at500.growth && Math.abs(y3.ret - 1258869.63) < 0.01 &&
       /^Dec 2029/.test(await dp.textContent('#d-stand-sub')) && /Jan 2029 to Dec 2029/.test(await dp.textContent('#d-river-sub')), JSON.stringify({ ret: y3.ret, growth: y3.growth }));
